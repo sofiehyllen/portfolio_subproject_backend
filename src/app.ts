@@ -6,7 +6,7 @@ export const app = express();
 
 app.use(express.json());
 
-app.use('/titles', titlesRouter);
+app.use('/api/titles', titlesRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'no such endpoint' });
