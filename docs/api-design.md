@@ -13,17 +13,17 @@ instructors (id, name, department, salary).
 
 | Resource | What it is | Why it earns a place in the API |
 |---|---|---|
-| Title | A film, series or episode from IMDb, with plot, genres, rating and credits | The centre of the application: every search ends at a title |
-| Person | An actor, director, writer etc., with a name rating | Browsing people, co-players, bookmarking persons |
-| User | A registered account | Owner of all personal data; register, view, update, delete |
+| Title | A film, series or episode from IMDb, with plot, genres, rating and credits. Its credits, actors and similar titles are sub-collections. | The centre of the application that users search for and browse; most searches end at a title|
+| Person | An actor, director, writer etc., with name rating, professions and known-for titles. Their credits, co-players and frequent words are sub-collections | Browsing people and following them to their titles; the target of person searches |
+| User | A registered account, which owns its title ratings, bookmarks (on titles and persons) and search history | Owner of all personal data; register, view, update, delete |
 <!-- | Token **** | Proof of a successful login | The API is stateless, so login creates a credential the client sends on later requests | -->
 
 **IMDb data** (titles, persons and everything derived from them) is read-only: no `POST`, `PUT`, `PATCH` or `DELETE`.
 **Framework data** (users, ratings, bookmarks, search history) supports CRUD (create, read, update and delete) where the operation makes sense (bookmarks and history entries have nothing to update).
 
-**Not exposed:** `word_index` and `weighted_word_index`. They are the machinery
+<!-- **Not exposed:** `word_index` and `weighted_word_index`. They are the machinery
 behind keyword search. Clients get search results, never index rows, and
-exposing them would tie the contract to an implementation detail.
+exposing them would tie the contract to an implementation detail. -->
 
 
 ## 2. Paths
