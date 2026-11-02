@@ -11,16 +11,20 @@ instructors (id, name, department, salary).
 
 ## 1. Resources
 
-Which things does this API expose? Remember that a resource is a concept, not
-a table and not a row, and that not every table has to become one.
-
 | Resource | What it is | Why it earns a place in the API |
 |---|---|---|
-|  |  |  |
-|  |  |  |
+| Title | A film, series or episode from IMDb, with plot, genres, rating and credits | The centre of the application: every search ends at a title |
+| Person | An actor, director, writer etc., with a name rating | Browsing people, co-players, bookmarking persons |
+| User | A registered account | Owner of all personal data; register, view, update, delete |
+<!-- | Token **** | Proof of a successful login | The API is stateless, so login creates a credential the client sends on later requests | -->
 
-Name one thing in the database that you decided **not** to expose, and say
-why.
+**IMDb data** (titles, persons and everything derived from them) is read-only: no `POST`, `PUT`, `PATCH` or `DELETE`.
+**Framework data** (users, ratings, bookmarks, search history) supports CRUD (create, read, update and delete) where the operation makes sense (bookmarks and history entries have nothing to update).
+
+**Not exposed:** `word_index` and `weighted_word_index`. They are the machinery
+behind keyword search. Clients get search results, never index rows, and
+exposing them would tie the contract to an implementation detail.
+
 
 ## 2. Paths
 
