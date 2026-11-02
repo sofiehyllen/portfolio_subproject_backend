@@ -28,14 +28,33 @@ exposing them would tie the contract to an implementation detail. -->
 
 ## 2. Paths
 
-Write the paths. Plural nouns, no verbs, and a path identifies while a query
-parameter narrows.
-
 | Path | What it identifies |
 |---|---|
-| `/…` |  |
-| `/…/{…}` |  |
-| `/…/{…}/…` |  |
+| `/api/titles` | The collection of titles (narrowed by search parameters) |
+| `/api/titles/{tconst}` | One specific title |
+| `/api/titles/{tconst}/actors` | The actors of a title (ranked by name rating) |
+| `/api/titles/{tconst}/similar` | Movies similar to a title (based on shared genres) |
+| `/api/persons` | The collection of persons (narrowed by `name`, `actorsOnly`) |
+| `/api/persons/{nconst}` | One specific person |
+| `/api/persons/{nconst}/titles` | The titles a person has been in |
+| `/api/persons/{nconst}/co-players` | Actors who have co-acted with this person (ranked by frequency) |
+| `/api/persons/{nconst}/words` | The most frequent words across this person's titles |
+| `/api/related-words` | Words associated with the titles that match given words |
+| `/api/users` | The collection of users (only `POST` is offered, to register) |
+| `/api/users/{uid}` | One specific user (profile) |
+| `/api/users/{uid}/password` | The user’s password (write-only: it can be replaced but never read)|
+| `/api/auth/tokens` | Tokens (only `POST` is offered, to log in) |
+| `/api/users/{uid}/ratings` | A user's list of active ratings (rating history) |
+| `/api/users/{uid}/ratings/{tconst}` | A user's rating of one specific title |
+| `/api/users/{uid}/bookmarks/titles` | A user's list of bookmarked titles |
+| `/api/users/{uid}/bookmarks/titles/{tconst}` | One specific title bookmark |
+| `/api/users/{uid}/bookmarks/persons` | A user's list of bookmarked persons |
+| `/api/users/{uid}/bookmarks/persons/{nconst}` | One specific person bookmark |
+| `/api/users/{uid}/search-history` | A user's list of search history |
+| `/api/users/{uid}/search-history/{sconst}` | One specific search-history entry |
+
+Ownership is expressed as a sub-resource (`/api/users/{uid}/ratings`): a rating only exists in the context of a user.
+Narrowing is expressed as a query parameter (`/api/titles?keywords=space`): a search does not identify a new thing, it narrows a collection.
 
 ## 3. Operations
 
