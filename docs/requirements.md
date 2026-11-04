@@ -24,9 +24,10 @@ User stories derived from the database functions in `D_functions.sql`.
 
 | ID | Story | Source |
 |---|---|---|
-| US-7 | As a visitor, I want to view a title's details (genres, cast, characters, plot, rating). | *derived* |
-| US-8 | As a visitor, I want to view a person's details (name, credits, name rating). | *derived* |
-| US-9 | As a visitor, I want to browse a list of titles. | *derived* |
+| US-7 | As a visitor, I want to view a title's details (genres, cast, characters, plot, rating). | *query:* `titles`, `ratings`, `genre_titles`, `genres`, `title_persons`, `persons`, `title_person_characters` |
+| US-8 | As a visitor, I want to view a person's details (name, name rating, professions, known-for titles). | *query:* `persons`, `person_professions`, `professions`, `person_known_for`, `titles` |
+| US-8b | As a visitor, I want to see all the titles a person has been credited on, with their role. | *query:* `title_persons`, `titles`, `title_person_characters` |
+| US-9 | As a visitor, I want to browse a list of titles. | *query:* `titles`, `ratings` |
 
 ### Searching
 
