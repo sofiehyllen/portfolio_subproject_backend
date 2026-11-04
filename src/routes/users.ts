@@ -30,3 +30,23 @@ router.get('/:uconst', async (req, res, next) => {
     next(err);
   }
 });
+
+// DELETE /api/users/{uconst}: deletes the user and all their ratings,
+// bookmarks and search history. 204 on success, no body.
+// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
+router.delete('/:uconst', async (req, res, next) => {
+  try {
+    const uconst = parseUconst(req.params.uconst);
+    if (uconst === undefined) {
+      res.status(400).json({ error: 'uconst must be a positive integer' });
+      return;
+    }
+
+    const deleted = await users.deleteUser(uconst);
+    if (!deleted) throw new NotFound('User not found');
+
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});

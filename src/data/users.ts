@@ -36,12 +36,38 @@ export async function getUser(uconst: number): Promise<User | undefined> {
             email,
             password_hash   AS "passwordHash",
             created_at      AS "createdAt"
-    FROM users
-    WHERE uconst = $1`,
+    FROM get_user_by_id($1)`,
     [uconst]
-    //add these lines and remove the comment to use the stored procedure instead of the query above
-    // FROM get_user_by_id($1)`,
-    //[uconst]
   );
   return rows[0];
+}
+
+// Deletes the user with delete_user(), which also removes their ratings from
+// the title averages; bookmarks and search history go via ON DELETE CASCADE.
+// delete_user() returns VOID and says nothing when the user is unknown, so the
+// existence check runs first, in the same transaction. 
+// Returns false when no such user exists.
+export async function deleteUser(uconst: number): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rowCount } = await client.query(
+      'SELECT 1 FROM get_user_by_id($1) FOR UPDATE',
+      [uconst]
+    );
+    if (rowCount === 0) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+
+    await client.query('SELECT delete_user($1)', [uconst]);
+    await client.query('COMMIT');
+    return true;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
