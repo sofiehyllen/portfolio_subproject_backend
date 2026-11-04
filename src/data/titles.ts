@@ -11,14 +11,14 @@ export interface Title {
   tconst: string;
   titleType: string;
   primaryTitle: string;
-  originalTitle: string;
+  originalTitle: string | null;
   isAdult: boolean;
-  startYear: number;
-  endYear: number;
-  runtimeMinutes: number;
-  awards: string;
-  posterUrl: string;
-  plot: string;
+  startYear: number | null;
+  endYear: number | null;
+  runtimeMinutes: number | null;
+  awards: string | null;
+  posterUrl: string | null;
+  plot: string | null;
 }
 
 const SELECT = `
