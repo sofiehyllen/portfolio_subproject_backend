@@ -77,32 +77,32 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 | Method and path | Does what | Success | Failure |
 |---|---|---|---|
-| `GET /api/titles` | Paged list of titles, optionally narrowed by one search mode | 200 | 400 invalid paging or search parameter, or modes mixed; 401 invalid token |
+| `GET /api/titles` | Paged list of titles, optionally narrowed by one search mode | 200 | 400 invalid search parameter, or modes mixed; 401 invalid token |
 | `GET /api/titles/{tconst}` | One title with genres, rating and credits | 200 | 404 unknown title |
-| `GET /api/titles/{tconst}/actors` | Paged actors of the title, highest name rating first | 200 | 400 invalid paging; 404 unknown title |
-| `GET /api/titles/{tconst}/similar` | Paged movies sharing genres with the title. A title that is not a movie or tvMovie gives an empty list | 200 | 400 invalid paging; 404 unknown title |
-| `GET /api/persons` | Paged list of persons, optionally filtered by `name` and `actorsOnly` | 200 | 400 invalid parameter; 401 invalid token |
+| `GET /api/titles/{tconst}/actors` | Paged actors of the title, highest name rating first | 200 | 404 unknown title |
+| `GET /api/titles/{tconst}/similar` | Paged movies sharing genres with the title. A title that is not a movie or tvMovie gives an empty list | 200 | 404 unknown title |
+| `GET /api/persons` | Paged list of persons, optionally filtered by `name` and `actorsOnly` | 200 | 400 invalid search parameter; 401 invalid token |
 | `GET /api/persons/{nconst}` | One person with name rating, professions and known-for titles | 200 | 404 unknown person |
-| `GET /api/persons/{nconst}/titles` | Paged titles the person has been credited on, each with their role (category, job, characters)| 200 | 400 invalid paging; 404 unknown person |
-| `GET /api/persons/{nconst}/co-players` | Paged actors who share titles with the person, most frequent first | 200 | 400 invalid paging; 404 unknown person |
-| `GET /api/persons/{nconst}/words` | Paged most frequent words across the person's titles | 200 | 400 invalid paging; 404 unknown person |
+| `GET /api/persons/{nconst}/titles` | Paged titles the person has been credited on, each with their role (category, job, characters)| 200 | 404 unknown person |
+| `GET /api/persons/{nconst}/co-players` | Paged actors who share titles with the person, most frequent first | 200 | 404 unknown person |
+| `GET /api/persons/{nconst}/words` | Paged most frequent words across the person's titles | 200 | 404 unknown person |
 | `GET /api/related-words?words=a,b` | Paged words most associated with titles matching all the given words. Not logged in the search history | 200 | 400 missing or invalid `words` |
 
 ### Personal data (token required, owner only)
 
 | Method and path | Does what | Success | Failure |
 |---|---|---|---|
-| `GET /api/users/{uconst}/ratings` | Paged rating history, newest change first | 200 | 400 invalid paging; 401; 403 |
+| `GET /api/users/{uconst}/ratings` | Paged rating history, newest change first | 200 | 401; 403 |
 | `GET /api/users/{uconst}/ratings/{tconst}` | The user's rating of one title | 200 | 401; 403; 404 no active rating |
 | `PUT /api/users/{uconst}/ratings/{tconst}` | Creates or changes the rating. Body: `{ "rating": 8 }`. Rating again after removing it counts as new | 201 new rating, 200 changed or unchanged | 400 rating not an integer 1-10; 401; 403; 404 unknown title |
 | `DELETE /api/users/{uconst}/ratings/{tconst}` | Removes the user's rating (soft delete) | 204 | 401; 403; 404 no active rating |
-| `GET /api/users/{uconst}/bookmarks/titles` | Paged title bookmarks, newest first | 200 | 400 invalid paging; 401; 403 |
+| `GET /api/users/{uconst}/bookmarks/titles` | Paged title bookmarks, newest first | 200 | 401; 403 |
 | `PUT /api/users/{uconst}/bookmarks/titles/{tconst}` | Bookmarks a title. Repeating it changes nothing | 204 | 401; 403; 404 unknown title |
 | `DELETE /api/users/{uconst}/bookmarks/titles/{tconst}` | Removes a title bookmark | 204 | 401; 403; 404 no such bookmark |
-| `GET /api/users/{uconst}/bookmarks/persons` | Paged person bookmarks, newest first | 200 | 400 invalid paging; 401; 403 |
+| `GET /api/users/{uconst}/bookmarks/persons` | Paged person bookmarks, newest first | 200 | 401; 403 |
 | `PUT /api/users/{uconst}/bookmarks/persons/{nconst}` | Bookmarks a person. Repeating it changes nothing | 204 | 401; 403; 404 unknown person |
 | `DELETE /api/users/{uconst}/bookmarks/persons/{nconst}` | Removes a person bookmark | 204 | 401; 403; 404 no such bookmark |
-| `GET /api/users/{uconst}/search-history` | Paged search history, newest first | 200 | 400 invalid paging; 401; 403 |
+| `GET /api/users/{uconst}/search-history` | Paged search history, newest first | 200 | 401; 403 |
 | `DELETE /api/users/{uconst}/search-history/{sconst}` | Deletes one history entry | 204 | 401; 403; 404 no such entry for this user |
 | `DELETE /api/users/{uconst}/search-history` | Clears the whole history | 204 | 401; 403 |
 
@@ -114,10 +114,10 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 | Parameter | Type | Default | Rule |
 |---|---|---|---|
-| `page` | integer | 1 | at least 1, otherwise 400 (HTTP status code Bad Request) |
-| `pageSize` | integer | 20 | at least 1, otherwise status code 400. Above the maximum of 100, the default of 20 is used |
+| `limit` | integer | 20 | Number of items per page, from 1 to 100. A missing, non-integer or out-of-range value is replaced by the default of 20 |
+| `offset` | integer | 0 | Number of items to skip before the page starts, at least 0. A missing, non-integer or negative value is replaced by 0 |
 
-Every list response has the same envelope: `items`, `page`, `pageSize`, and `prev` and `next` links, each present only when that page exists.
+Every list response has the same structure: `total` (the number of items in the whole list), `limit`, `offset`, `items`, and `links` with `prev` and `next`. Each link is the URI of the same request at the neighbouring page, with all other query parameters kept, and is `null` when that page does not exist.
 
 **Sorting.** The client cannot choose the order. Every list has a fixed, deterministic order, so pages never overlap or skip rows: titles and persons by id, ranked searches by their rank (then id), bookmarks and histories newest first.
 
@@ -132,10 +132,10 @@ Every list response has the same envelope: `items`, `page`, `pageSize`, and `pre
 **Filtering persons.** `GET /api/persons` accepts `name` (substring, case-insensitive, 1-100 characters) and `actorsOnly=true`.
 
 ```
-GET /api/titles?keywords=space,war&match=weighted&page=1&pageSize=20
+GET /api/titles?keywords=space,war&match=weighted&limit=20&offset=0
 GET /api/titles?title=alien&person=weaver
 GET /api/persons?name=hanks&actorsOnly=true
-GET /api/users/5/ratings?page=2&pageSize=10
+GET /api/users/5/ratings?limit=10&offset=10
 ```
 
 ## 5. One request and one response, in full
@@ -143,7 +143,7 @@ GET /api/users/5/ratings?page=2&pageSize=10
 A paged list of titles, with a small page size so the paging links show up.
 
 ```
-GET /api/titles?page=1&pageSize=2
+GET /api/titles?limit=2&offset=0
 Accept: application/json
 ```
 
@@ -152,6 +152,9 @@ Accept: application/json
 Content-Type: application/json
 
 {
+  "total": 300,
+  "limit": 2,
+  "offset": 0,
   "items": [
     {
       "url": "http://localhost:3000/api/titles/tt0068646",
@@ -168,14 +171,15 @@ Content-Type: application/json
       "rating": { "average": 9.3, "votes": 2900000 }
     }
   ],
-  "page": 1,
-  "pageSize": 2,
-  "next": "http://localhost:3000/api/titles?page=2&pageSize=2"
+  "links": {
+    "prev": null,
+    "next": "http://localhost:3000/api/titles?limit=2&offset=2"
+  }
 }
 ```
 
 Every item has a `url`, so the client can follow it without building any address itself.
-`prev` is absent because this is the first page. A title without votes has `"rating": null`.
+`prev` is `null` because this is the first page. A title without votes has `"rating": null`.
 
 Every error has the same shape, with no stack trace, SQL or database identifiers:
 
