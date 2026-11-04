@@ -1,4 +1,34 @@
 import { pool } from '../db.js';
+import { Conflict } from '../middleware/errors.js';
+
+export interface NewUser {
+  firstName: string;
+  lastName: string;
+  username: string;
+  email: string;
+  passwordHash: string;
+}
+
+// Creates a user with create_user() and returns the new uconst.
+// The UNIQUE constraints on username and email make a duplicate fail with
+// 23505; that becomes a Conflict (409). Checking first and inserting after
+// would let two simultaneous sign-ups with the same username both pass.
+export async function createUser(user: NewUser): Promise<number> {
+  try {
+    const { rows } = await pool.query<{ uconst: number }>(
+      'SELECT create_user($1, $2, $3, $4, $5) AS uconst',
+      [user.firstName, user.lastName, user.username, user.email, user.passwordHash]
+    );
+    return rows[0].uconst;
+  } catch (err) {
+    const pgErr = err as { code?: string; constraint?: string };
+    if (pgErr.code === '23505') {
+      if (pgErr.constraint === 'users_username_key') throw new Conflict('Username already taken');
+      if (pgErr.constraint === 'users_email_key') throw new Conflict('Email already taken');
+    }
+    throw err;
+  }
+}
 
 export interface User {
   uconst: string;
