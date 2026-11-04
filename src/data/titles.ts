@@ -1,3 +1,10 @@
+/**
+ * Data-access layer for the `titles` table.
+ *
+ * Exports the `Title` interface and two query functions:
+ * - `list(limit, offset)` — returns a paginated, alphabetically ordered slice of titles.
+ * - `count()` — returns the total number of titles, used to build paging metadata.
+ */
 import { pool } from '../db.js';
 
 export interface Title {
@@ -28,7 +35,7 @@ const SELECT = `
           plot
   FROM titles`;
 
-/** A page of titles, ordered by title. */
+// A page of titles, ordered by title.
 export async function list(limit: number, offset: number): Promise<Title[]> {
   const { rows } = await pool.query<Title>(
     `${SELECT} ORDER BY primary_title, tconst LIMIT $1 OFFSET $2`,
@@ -36,7 +43,7 @@ export async function list(limit: number, offset: number): Promise<Title[]> {
   return rows;
 }
 
-/** How many titles there are in all, for the total in a paged answer. */
+// How many titles there are in all, for the total in a paged answer.
 export async function count(): Promise<number> {
   const { rows } = await pool.query<{ total: number }>(
     'SELECT count(*)::int AS total FROM titles');

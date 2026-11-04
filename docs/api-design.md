@@ -114,10 +114,10 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 | Parameter | Type | Default | Rule |
 |---|---|---|---|
-| `page` | integer | 1 | at least 1, otherwise 400 (HTTP status code Bad Request) |
-| `pageSize` | integer | 20 | at least 1, otherwise status code 400. Above the maximum of 100, the default of 20 is used |
+| `limit` | integer | 20 | Number of items per page, from 1 to 100. A missing, non-integer or out-of-range value is replaced by the default of 20 |
+| `offset` | integer | 0 | Number of items to skip before the page starts, at least 0. A missing, non-integer or negative value is replaced by 0 |
 
-Every list response has the same envelope: `items`, `page`, `pageSize`, and `prev` and `next` links, each present only when that page exists.
+Every list response has the same structure: `total` (the number of items in the whole list), `limit`, `offset`, `items`, and `links` with `prev` and `next`. Each link is the URI of the same request at the neighbouring page, with all other query parameters kept, and is `null` when that page does not exist.
 
 **Sorting.** The client cannot choose the order. Every list has a fixed, deterministic order, so pages never overlap or skip rows: titles and persons by id, ranked searches by their rank (then id), bookmarks and histories newest first.
 
