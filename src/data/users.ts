@@ -86,7 +86,7 @@ export async function deleteUser(uconst: number): Promise<boolean> {
       'SELECT 1 FROM get_user_by_id($1) FOR UPDATE',
       [uconst]
     );
-    if (rowCount === 0) {
+    if (!rowCount) {
       await client.query('ROLLBACK');
       return false;
     }
