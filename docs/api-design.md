@@ -34,25 +34,25 @@ exposing them would tie the contract to an implementation detail.
 | `/api/persons/{nconst}/words` | The most frequent words across this person's titles |
 | `/api/related-words` | Words associated with the titles that match given words |
 | `/api/users` | The collection of users (only `POST` is offered, to register) |
-| `/api/users/{uid}` | One specific user (profile) |
-| `/api/users/{uid}/password` | The user’s password (write-only: it can be replaced but never read)|
+| `/api/users/{uconst}` | One specific user (profile) |
+| `/api/users/{uconst}/password` | The user’s password (write-only: it can be replaced but never read)|
 | `/api/auth/tokens` | Tokens (only `POST` is offered, to log in) |
-| `/api/users/{uid}/ratings` | A user's list of active ratings (rating history) |
-| `/api/users/{uid}/ratings/{tconst}` | A user's rating of one specific title |
-| `/api/users/{uid}/bookmarks/titles` | A user's list of bookmarked titles |
-| `/api/users/{uid}/bookmarks/titles/{tconst}` | One specific title bookmark |
-| `/api/users/{uid}/bookmarks/persons` | A user's list of bookmarked persons |
-| `/api/users/{uid}/bookmarks/persons/{nconst}` | One specific person bookmark |
-| `/api/users/{uid}/search-history` | A user's list of search history |
-| `/api/users/{uid}/search-history/{sconst}` | One specific search-history entry |
+| `/api/users/{uconst}/ratings` | A user's list of active ratings (rating history) |
+| `/api/users/{uconst}/ratings/{tconst}` | A user's rating of one specific title |
+| `/api/users/{uconst}/bookmarks/titles` | A user's list of bookmarked titles |
+| `/api/users/{uconst}/bookmarks/titles/{tconst}` | One specific title bookmark |
+| `/api/users/{uconst}/bookmarks/persons` | A user's list of bookmarked persons |
+| `/api/users/{uconst}/bookmarks/persons/{nconst}` | One specific person bookmark |
+| `/api/users/{uconst}/search-history` | A user's list of search history |
+| `/api/users/{uconst}/search-history/{sconst}` | One specific search-history entry |
 
-Ownership is expressed as a sub-resource (`/api/users/{uid}/ratings`): a rating only exists in the context of a user.
+Ownership is expressed as a sub-resource (`/api/users/{uconst}/ratings`): a rating only exists in the context of a user.
 Narrowing is expressed as a query parameter (`/api/titles?keywords=space`): a search does not identify a new thing, it narrows a collection.
 
 ## 3. Operations
 **Authentication rules, stated once.**
 Everything under `/api/titles` and `/api/persons`, `GET /api/related-words`, `POST /api/users` and `POST /api/auth/tokens` is public.
-Every other path needs `Authorization: Bearer <token>`, and the user in the token must be the `{uid}` in the path.
+Every other path needs `Authorization: Bearer <token>`, and the user in the token must be the `{uconst}` in the path.
 Searches on `/api/titles` and `/api/persons` accept an optional token. When one is present, the search is logged in the user's history. A token that is present but invalid is rejected with 401, not ignored.
 
 **Failure codes used everywhere:**
@@ -68,10 +68,10 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 |---|---|---|---|
 | `POST /api/users` | Registers a user and returns the new profile. Body: `firstName`, `lastName`, `username`, `email`, `password`. The password is hashed before storage | 201, `Location` header | 400 missing or invalid field; 409 username or email already taken |
 | `POST /api/auth/tokens` | Logs in. Body: `username`, `password`. Returns a token and the user's URI | 201 | 400 missing field; 401 wrong username or password (one message for both) |
-| `GET /api/users/{uid}` | Returns the user's profile (never the password hash) | 200 | 401; 403; 404 |
-| `PATCH /api/users/{uid}` | Updates the fields sent: `firstName`, `lastName`, `email` (username cannot be changed) | 200 | 400 invalid field, or username or password sent; 401; 403; 404; 409 email taken |
-| `PUT /api/users/{uid}/password` | Replaces the password. Body: `currentPassword`, `newPassword` | 204 | 400 missing field or new password fails the rules; 401 no valid token; 403 token belongs to another user, or the current password is wrong; 404 unknown user |
-| `DELETE /api/users/{uid}` | Deletes the user and all their ratings, bookmarks and history | 204 | 401; 403; 404 |
+| `GET /api/users/{uconst}` | Returns the user's profile (never the password hash) | 200 | 401; 403; 404 |
+| `PATCH /api/users/{uconst}` | Updates the fields sent: `firstName`, `lastName`, `email` (username cannot be changed) | 200 | 400 invalid field, or username or password sent; 401; 403; 404; 409 email taken |
+| `PUT /api/users/{uconst}/password` | Replaces the password. Body: `currentPassword`, `newPassword` | 204 | 400 missing field or new password fails the rules; 401 no valid token; 403 token belongs to another user, or the current password is wrong; 404 unknown user |
+| `DELETE /api/users/{uconst}` | Deletes the user and all their ratings, bookmarks and history | 204 | 401; 403; 404 |
 
 ### IMDb data (read-only, public)
 
@@ -92,19 +92,19 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 | Method and path | Does what | Success | Failure |
 |---|---|---|---|
-| `GET /api/users/{uid}/ratings` | Paged rating history, newest change first | 200 | 400 invalid paging; 401; 403 |
-| `GET /api/users/{uid}/ratings/{tconst}` | The user's rating of one title | 200 | 401; 403; 404 no active rating |
-| `PUT /api/users/{uid}/ratings/{tconst}` | Creates or changes the rating. Body: `{ "rating": 8 }`. Rating again after removing it counts as new | 201 new rating, 200 changed or unchanged | 400 rating not an integer 1-10; 401; 403; 404 unknown title |
-| `DELETE /api/users/{uid}/ratings/{tconst}` | Removes the user's rating (soft delete) | 204 | 401; 403; 404 no active rating |
-| `GET /api/users/{uid}/bookmarks/titles` | Paged title bookmarks, newest first | 200 | 400 invalid paging; 401; 403 |
-| `PUT /api/users/{uid}/bookmarks/titles/{tconst}` | Bookmarks a title. Repeating it changes nothing | 204 | 401; 403; 404 unknown title |
-| `DELETE /api/users/{uid}/bookmarks/titles/{tconst}` | Removes a title bookmark | 204 | 401; 403; 404 no such bookmark |
-| `GET /api/users/{uid}/bookmarks/persons` | Paged person bookmarks, newest first | 200 | 400 invalid paging; 401; 403 |
-| `PUT /api/users/{uid}/bookmarks/persons/{nconst}` | Bookmarks a person. Repeating it changes nothing | 204 | 401; 403; 404 unknown person |
-| `DELETE /api/users/{uid}/bookmarks/persons/{nconst}` | Removes a person bookmark | 204 | 401; 403; 404 no such bookmark |
-| `GET /api/users/{uid}/search-history` | Paged search history, newest first | 200 | 400 invalid paging; 401; 403 |
-| `DELETE /api/users/{uid}/search-history/{sconst}` | Deletes one history entry | 204 | 401; 403; 404 no such entry for this user |
-| `DELETE /api/users/{uid}/search-history` | Clears the whole history | 204 | 401; 403 |
+| `GET /api/users/{uconst}/ratings` | Paged rating history, newest change first | 200 | 400 invalid paging; 401; 403 |
+| `GET /api/users/{uconst}/ratings/{tconst}` | The user's rating of one title | 200 | 401; 403; 404 no active rating |
+| `PUT /api/users/{uconst}/ratings/{tconst}` | Creates or changes the rating. Body: `{ "rating": 8 }`. Rating again after removing it counts as new | 201 new rating, 200 changed or unchanged | 400 rating not an integer 1-10; 401; 403; 404 unknown title |
+| `DELETE /api/users/{uconst}/ratings/{tconst}` | Removes the user's rating (soft delete) | 204 | 401; 403; 404 no active rating |
+| `GET /api/users/{uconst}/bookmarks/titles` | Paged title bookmarks, newest first | 200 | 400 invalid paging; 401; 403 |
+| `PUT /api/users/{uconst}/bookmarks/titles/{tconst}` | Bookmarks a title. Repeating it changes nothing | 204 | 401; 403; 404 unknown title |
+| `DELETE /api/users/{uconst}/bookmarks/titles/{tconst}` | Removes a title bookmark | 204 | 401; 403; 404 no such bookmark |
+| `GET /api/users/{uconst}/bookmarks/persons` | Paged person bookmarks, newest first | 200 | 400 invalid paging; 401; 403 |
+| `PUT /api/users/{uconst}/bookmarks/persons/{nconst}` | Bookmarks a person. Repeating it changes nothing | 204 | 401; 403; 404 unknown person |
+| `DELETE /api/users/{uconst}/bookmarks/persons/{nconst}` | Removes a person bookmark | 204 | 401; 403; 404 no such bookmark |
+| `GET /api/users/{uconst}/search-history` | Paged search history, newest first | 200 | 400 invalid paging; 401; 403 |
+| `DELETE /api/users/{uconst}/search-history/{sconst}` | Deletes one history entry | 204 | 401; 403; 404 no such entry for this user |
+| `DELETE /api/users/{uconst}/search-history` | Clears the whole history | 204 | 401; 403 |
 
 **POST** is used where the server assigns the address. **PUT** is used for ratings, bookmarks and the password because the client knows the full address and the call replaces the whole value, so repeating it has the same effect. **PATCH** is used for the profile because only some fields are sent. Success codes follow one rule: **201** when a resource is created, **200** when the response has a body, **204** when it has none. 
 
