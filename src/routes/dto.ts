@@ -101,7 +101,7 @@ export function toUserRatingDto(rating: UserRating): UserRatingDto {
 export interface UserSearchHistoryDto {
   url: string;
   searchString: string;
-  createdAt: string
+  createdAt: Date
 }
 
 export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: number): UserSearchHistoryDto[] {

@@ -133,6 +133,7 @@ function asConflict(err: unknown): unknown {
     if (pgErr.constraint === 'users_email_key') return new Conflict('Email already taken');
   }
   return err;
+}
 
 // Updated the user's password hash using update_user_password().
 export async function updateUserHashPassword(uconst: number, newHash: string): Promise<void> {
