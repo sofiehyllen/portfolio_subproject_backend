@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as users from '../data/users.js';
 import { NotFound } from '../middleware/errors.js';
 import { hashPassword } from '../password.js';
-import { validateNewUser } from '../validation.js';
+import { validateNewUser, validateUserUpdate } from '../validation.js';
 import { toUserDto, uri } from './dto.js';
 
 export const router = Router();
@@ -56,6 +56,26 @@ router.get('/:uconst', async (_req, res, next) => {
     const uconst: number = res.locals.uconst;
     const user = await users.getUser(uconst);
     if (!user) throw new NotFound('User not found');
+
+    res.json(toUserDto(user));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/users/{uconst}: changes the fields sent (firstName, lastName,
+// email) and returns the updated profile. The username cannot be changed,
+// and the password has its own endpoint.
+// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
+router.patch('/:uconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const changes = validateUserUpdate(req.body); // 400 on invalid or forbidden fields
+    const updated = await users.updateUser(uconst, changes); // 409 when the email is taken
+    if (!updated) throw new NotFound('User not found');
+
+    const user = await users.getUser(uconst);
+    if (!user) throw new Error(`user ${uconst} missing right after update`);
 
     res.json(toUserDto(user));
   } catch (err) {
