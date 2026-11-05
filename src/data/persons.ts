@@ -21,3 +21,16 @@ export async function persons(): Promise<Person[]> {
   );
   return rows;
 }
+
+export async function getOnePerson(nconst: string): Promise<Person[] | undefined> {
+  const result  = await pool.query<Person>(`
+    SELECT  nconst, 
+            primary_name    as  "primaryName"
+            birth_year      as  "birthYear"
+            death_year      as  "deathYear"
+            avg_name_rating as  "avgNameRating"
+    FROM get_person($1)`,
+    [nconst]);
+
+    return result.rows; 
+}
