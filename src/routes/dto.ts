@@ -1,4 +1,4 @@
-import { Title } from '../data/titles.js';
+import { Title, TitleDetail } from '../data/titles.js';
 import { User } from '../data/users.js';
 
 const API_BASE = '/api';
@@ -34,14 +34,14 @@ export interface TitleDto {
   url: string;
   titleType: string;
   primaryTitle: string;
-  originalTitle: string;
+  originalTitle: string | null;
   isAdult: boolean;
-  startYear: number;
-  endYear: number;
-  runtimeMinutes: number;
-  awards: string;
-  posterUrl: string;
-  plot: string;
+  startYear: number | null;
+  endYear: number | null;
+  runtimeMinutes: number | null;
+  awards: string | null;
+  posterUrl: string | null;
+  plot: string | null;
 }
 
 export function toTitleDto(title: Title): TitleDto {
@@ -57,5 +57,33 @@ export function toTitleDto(title: Title): TitleDto {
     awards: title.awards,
     posterUrl: title.posterUrl,
     plot: title.plot,
+  };
+}
+
+export interface CreditDto {
+  person: { url: string; name: string };
+  category: string;
+  job: string | null;
+  characters: string[];
+}
+
+// One title in full: the list fields plus genres, rating and credits.
+export interface TitleDetailDto extends TitleDto {
+  genres: string[];
+  rating: { average: number; votes: number } | null;
+  credits: CreditDto[];
+}
+
+export function toTitleDetailDto(title: TitleDetail): TitleDetailDto {
+  return {
+    ...toTitleDto(title),
+    genres: title.genres,
+    rating: title.rating,
+    credits: title.credits.map(credit => ({
+      person: { url: uri.person(credit.nconst), name: credit.name },
+      category: credit.category,
+      job: credit.job,
+      characters: credit.characters,
+    })),
   };
 }

@@ -46,3 +46,28 @@ describe('GET /api/titles (paged listing)', () => {
     expect(res.body.limit).toBe(20);
   });
 });
+
+describe('GET /api/titles/{tconst}', () => {
+  it('returns the title that the list links to, with genres, rating and credits', async () => {
+    const list = await request(app).get('/api/titles?limit=1');
+    const url: string = list.body.items[0].url;
+
+    const res = await request(app).get(url);
+
+    expect(res.status).toBe(200);
+    expect(res.body.url).toBe(url);
+    expect(Array.isArray(res.body.genres)).toBe(true);
+    expect(Array.isArray(res.body.credits)).toBe(true);
+    expect(res.body).toHaveProperty('rating');
+    for (const credit of res.body.credits) {
+      expect(credit.person.url).toMatch(/^\/api\/persons\/nm\d+$/);
+    }
+  });
+
+  it('gives 404 for an unknown title', async () => {
+    const res = await request(app).get('/api/titles/tt0000000');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'Title not found' });
+  });
+});
