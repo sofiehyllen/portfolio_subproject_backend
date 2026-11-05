@@ -1,0 +1,71 @@
+import { pool } from '../db.js';
+
+export interface Rating {
+  uconst: number;
+  tconst: string;
+  rating: number;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+// What rateTitle returns to the route.
+export interface RateResult {
+  rating: Rating;
+  created: boolean; // true when the user had no active rating of the title before
+}
+
+// Shared SELECT, so every query returns the columns the Rating interface expects.
+const SELECT = `
+  SELECT uconst,
+          tconst,
+          rating,
+          created_at AS "createdAt",
+          updated_at AS "updatedAt",
+          deleted_at AS "deletedAt"
+  FROM user_title_ratings`;
+
+// Creates or changes the user's rating of a title with rate(), which also
+// updates the title's average and the name ratings.
+// rate() returns VOID, so the stored row is read back in the same transaction.
+// created is true for a first rating and for rating again after a removal and
+// false when an active rating is changed or repeated.
+// Returns undefined when no such title exists.
+export async function rateTitle(
+  uconst: number, tconst: string, rating: number): Promise<RateResult | undefined> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // rate() raises the same error code for every failure, so the unknown
+    // title (404) is checked here instead of parsed from the error message.
+    const title = await client.query(
+      'SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
+    if (!title.rowCount) { // no row: end the transaction
+      await client.query('ROLLBACK');
+      return undefined;
+    }
+    
+    // checks if the user already has a rating
+    const active = await client.query(
+      `SELECT 1 FROM user_title_ratings
+        WHERE uconst = $1 AND tconst = $2 AND deleted_at IS NULL
+        FOR UPDATE`, // lock the active rating row (if any) until COMMIT
+      [uconst, tconst]); // one row if the user has an active rating, none if new or soft-deleted
+
+    // writes the rating and updates title averages and name ratings
+    await client.query('SELECT rate($1, $2, $3)', [uconst, tconst, rating]); 
+
+    // read back the row rate() just wrote
+    const { rows } = await client.query<Rating>(
+      `${SELECT} WHERE uconst = $1 AND tconst = $2`, [uconst, tconst]); 
+
+    await client.query('COMMIT');
+    return { rating: rows[0], created: !active.rowCount }; // no active rating before means the vote is new (201)
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
