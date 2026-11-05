@@ -1,6 +1,6 @@
 // Tests of the API over HTTP.
 
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../src/app.js';
 import { pool } from '../src/db.js';
@@ -44,5 +44,79 @@ describe('GET /api/titles (paged listing)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.limit).toBe(20);
+  });
+});
+
+describe('PUT /api/users/{uid}/password', () => {
+  let userId: number;
+
+  beforeAll(async () => {
+    const suffix = Date.now();
+    const result = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', `user_${suffix}`, `user_${suffix}@test.com`, 'password']);
+    userId = result.rows[0].uconst; 
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
+  it('returns 204 for a valid password update', async () => {
+    const res = await request(app)
+      .put(`/api/users/${userId}/password`)
+      .send({currentPassword: 'password', newPassword: 'newPassword'});
+    
+    expect(res.status).toBe(204);
+  });
+
+  it('returns 404 for an unknown user', async () => {
+    const res = await request(app)
+      .put(`/api/users/999999999/password`)
+      .send({currentPassword: 'password', newPassword: 'newPassword'});
+    
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 when newPassword is missing', async () => {
+    const res = await request(app)
+      .put(`/api/users/${userId}/password`)
+      .send({currentPassword: 'password'});
+    
+      expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when currentPassword is missing', async () => {
+    const res = await request(app)
+      .put(`/api/users/${userId}/password`)
+      .send({newPassword: 'password'});
+
+    expect(res.status).toBe(400);
+
+  });
+
+  it('returns 400 when currentPassword is not a string', async () => {
+    const res = await request(app)
+      .put(`/api/users/${userId}/password`)
+      .send({currentPassword: 123});
+    
+    expect(res.status).toBe(400);
+
+  });
+
+  it('returns 400 when newPassword is not a string', async () => {
+    const res = await request(app)
+      .put(`/api/users/${userId}/password`)
+      .send({newPassword: 123});
+
+    expect(res.status).toBe(400);
+  });
+  
+  it('returns 400 when currentPassword is undefined', async () => {
+    const res = await request(app)
+      .put(`/api/users/${userId}/password`)
+      .send({currentPassword: undefined});
+      
+    expect(res.status).toBe(400);
   });
 });
