@@ -22,5 +22,6 @@ export async function getUserSearchHistory(uconst: number, limit: number, offset
         SELECT count(*)::int AS total FROM get_search_history($1)`,
         [uconst]);
 
-    return {items, countRows[0].total};
+    return { items, total: countRows[0].total };
+
 }

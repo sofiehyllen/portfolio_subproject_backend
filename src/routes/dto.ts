@@ -148,7 +148,7 @@ export interface UserSearchHistoryDto {
 export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: number): UserSearchHistoryDto[] {
   return items.map(sh => ({
     url: uri.searchEntry(uconst, sh.sconst),
-    searchString: sh.search_string,
-    createdAt: sh.created_at
+    searchString: sh.searchString,
+    createdAt: sh.createdAt
   }));
 } 
