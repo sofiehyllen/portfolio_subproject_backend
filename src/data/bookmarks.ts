@@ -26,21 +26,90 @@ export async function getTitleBookmarks(uconst: number): Promise<BookmarkTitle[]
 
 // Create title bookmark
 export async function addTitleBookmark(uconst: number, tconst: string): Promise<BookmarkTitle> {
-  const { rows } = await pool.query<BookmarkTitle>(
-    `SELECT add_title_bookmark($1, $2)`,
-    [uconst, tconst]
-  );
-  return rows[0];
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // Check if user exist
+        await client.query(
+            `SELECT uconst
+            FROM users
+            WHERE uconst = $1`,
+            [uconst]
+        );
+
+        // Check if title exist
+        await client.query(
+            `SELECT tconst
+            FROM titles
+            WHERE tconst = $2`,
+            [tconst]
+        );
+
+        // Add title to bookmark_title
+        const { rows } = await client.query<BookmarkTitle>(
+            `SELECT add_title_bookmark($1, $2)`,
+            [uconst, tconst]
+        );
+
+        await client.query('COMMIT');
+        return rows[0];
+        
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+        
+    } finally {
+        client.release();
+    }
+//   const { rows } = await pool.query<BookmarkTitle>(
+//     `SELECT add_title_bookmark($1, $2)`,
+//     [uconst, tconst]
+//   );
+//   return rows[0];
 }
 
-// Delete title bookmark
+// Delete title bookmark - Check if user and title exist before deleting - Is that necessary?
 export async function removeTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
-  const row = await pool.query<BookmarkTitle>(
-    `SELECT remove_title_bookmark($1, $2)`,
-    [uconst, tconst]
-  );
-  return row.rowCount === 1;
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // Check if uconst and tconst exist in bookmark_title
+        await client.query(
+            `SELECT *
+            FROM bookmark_title
+            WHERE uconst = $1
+                AND tconst = $2`,
+            [uconst, tconst]
+        );
+
+        // Remove title to bookmark_title
+        const row = await client.query<BookmarkTitle>(
+            `SELECT remove_title_bookmark($1, $2)`,
+            [uconst, tconst]
+        );
+
+        await client.query('COMMIT');
+        return row.rowCount === 1;
+        
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+        
+    } finally {
+        client.release();
+    }
 }
+
+// Delete title bookmark - No check
+// export async function removeTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
+//   const row = await pool.query<BookmarkTitle>(
+//     `SELECT remove_title_bookmark($1, $2)`,
+//     [uconst, tconst]
+//   );
+//   return row.rowCount === 1;
+// }
 
 
 

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import { NotFound } from '../middleware/errors.js';
-import { toUserDto } from './dto.js';
+import { toUserDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
 import * as bookmark from '../data/bookmarks.js';
 
 export const router = Router();
@@ -67,6 +67,83 @@ router.get('/:uconst/bookmarks/titles', async (_req, res, next) => {
     if (!bookmarkedTitles) {
       throw new NotFound('Bookmarked titles not found');
     }
+    res.json(toUserBookmarkTitleDto(bookmarkedTitles[0]));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/users/{uconst}/bookmarks/titles/{tconst}
+router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const tconst = req.params.tconst;
+    const added = await bookmark.addTitleBookmark(uconst, tconst);
+
+    res.json(toUserBookmarkTitleDto(added));
+
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/users/{uconst}/bookmarks/titles/{tconst}
+router.delete('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const tconst = req.params.tconst;
+    const deleted = await bookmark.removeTitleBookmark(uconst, tconst);
+    if (!deleted) {
+      throw new NotFound('Bookmarked title not found');
+    }
+
+    res.status(deleted ? 204 : 404).end();
+
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/users/{uconst}/bookmarks/persons
+router.get('/:uconst/bookmarks/persons', async (_req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const bookmarkedPersons = await bookmark.getPersonBookmarks(uconst);
+    if (!bookmarkedPersons) {
+      throw new NotFound('Bookmarked persons not found');
+    }
+    res.json(toUserBookmarkPersonDto(bookmarkedPersons[0]));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/users/{uconst}/bookmarks/persons/{nconst}
+router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const nconst = req.params.nconst;
+    const added = await bookmark.addPersonBookmark(uconst, nconst);
+
+    res.json(toUserBookmarkPersonDto(added));
+
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/users/{uconst}/bookmarks/persons/{nconst}
+router.delete('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const nconst = req.params.nconst;
+    const deleted = await bookmark.removePersonBookmark(uconst, nconst);
+    if (!deleted) {
+      throw new NotFound('Bookmarked person not found');
+    }
+
+    res.status(deleted ? 204 : 404).end();
+
   } catch (err) {
     next(err);
   }
