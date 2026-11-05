@@ -2,14 +2,14 @@ import { pool } from '../db.js';
 
 
 export interface UserSearchHistory {
-  sconst: string;
+  sconst: number;
   search_string: string;
-  created_at: string;
+  created_at: Date;
 }
 
 export async function getUserSearchHistory(uconst: number, limit: number, offset: number) {
     const { rows: items } = await pool.query<UserSearchHistory>(`
-        SELECT  sconst, search_history, created_at
+        SELECT  sconst, search_string, created_at
         FROM get_search_history($1)
         ORDER BY created_at DESC, sconst DESC
         LIMIT $2
@@ -23,4 +23,11 @@ export async function getUserSearchHistory(uconst: number, limit: number, offset
     const total = parseInt(countRows[0].total);
 
     return {items, total};
+}
+
+export async function deleteUserSearchHistory(uconst: number) {
+    await pool.query(`
+        SELECT *
+        FROM clear_search_history($1)`,
+    [uconst]);
 }
