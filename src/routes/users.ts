@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import { validateNewUser, validateUserUpdate } from '../validation.js';
-import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto} from './dto.js';
+import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
 import { checkPassword, hashPassword } from '../utils/passwords.js';
