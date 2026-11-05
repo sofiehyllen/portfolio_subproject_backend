@@ -34,12 +34,12 @@ function asObject(body: unknown): Record<string, unknown> {
 }
 
 // A required, non-blank text field, trimmed. Problems are added to errors.
-function text(value: unknown, field: string, max: number, errors: string[]): string {
+function text(value: unknown, field: string, max: number | undefined, errors: string[]): string {
   if (typeof value !== 'string' || value.trim() === '') {
     errors.push(`${field} is required`);
     return '';
   }
-  if (value.trim().length > max) errors.push(`${field} must be at most ${max} characters`);
+  if (max !== undefined && value.trim().length > max) errors.push(`${field} must be at most ${max} characters`);
   return value.trim();
 }
 
@@ -58,7 +58,7 @@ export function validateNewUser(body: unknown): NewUserInput {
   const firstName = text(b.firstName, 'firstName', NAME_MAX, errors);
   const lastName = text(b.lastName, 'lastName', NAME_MAX, errors);
 
-  const username = text(b.username, 'username', NAME_MAX, errors);
+  const username = text(b.username, 'username', undefined, errors).toLowerCase();
   if (username && !USERNAME.test(username)) {
     errors.push('username must be 3-50 characters: letters, digits, _ . -');
   }
