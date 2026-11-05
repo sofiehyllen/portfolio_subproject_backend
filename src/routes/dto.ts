@@ -104,6 +104,8 @@ export function toTitleDetailDto(title: TitleDetail): TitleDetailDto {
       job: credit.job,
       characters: credit.characters,
     })),
+  };
+}
 export interface TitleSummaryDto {
   url: string;
   primaryTitle: string;

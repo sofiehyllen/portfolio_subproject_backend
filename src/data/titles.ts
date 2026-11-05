@@ -140,6 +140,8 @@ export async function actors(
      LIMIT $2 OFFSET $3`,
     [tconst, limit, offset]);
   return { total, items: rows };
+}
+
 // A page of titles matching a substring search, and the total number of matches.
 // string_search is called once per request, so the search is logged at most once.
 export async function searchText(
