@@ -1,6 +1,7 @@
 /**
  * Data Transfer Objects (DTOs) — the shapes sent to clients in API responses.
  */
+import { Rating } from "../data/ratings.js";
 import { Title, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 
@@ -10,6 +11,7 @@ export const uri = {
   title: (tconst: string) => `${API_BASE}/titles/${tconst}`,
   person: (nconst: string) => `${API_BASE}/persons/${nconst}`,
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
+  rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
 };
 
 // The public profile. The password hash is never sent to the client.
@@ -47,12 +49,6 @@ export interface TitleDto {
   plot: string | null;
 }
 
-export interface TitleSummaryDto {
-  url: string;
-  primaryTitle: string;
-  startYear: number | null;
-}
-
 export function toTitleDto(title: Title): TitleDto {
   return {
     url: uri.title(title.tconst),
@@ -69,10 +65,34 @@ export function toTitleDto(title: Title): TitleDto {
   };
 }
 
+export interface TitleSummaryDto {
+  url: string;
+  primaryTitle: string;
+  startYear: number | null;
+}
+
 export function toTitleSummaryDto(title: TitleSummary): TitleSummaryDto {
   return {
     url: uri.title(title.tconst),
     primaryTitle: title.primaryTitle,
     startYear: title.startYear,
+  };
+}
+
+export interface RatingDto {
+  url: string;
+  title: string;
+  rating: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export function toRatingDto(rating: Rating): RatingDto {
+  return {
+    url: uri.rating(rating.uconst, rating.tconst),
+    title: uri.title(rating.tconst),
+    rating: rating.rating,
+    createdAt: rating.createdAt,
+    updatedAt: rating.updatedAt,
   };
 }
