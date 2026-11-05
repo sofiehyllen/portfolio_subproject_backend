@@ -9,7 +9,7 @@ export interface UserSearchHistory {
 
 export async function getUserSearchHistory(uconst: number, limit: number, offset: number) {
     const { rows: items } = await pool.query<UserSearchHistory>(`
-        SELECT  sconst, search_history, created_at
+        SELECT  sconst, search_string, created_at
         FROM get_search_history($1)
         ORDER BY created_at DESC, sconst DESC
         LIMIT $2
