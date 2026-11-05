@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
-import { NotFound, BadRequest, Forbidden} from '../middleware/errors.js';
-import { toUserDto } from './dto.js';
-import { checkPassword, hashPassword } from '../utils/passwords.js';
+import { NotFound } from '../middleware/errors.js';
+import { toUserRatingDto, toUserDto } from './dto.js';
+import * as ratings from '../data/ratings.js';
 
 export const router = Router();
 
@@ -55,27 +55,41 @@ router.delete('/:uconst', async (_req, res, next) => {
   }
 });
 
-
-router.put('/:uconst/password', async (req, res, next) => {
-  // TODO: require a token and check it belongs to {uconst} once auth exists
+// PUT /api/users/{uconst}/ratings/{tconst}: creates or changes the user's rating of a title.
+router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
-    const {currentPassword, newPassword} = req.body ?? {};
     const uconst: number = res.locals.uconst;
-
-    if (!currentPassword || !newPassword || typeof currentPassword !== 'string' || typeof newPassword !== 'string') throw new BadRequest('Current and new passwords are required');
+    const tconst = req.params.tconst;
+    const rating = req.body?.rating;
     
-    const storedHash: string | undefined = await users.getPasswordHash(uconst);
-    if (storedHash === undefined) throw new NotFound('User not found'); 
+    // Check the input before asking the database
+    if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
+      res.status(400).json({ error: 'rating must be an integer between 1 and 10' });
+      return;
+    }
 
-    const isPasswordValid = await checkPassword(currentPassword, storedHash);
-    if (!isPasswordValid) throw new Forbidden('Current password is invalid');
+    // saves the rating and updates the averages
+    const result = await ratings.rateTitle(uconst, tconst, rating);
+    if (!result) throw new NotFound('Title not found');
 
-    const newHash = await hashPassword(newPassword);
+    res.status(result.created ? 201 : 200).json(toUserRatingDto(result.rating)); // new: 201, changed: 200
 
-    await users.updateUserHashPassword(uconst, newHash);
-    
-    return res.status(204).end();
-  }catch (err) {
+  } catch (err) {
+    next(err)
+  }
+});
+
+// DELETE /api/users/{uconst}/ratings/{tconst}: removes the user's rating of a title (soft delete).
+router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const tconst = req.params.tconst;
+
+    const deleted = await ratings.deleteRating(uconst, tconst);   // true if a rating was removed
+    if (!deleted) throw new NotFound('Rating not found');
+
+    res.status(204).end();
+  } catch (err) {
     next(err)
   }
 });
