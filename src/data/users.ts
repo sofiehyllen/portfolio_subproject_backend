@@ -72,7 +72,7 @@ export async function updateUser(uconst: number, changes: UserChanges): Promise<
     await client.query('BEGIN');
 
     const { rowCount } = await client.query(
-      'SELECT 1 FROM get_user_by_id($1) FOR UPDATE',
+      'SELECT 1 FROM users WHERE uconst = $1 FOR UPDATE',
       [uconst]
     );
     if (!rowCount) {
@@ -105,7 +105,7 @@ export async function deleteUser(uconst: number): Promise<boolean> {
     await client.query('BEGIN');
 
     const { rowCount } = await client.query(
-      'SELECT 1 FROM get_user_by_id($1) FOR UPDATE',
+      'SELECT 1 FROM users WHERE uconst = $1 FOR UPDATE',
       [uconst]
     );
     if (!rowCount) {
