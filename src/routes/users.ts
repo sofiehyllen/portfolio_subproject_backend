@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
-import { NotFound } from '../middleware/errors.js';
+import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import { toUserRatingDto, toUserDto } from './dto.js';
 import * as ratings from '../data/ratings.js';
+import { checkPassword, hashPassword } from '../utils/passwords.js';
+
 
 export const router = Router();
 
@@ -90,6 +92,35 @@ router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
 
     res.status(204).end();
   } catch (err) {
+    next(err)
+  }
+});
+
+
+router.put('/:uconst/password', async (req, res, next) => {
+  // TODO: require a token and check it belongs to {uconst} once auth exists
+  try {
+    const {currentPassword, newPassword} = req.body ?? {};
+    const uconst: number = res.locals.uconst;
+
+    if (!currentPassword || 
+        !newPassword || 
+        typeof currentPassword !== 'string' || 
+        typeof newPassword !== 'string') 
+        throw new BadRequest('Current and new passwords are required');
+    
+    const storedHash: string | undefined = await users.getPasswordHash(uconst);
+    if (storedHash === undefined) throw new NotFound('User not found'); 
+
+    const isPasswordValid = await checkPassword(currentPassword, storedHash);
+    if (!isPasswordValid) throw new Forbidden('Current password is invalid');
+
+    const newHash = await hashPassword(newPassword);
+
+    await users.updateUserHashPassword(uconst, newHash);
+    
+    return res.status(204).end();
+  }catch (err) {
     next(err)
   }
 });
