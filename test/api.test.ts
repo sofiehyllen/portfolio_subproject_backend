@@ -64,23 +64,23 @@ describe('PUT /api/users/{uid}/password', () => {
 
   it('returns 204 for a valid password update', async () => {
     const res = await request(app)
-      .put(`api/users/${userId}/password`)
+      .put(`/api/users/${userId}/password`)
       .send({currentPassword: 'password', newPassword: 'newPassword'});
     
     expect(res.status).toBe(204);
   });
 
-  it('returns 404 for an uknown user', async () => {
+  it('returns 404 for an unknown user', async () => {
     const res = await request(app)
-      .put(`api/users/999999999/password`)
+      .put(`/api/users/999999999/password`)
       .send({currentPassword: 'password', newPassword: 'newPassword'});
     
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(404);
   });
 
   it('returns 400 when newPassword is missing', async () => {
     const res = await request(app)
-      .put(`api/users/${userId}/password`)
+      .put(`/api/users/${userId}/password`)
       .send({currentPassword: 'password'});
     
       expect(res.status).toBe(400);
@@ -88,7 +88,7 @@ describe('PUT /api/users/{uid}/password', () => {
 
   it('returns 400 when currentPassword is missing', async () => {
     const res = await request(app)
-      .put(`api/users/${userId}/password`)
+      .put(`/api/users/${userId}/password`)
       .send({newPassword: 'password'});
 
     expect(res.status).toBe(400);
@@ -97,24 +97,24 @@ describe('PUT /api/users/{uid}/password', () => {
 
   it('returns 400 when currentPassword is not a string', async () => {
     const res = await request(app)
-      .put(`api/users/${userId}/password`)
+      .put(`/api/users/${userId}/password`)
       .send({currentPassword: 123});
     
     expect(res.status).toBe(400);
 
   });
 
-  it('returns 400 when newPassword is missing', async () => {
+  it('returns 400 when newPassword is not a string', async () => {
     const res = await request(app)
-      .put(`api/users/${userId}/password`)
+      .put(`/api/users/${userId}/password`)
       .send({newPassword: 123});
 
     expect(res.status).toBe(400);
   });
   
-  it('returns 404 when currentPassword is undefined', async () => {
+  it('returns 400 when currentPassword is undefined', async () => {
     const res = await request(app)
-      .put(`api/users/${userId}/password`)
+      .put(`/api/users/${userId}/password`)
       .send({currentPassword: undefined});
       
     expect(res.status).toBe(400);
