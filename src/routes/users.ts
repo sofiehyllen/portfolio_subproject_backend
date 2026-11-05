@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import { NotFound } from '../middleware/errors.js';
-import { toRatingDto, toUserDto } from './dto.js';
+import { toUserRatingDto, toUserDto } from './dto.js';
 import * as ratings from '../data/ratings.js';
 
 export const router = Router();
@@ -72,7 +72,7 @@ router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
     const result = await ratings.rateTitle(uconst, tconst, rating);
     if (!result) throw new NotFound('Title not found');
 
-    res.status(result.created ? 201 : 200).json(toRatingDto(result.rating)); // new: 201, changed: 200
+    res.status(result.created ? 201 : 200).json(toUserRatingDto(result.rating)); // new: 201, changed: 200
 
   } catch (err) {
     next(err)

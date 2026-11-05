@@ -1,7 +1,7 @@
 import { pool } from '../db.js';
 
 // Structure of the data from the database
-export interface Rating {
+export interface UserRating {
   uconst: number;
   tconst: string;
   rating: number;
@@ -12,7 +12,7 @@ export interface Rating {
 
 // What rateTitle returns to the route.
 export interface RateResult {
-  rating: Rating;
+  rating: UserRating;
   created: boolean; // true when the user had no active rating of the title before
 }
 
@@ -34,19 +34,14 @@ const SELECT = `
 // Returns undefined when no such title exists.
 export async function rateTitle(
   uconst: number, tconst: string, rating: number): Promise<RateResult | undefined> {
+  // rate() raises the same error code for every failure, so the unknown
+  // title (404) is checked here instead of parsed from the error message.
+  const title = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
+  if (!title.rowCount) return undefined; // unknown title: the route turns this into 404
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    // rate() raises the same error code for every failure, so the unknown
-    // title (404) is checked here instead of parsed from the error message.
-    const title = await client.query(
-      'SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
-    if (!title.rowCount) { // no row: end the transaction
-      await client.query('ROLLBACK');
-      return undefined;
-    }
-    
     // checks if the user already has a rating
     const active = await client.query(
       `SELECT 1 FROM user_title_ratings
@@ -58,7 +53,7 @@ export async function rateTitle(
     await client.query('SELECT rate($1, $2, $3)', [uconst, tconst, rating]); 
 
     // read back the row rate() just wrote
-    const { rows } = await client.query<Rating>(
+    const { rows } = await client.query<UserRating>(
       `${SELECT} WHERE uconst = $1 AND tconst = $2`, [uconst, tconst]); 
 
     await client.query('COMMIT');

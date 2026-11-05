@@ -1,7 +1,7 @@
 /**
  * Data Transfer Objects (DTOs) — the shapes sent to clients in API responses.
  */
-import { Rating } from "../data/ratings.js";
+import { UserRating } from "../data/ratings.js";
 import { Title, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 
@@ -79,7 +79,7 @@ export function toTitleSummaryDto(title: TitleSummary): TitleSummaryDto {
   };
 }
 
-export interface RatingDto {
+export interface UserRatingDto {
   url: string;
   title: string;
   rating: number;
@@ -87,7 +87,7 @@ export interface RatingDto {
   updatedAt: Date;
 }
 
-export function toRatingDto(rating: Rating): RatingDto {
+export function toUserRatingDto(rating: UserRating): UserRatingDto {
   return {
     url: uri.rating(rating.uconst, rating.tconst),
     title: uri.title(rating.tconst),
