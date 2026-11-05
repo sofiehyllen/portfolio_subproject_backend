@@ -2,9 +2,9 @@ import { pool } from '../db.js';
 
 
 export interface UserSearchHistory {
-  sconst: string;
+  sconst: number;
   search_string: string;
-  created_at: string;
+  created_at: Date;
 }
 
 export async function getUserSearchHistory(uconst: number, limit: number, offset: number) {
