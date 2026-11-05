@@ -1,4 +1,7 @@
-import { Title } from '../data/titles.js';
+/**
+ * Data Transfer Objects (DTOs) — the shapes sent to clients in API responses.
+ */
+import { Title, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 
 const API_BASE = '/api';
@@ -34,14 +37,20 @@ export interface TitleDto {
   url: string;
   titleType: string;
   primaryTitle: string;
-  originalTitle: string;
+  originalTitle: string | null;
   isAdult: boolean;
-  startYear: number;
-  endYear: number;
-  runtimeMinutes: number;
-  awards: string;
-  posterUrl: string;
-  plot: string;
+  startYear: number | null;
+  endYear: number | null;
+  runtimeMinutes: number | null;
+  awards: string | null;
+  posterUrl: string | null;
+  plot: string | null;
+}
+
+export interface TitleSummaryDto {
+  url: string;
+  primaryTitle: string;
+  startYear: number | null;
 }
 
 export function toTitleDto(title: Title): TitleDto {
@@ -57,5 +66,13 @@ export function toTitleDto(title: Title): TitleDto {
     awards: title.awards,
     posterUrl: title.posterUrl,
     plot: title.plot,
+  };
+}
+
+export function toTitleSummaryDto(title: TitleSummary): TitleSummaryDto {
+  return {
+    url: uri.title(title.tconst),
+    primaryTitle: title.primaryTitle,
+    startYear: title.startYear,
   };
 }

@@ -65,3 +65,9 @@ export function paged<T>(req: Request, page: Page, total: number, items: T[]): P
     : null;
   return { total, limit, offset, items, links: { prev, next } };
 }
+
+// Logging of a users search: only on the first page, since later pages
+// repeat the same search. Anonymous requests are never logged.
+export function searchLogUser(page: Page, uconst: number | undefined): number | null {
+  return page.offset === 0 && uconst !== undefined ? uconst : null;
+}
