@@ -71,3 +71,33 @@ describe('GET /api/titles/{tconst}', () => {
     expect(res.body).toEqual({ error: 'Title not found' });
   });
 });
+
+describe('GET /api/titles/{tconst}/actors', () => {
+  it('returns a page of actors, highest name rating first', async () => {
+    const res = await request(app).get('/api/titles/tt0063929/actors?limit=3');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ limit: 3, offset: 0 });
+    expect(res.body.items.length).toBeLessThanOrEqual(3);
+    expect(res.body.items.length).toBeLessThanOrEqual(res.body.total);
+
+    const ratings = res.body.items.map((actor: { nameRating: number | null }) => actor.nameRating ?? -1);
+    expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
+    for (const actor of res.body.items) {
+      expect(actor.url).toMatch(/^\/api\/persons\/nm\d+$/);
+    }
+  });
+
+  it('keeps the path in the paging links', async () => {
+    const res = await request(app).get('/api/titles/tt0063929/actors?limit=1');
+
+    expect(res.body.links.next).toBe('/api/titles/tt0063929/actors?limit=1&offset=1');
+  });
+
+  it('gives 404 for an unknown title', async () => {
+    const res = await request(app).get('/api/titles/tt0000000/actors');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'Title not found' });
+  });
+});

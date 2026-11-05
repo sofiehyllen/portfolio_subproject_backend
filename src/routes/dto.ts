@@ -1,4 +1,4 @@
-import { Title, TitleDetail } from '../data/titles.js';
+import { Actor, Title, TitleDetail } from '../data/titles.js';
 import { User } from '../data/users.js';
 
 const API_BASE = '/api';
@@ -72,6 +72,20 @@ export interface TitleDetailDto extends TitleDto {
   genres: string[];
   rating: { average: number; votes: number } | null;
   credits: CreditDto[];
+}
+
+export interface ActorDto {
+  url: string;
+  name: string;
+  nameRating: number | null;
+}
+
+export function toActorDto(actor: Actor): ActorDto {
+  return {
+    url: uri.person(actor.nconst),
+    name: actor.name,
+    nameRating: actor.nameRating,
+  };
 }
 
 export function toTitleDetailDto(title: TitleDetail): TitleDetailDto {

@@ -99,3 +99,34 @@ export async function get(tconst: string): Promise<TitleDetail | undefined> {
 
   return { ...title, genres: title.genres, rating, credits: credits.rows };
 }
+
+export interface Actor {
+  nconst: string;
+  name: string;
+  nameRating: number | null;
+}
+
+// A page of the title's actors, highest name rating first, plus how many there are
+// in all. Undefined when no such title exists (popular_actors() alone gives an empty
+// list both for an unknown title and for a title without actors).
+export async function actors(
+  tconst: string, limit: number, offset: number,
+): Promise<{ total: number; items: Actor[] } | undefined> {
+  const head = await pool.query<{ found: boolean; total: number }>(
+    `SELECT EXISTS (SELECT 1 FROM titles WHERE tconst = $1) AS found,
+            (SELECT count(*)::int FROM popular_actors($1)) AS total`,
+    [tconst]);
+  const { found, total } = head.rows[0];
+  if (!found) return undefined;
+
+  // Sorted again here: the order of a function's rows is only certain with ORDER BY.
+  const { rows } = await pool.query<Actor>(
+    `SELECT nconst,
+            actor_name          AS name,
+            name_rating::float8 AS "nameRating"
+     FROM popular_actors($1)
+     ORDER BY name_rating DESC NULLS LAST, actor_name, nconst
+     LIMIT $2 OFFSET $3`,
+    [tconst, limit, offset]);
+  return { total, items: rows };
+}
