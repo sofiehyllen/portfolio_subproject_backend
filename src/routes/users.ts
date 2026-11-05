@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as users from '../data/users.js';
 import { NotFound } from '../middleware/errors.js';
 import { toUserDto } from './dto.js';
+import * as bookmark from '../data/bookmarks.js';
 
 export const router = Router();
 
@@ -24,6 +25,8 @@ router.param('uconst', (_req, res, next, value: string) => {
   res.locals.uconst = uconst;
   next();
 });
+
+/*      Users      */
 
 // GET /api/users/{uconst}: the user's profile (never the password hash).
 // TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
@@ -49,6 +52,21 @@ router.delete('/:uconst', async (_req, res, next) => {
     if (!deleted) throw new NotFound('User not found');
 
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*      Bookmarks     */
+
+// GET /api/users/{uconst}/bookmarks/titles
+router.get('/:uconst/bookmarks/titles', async (_req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const bookmarkedTitles = await bookmark.getTitleBookmarks(uconst);
+    if (!bookmarkedTitles) {
+      throw new NotFound('Bookmarked titles not found');
+    }
   } catch (err) {
     next(err);
   }

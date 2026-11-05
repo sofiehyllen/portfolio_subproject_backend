@@ -1,7 +1,7 @@
 import { pool } from '../db.js';
 
 export interface User {
-  uconst: string;
+  uconst: number;
   firstName: string;
   lastName: string;
   username: string;
