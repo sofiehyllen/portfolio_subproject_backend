@@ -22,7 +22,7 @@ export interface UserDto {
   lastName: string;
   username: string;
   email: string;
-  createdAt: string;
+  createdAt: Date;
 }
 
 export function toUserDto(user: User): UserDto {
