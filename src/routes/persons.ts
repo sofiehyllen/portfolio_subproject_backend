@@ -21,6 +21,8 @@ router.param('nconst', (_req, res, next, value: string) => {
     next();
 });
 
+// GET api/persons/: Paged list of persons, optionally filtered by name and actorsOnly
+// 400 invalid search parameter; 401 invalid token
 router.get('/', async (req, res, next) => {
     try {
         const page = pageOf(req.query);
