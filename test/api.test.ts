@@ -101,6 +101,46 @@ describe('GET /api/titles/{tconst}/actors', () => {
     expect(res.body).toEqual({ error: 'Title not found' });
   });
 });
+
+describe('GET /api/titles/{tconst}/similar', () => {
+  it('returns a page of movies, most shared genres first', async () => {
+    const res = await request(app).get('/api/titles/tt0111596/similar?limit=5');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ limit: 5, offset: 0 });
+    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(res.body.items.length).toBeLessThanOrEqual(5);
+
+    const scores = res.body.items.map((movie: { similarityScore: number }) => movie.similarityScore);
+    expect(scores).toEqual([...scores].sort((a, b) => b - a));
+    for (const movie of res.body.items) {
+      expect(movie.url).toMatch(/^\/api\/titles\/tt\d+$/);
+      expect(movie.commonGenres).toHaveLength(movie.similarityScore);
+    }
+  });
+
+  it('keeps the path in the paging links', async () => {
+    const res = await request(app).get('/api/titles/tt0111596/similar?limit=1');
+
+    expect(res.body.links.next).toBe('/api/titles/tt0111596/similar?limit=1&offset=1');
+  });
+
+  it('gives an empty list for a title that is not a movie', async () => {
+    const res = await request(app).get('/api/titles/tt0063929/similar');
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([]);
+    expect(res.body.total).toBe(0);
+  });
+
+  it('gives 404 for an unknown title', async () => {
+    const res = await request(app).get('/api/titles/tt0000000/similar');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'Title not found' });
+  });
+});
+
 describe('PUT /api/users/{uid}/password', () => {
   let userId: number;
 

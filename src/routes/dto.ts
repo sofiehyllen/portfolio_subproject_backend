@@ -2,7 +2,7 @@
  * Data Transfer Objects (DTOs) — the shapes sent to clients in API responses.
  */
 import { UserRating } from "../data/ratings.js";
-import { Actor, Title, TitleDetail, TitleSummary } from '../data/titles.js';
+import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
 const API_BASE = '/api';
@@ -121,6 +121,22 @@ export function toTitleSummaryDto(title: TitleSummary): TitleSummaryDto {
   };
 }
 
+export interface SimilarMovieDto {
+  url: string;
+  primaryTitle: string;
+  similarityScore: number;
+  commonGenres: string[];
+}
+
+export function toSimilarMovieDto(movie: SimilarMovie): SimilarMovieDto {
+  return {
+    url: uri.title(movie.tconst),
+    primaryTitle: movie.primaryTitle,
+    similarityScore: movie.similarityScore,
+    commonGenres: movie.commonGenres,
+  };
+}
+
 export interface UserRatingDto {
   url: string;
   title: string;
@@ -148,7 +164,7 @@ export interface UserSearchHistoryDto {
 export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: number): UserSearchHistoryDto[] {
   return items.map(sh => ({
     url: uri.searchEntry(uconst, sh.sconst),
-    searchString: sh.search_string,
-    createdAt: sh.created_at
+    searchString: sh.searchString,
+    createdAt: sh.createdAt
   }));
 } 
