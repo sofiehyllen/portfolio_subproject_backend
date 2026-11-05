@@ -31,3 +31,11 @@ export async function deleteUserSearchHistory(uconst: number) {
         FROM clear_search_history($1)`,
     [uconst]);
 }
+
+export async function deleteUserSearchHistoryEntry(uconst: number, sconst: number) {
+    const { rows } = await pool.query(`
+        SELECT clear_search_history_entry($1, $2) as deleted`,
+    [uconst, sconst]);
+
+    return rows[0].deleted;
+}
