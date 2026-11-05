@@ -68,11 +68,27 @@ router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
       return;
     }
 
+    // saves the rating and updates the averages
     const result = await ratings.rateTitle(uconst, tconst, rating);
     if (!result) throw new NotFound('Title not found');
 
     res.status(result.created ? 201 : 200).json(toRatingDto(result.rating)); // new: 201, changed: 200
 
+  } catch (err) {
+    next(err)
+  }
+});
+
+// DELETE /api/users/{uconst}/ratings/{tconst}: removes the user's rating of a title (soft delete).
+router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const tconst = req.params.tconst;
+
+    const deleted = await ratings.deleteRating(uconst, tconst);   // true if a rating was removed
+    if (!deleted) throw new NotFound('Rating not found');
+
+    res.status(204).end();
   } catch (err) {
     next(err)
   }

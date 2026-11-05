@@ -1,5 +1,6 @@
 import { pool } from '../db.js';
 
+// Structure of the data from the database
 export interface Rating {
   uconst: number;
   tconst: string;
@@ -62,6 +63,38 @@ export async function rateTitle(
 
     await client.query('COMMIT');
     return { rating: rows[0], created: !active.rowCount }; // no active rating before means the vote is new (201)
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Removes the user's active rating of a title with remove_rating(), which
+// soft-deletes it and takes the vote out of the title's average.
+// Returns false when the user has no active rating of the title.
+export async function deleteRating(uconst: number, tconst: string): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN'); // start the transaction
+
+    // check for an active rating
+    const active = await client.query(
+      `SELECT 1 FROM user_title_ratings
+        WHERE uconst = $1 AND tconst = $2 AND deleted_at IS NULL
+        FOR UPDATE`,
+      [uconst, tconst]);
+    if (!active.rowCount) { // no active rating found
+      await client.query('ROLLBACK');
+      return false;
+    }
+    
+    // soft-delete rating and update averages
+    await client.query('SELECT remove_rating($1, $2)', [uconst, tconst]); 
+
+    await client.query('COMMIT');
+    return true; // the route turns this into 204
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
