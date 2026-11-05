@@ -3,13 +3,15 @@ import { pool } from '../db.js';
 
 export interface UserSearchHistory {
   sconst: number;
-  search_string: string;
-  created_at: Date;
+  searchString: string;
+  createdAt: Date;
 }
 
 export async function getUserSearchHistory(uconst: number, limit: number, offset: number) {
     const { rows: items } = await pool.query<UserSearchHistory>(`
-        SELECT  sconst, search_string, created_at
+        SELECT  sconst, 
+                search_string as "searchString", 
+                created_at as "createdAt"
         FROM get_search_history($1)
         ORDER BY created_at DESC, sconst DESC
         LIMIT $2
