@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import { NotFound } from '../middleware/errors.js';
-import { toUserRatingDto, toUserDto } from './dto.js';
+import { toUserRatingDto, toUserDto , toUserSearchHistoryDto} from './dto.js';
 import * as ratings from '../data/ratings.js';
+
+import * as search_history from '../data/search_history.js';
+import { pageOf, paged } from './pagination.js';
 
 export const router = Router();
 
@@ -93,3 +96,26 @@ router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
     next(err)
   }
 });
+
+
+// GET /api/users/{uconst}/search-history: a user's list of search history
+// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
+router.get('/:uconst/search-history', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+
+    const page = pageOf(req.query);
+    const {items, total} = await search_history.getUserSearchHistory(uconst, page.limit, page.offset);
+
+    res.json(paged(req, page, total, toUserSearchHistoryDto(items, uconst)));
+
+  } catch (err){
+    next (err);
+  }
+
+});
+
+// DELETE /api/users/{uconst}/search-history/{sconst}: delete a specific search-history entry
+
+
+// DELETE /api/users{uconst}/search-history: delete user's search history
