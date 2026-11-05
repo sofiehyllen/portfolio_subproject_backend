@@ -96,7 +96,7 @@ router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
   }
 });
 
-
+// PUT /api/users/{uconst}/password: replaces the user's password
 router.put('/:uconst/password', async (req, res, next) => {
   // TODO: require a token and check it belongs to {uconst} once auth exists
   try {
@@ -109,10 +109,10 @@ router.put('/:uconst/password', async (req, res, next) => {
         typeof newPassword !== 'string') 
         throw new BadRequest('Current and new passwords are required');
     
-    const storedHash: string | undefined = await users.getPasswordHash(uconst);
-    if (storedHash === undefined) throw new NotFound('User not found'); 
+    const user = await users.getUser(uconst);
+    if (!user) throw new NotFound('User not found'); 
 
-    const isPasswordValid = await checkPassword(currentPassword, storedHash);
+    const isPasswordValid = await checkPassword(currentPassword, user.passwordHash);
     if (!isPasswordValid) throw new Forbidden('Current password is invalid');
 
     const newHash = await hashPassword(newPassword);
@@ -121,6 +121,6 @@ router.put('/:uconst/password', async (req, res, next) => {
     
     return res.status(204).end();
   }catch (err) {
-    next(err)
+    next(err);
   }
 });
