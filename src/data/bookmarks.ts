@@ -46,7 +46,7 @@ export async function addTitleBookmark(uconst: number, tconst: string): Promise<
             [tconst]
         );
 
-        // Add title to bookmark_title
+        // Add new bookmark to bookmark_title
         const { rows } = await client.query<BookmarkTitle>(
             `SELECT add_title_bookmark($1, $2)`,
             [uconst, tconst]
@@ -62,14 +62,9 @@ export async function addTitleBookmark(uconst: number, tconst: string): Promise<
     } finally {
         client.release();
     }
-//   const { rows } = await pool.query<BookmarkTitle>(
-//     `SELECT add_title_bookmark($1, $2)`,
-//     [uconst, tconst]
-//   );
-//   return rows[0];
 }
 
-// Delete title bookmark - Check if user and title exist before deleting - Is that necessary?
+// Delete title bookmark
 export async function removeTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
     const client = await pool.connect();
     try {
@@ -84,7 +79,7 @@ export async function removeTitleBookmark(uconst: number, tconst: string): Promi
             [uconst, tconst]
         );
 
-        // Remove title to bookmark_title
+        // Remove bookmark from bookmark_title
         const row = await client.query<BookmarkTitle>(
             `SELECT remove_title_bookmark($1, $2)`,
             [uconst, tconst]
@@ -102,16 +97,6 @@ export async function removeTitleBookmark(uconst: number, tconst: string): Promi
     }
 }
 
-// Delete title bookmark - No check
-// export async function removeTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
-//   const row = await pool.query<BookmarkTitle>(
-//     `SELECT remove_title_bookmark($1, $2)`,
-//     [uconst, tconst]
-//   );
-//   return row.rowCount === 1;
-// }
-
-
 
 //Get list of users bookmarked persons
 export async function getPersonBookmarks(uconst: number): Promise<BookmarkPerson[]> {
@@ -125,18 +110,73 @@ export async function getPersonBookmarks(uconst: number): Promise<BookmarkPerson
 
 // Create person bookmark
 export async function addPersonBookmark(uconst: number, nconst: string): Promise<BookmarkPerson> {
-  const { rows } = await pool.query<BookmarkPerson>(
-    `SELECT add_person_bookmark($1, $2)`,
-    [uconst, nconst]
-  );
-  return rows[0];
+  const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // Check if user exist
+        await client.query(
+            `SELECT uconst
+            FROM users
+            WHERE uconst = $1`,
+            [uconst]
+        );
+
+        // Check if person exist
+        await client.query(
+            `SELECT nconst
+            FROM persons
+            WHERE nconst = $2`,
+            [nconst]
+        );
+
+        // Add new bookmark to bookmark_person
+        const { rows } = await client.query<BookmarkPerson>(
+            `SELECT add_person_bookmark($1, $2)`,
+            [uconst, nconst]
+        );
+
+        await client.query('COMMIT');
+        return rows[0];
+        
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+        
+    } finally {
+        client.release();
+    }
 }
 
 // Delete person bookmark
 export async function removePersonBookmark(uconst: number, nconst: string): Promise<boolean> {
-  const row = await pool.query<BookmarkPerson>(
-    `SELECT remove_person_bookmark($1, $2)`,
-    [uconst, nconst]
-  );
-  return row.rowCount === 1;
+  const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // Check if uconst and nconst exist in bookmark_person
+        await client.query(
+            `SELECT *
+            FROM bookmark_person
+            WHERE uconst = $1
+                AND nconst = $2`,
+            [uconst, nconst]
+        );
+
+        // Remove bookmark from bookmark_person
+        const row = await client.query<BookmarkPerson>(
+            `SELECT remove_person_bookmark($1, $2)`,
+            [uconst, nconst]
+        );
+
+        await client.query('COMMIT');
+        return row.rowCount === 1;
+        
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+        
+    } finally {
+        client.release();
+    }
 }
