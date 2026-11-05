@@ -19,10 +19,8 @@ export async function getUserSearchHistory(uconst: number, limit: number, offset
         [uconst, limit, offset]);
     
     const { rows: countRows } = await pool.query(`
-        SELECT count(*) AS total FROM get_search_history($1)`,
+        SELECT count(*)::int AS total FROM get_search_history($1)`,
         [uconst]);
 
-    const total = parseInt(countRows[0].total);
-
-    return {items, total};
+    return {items, countRows[0].total};
 }
