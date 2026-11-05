@@ -142,6 +142,40 @@ export async function actors(
   return { total, items: rows };
 }
 
+export interface SimilarMovie {
+  tconst: string;
+  primaryTitle: string;
+  similarityScore: number;
+  commonGenres: string[];
+}
+
+// A page of movies sharing genres with the title, most shared genres first, plus how
+// many there are in all. Undefined when no such title exists (similar_movies() alone
+// gives an empty list both for an unknown title and for a title that is not a movie).
+export async function similar(
+  tconst: string, limit: number, offset: number,
+): Promise<{ total: number; items: SimilarMovie[] } | undefined> {
+  const head = await pool.query<{ found: boolean; total: number }>(
+    `SELECT EXISTS (SELECT 1 FROM titles WHERE tconst = $1) AS found,
+            (SELECT count(*)::int FROM similar_movies($1)) AS total`,
+    [tconst]);
+  const { found, total } = head.rows[0];
+  if (!found) return undefined;
+
+  // Sorted again here: the order of a function's rows is only certain with ORDER BY.
+  // tconst settles ties between movies of the same name, so paging stays stable.
+  const { rows } = await pool.query<SimilarMovie>(
+    `SELECT tconst,
+            movie_title                          AS "primaryTitle",
+            similarity_score::int                AS "similarityScore",
+            string_to_array(common_genres, ', ') AS "commonGenres"
+     FROM similar_movies($1)
+     ORDER BY similarity_score DESC, movie_title, tconst
+     LIMIT $2 OFFSET $3`,
+    [tconst, limit, offset]);
+  return { total, items: rows };
+}
+
 // A page of titles matching a substring search, and the total number of matches.
 // string_search is called once per request, so the search is logged at most once.
 export async function searchText(
