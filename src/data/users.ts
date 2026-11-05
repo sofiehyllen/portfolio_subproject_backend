@@ -10,7 +10,7 @@ export interface User {
   username: string;
   email: string;
   passwordHash: string;
-  createdAt: string;
+  createdAt: Date;
 }
 
 export interface NewUser {
