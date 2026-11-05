@@ -1,9 +1,13 @@
 /**
  * Data-access layer for the `titles` table.
  *
- * Exports the `Title` interface and two query functions:
- * - `list(limit, offset)` — returns a paginated, alphabetically ordered slice of titles.
- * - `count()` — returns the total number of titles, used to build paging metadata.
+ * Exports two interfaces and three query functions:
+ * - `Title` — full row shape returned by `list`.
+ * - `TitleSummary` — compact shape (tconst, primaryTitle, startYear) returned by `searchText`.
+ * - `list(limit, offset)` — paged slice of all titles, ordered alphabetically by primary title.
+ * - `count()` — total number of titles, used to build paging metadata for `list`.
+ * - `searchText(logAs, text, limit, offset)` — paged substring search via `string_search`;
+ *   logs the search under `logAs` (a user id) on the first page, or skips logging if null.
  */
 import { pool } from '../db.js';
 
@@ -19,6 +23,13 @@ export interface Title {
   awards: string | null;
   posterUrl: string | null;
   plot: string | null;
+}
+
+// The fields shown for a title in a search result.
+export interface TitleSummary {
+  tconst: string;
+  primaryTitle: string;
+  startYear: number | null;
 }
 
 const SELECT = `
@@ -129,4 +140,21 @@ export async function actors(
      LIMIT $2 OFFSET $3`,
     [tconst, limit, offset]);
   return { total, items: rows };
+// A page of titles matching a substring search, and the total number of matches.
+// string_search is called once per request, so the search is logged at most once.
+export async function searchText(
+  logAs: number | null, text: string, limit: number, offset: number,
+): Promise<{ items: TitleSummary[]; total: number }> {
+  const { rows } = await pool.query<TitleSummary & { total: number }>(
+    `SELECT t.tconst,
+            t.primary_title AS "primaryTitle",
+            t.start_year    AS "startYear",
+            count(*) OVER()::int AS total
+      FROM string_search($1, $2) s
+      JOIN titles t ON t.tconst = s.tconst
+      ORDER BY t.tconst
+      LIMIT $3 OFFSET $4`,
+    [logAs, text, limit, offset]);
+  const total = rows.length > 0 ? rows[0].total : 0;
+  return { items: rows.map(({ total: _, ...title }) => title), total };
 }

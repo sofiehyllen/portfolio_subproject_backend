@@ -119,7 +119,7 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 Every list response has the same structure: `total` (the number of items in the whole list), `limit`, `offset`, `items`, and `links` with `prev` and `next`. Each link is the URI of the same request at the neighbouring page, with all other query parameters kept, and is `null` when that page does not exist.
 
-**Sorting.** The client cannot choose the order. Every list has a fixed, deterministic order, so pages never overlap or skip rows: titles and persons by id, ranked searches by their rank (then id), bookmarks and histories newest first.
+**Sorting.** The client cannot choose the order. Every list has a fixed, deterministic order, so pages never overlap or skip rows: titles alphabetically by primary title (then id as tiebreaker), persons by id, ranked searches by their rank (then id), bookmarks and histories newest first.
 
 **Filtering titles.** `GET /api/titles` accepts one search mode per request. Mixing modes gives status code 400.
 
@@ -158,17 +158,29 @@ Content-Type: application/json
   "items": [
     {
       "url": "http://localhost:3000/api/titles/tt0068646",
-      "title": "The Godfather",
       "titleType": "movie",
+      "primaryTitle": "The Godfather",
+      "originalTitle": "The Godfather",
+      "isAdult": false,
       "startYear": 1972,
-      "rating": { "average": 9.2, "votes": 2000000 }
+      "endYear": null,
+      "runtimeMinutes": 175,
+      "awards": null,
+      "posterUrl": null,
+      "plot": "The aging patriarch of an organized crime dynasty transfers control to his reluctant son."
     },
     {
       "url": "http://localhost:3000/api/titles/tt0111161",
-      "title": "The Shawshank Redemption",
       "titleType": "movie",
+      "primaryTitle": "The Shawshank Redemption",
+      "originalTitle": "The Shawshank Redemption",
+      "isAdult": false,
       "startYear": 1994,
-      "rating": { "average": 9.3, "votes": 2900000 }
+      "endYear": null,
+      "runtimeMinutes": 142,
+      "awards": null,
+      "posterUrl": null,
+      "plot": "Two imprisoned men bond over a number of years, finding solace and eventual redemption."
     }
   ],
   "links": {
@@ -179,7 +191,7 @@ Content-Type: application/json
 ```
 
 Every item has a `url`, so the client can follow it without building any address itself.
-`prev` is `null` because this is the first page. A title without votes has `"rating": null`.
+`prev` is `null` because this is the first page. Fields with no data in the database are `null`.
 
 Every error has the same shape, with no stack trace, SQL or database identifiers:
 
