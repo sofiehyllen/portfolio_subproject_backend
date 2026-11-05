@@ -5,6 +5,7 @@ import { UserRating } from "../data/ratings.js";
 import { Title, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
+import { Person } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -13,6 +14,7 @@ export const uri = {
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
   rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
   searchEntry: (uconst: string | number, sconst: string | number) => `${API_BASE}/users/${uconst}/search-history/${sconst}`,
+  persons: () => `${API_BASE}/persons/`,
 };
 
 // The public profile. The password hash is never sent to the client.
@@ -111,3 +113,21 @@ export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: numbe
     createdAt: sh.created_at
   }));
 } 
+
+export interface PersonsDto {
+  url: string;
+  primaryName: string;
+  birthYear: number;
+  deathYear: number;
+  avgNameRating: number
+}
+
+export function toPersonsDto(items: Person[]): PersonsDto[] {
+  return items.map(i => ({
+    url: uri.persons(),
+    primaryName: i.primaryName,
+    birthYear: i.birthYear,
+    deathYear: i.deathYear,
+    avgNameRating: i.avgNameRating
+  }));
+}
