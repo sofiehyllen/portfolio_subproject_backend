@@ -146,4 +146,14 @@ router.get('/:uconst/search-history', async (req, res, next) => {
 // DELETE /api/users/{uconst}/search-history/{sconst}: delete a specific search-history entry
 
 
-// DELETE /api/users{uconst}/search-history: delete user's search history
+// DELETE /api/users/{uconst}/search-history: delete user's search history
+// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
+router.delete('/:uconst/search-history', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    await search_history.deleteUserSearchHistory(uconst);
+    res.status(204).end();
+  } catch (error) {
+    next(error)
+  }
+});
