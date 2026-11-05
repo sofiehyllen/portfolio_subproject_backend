@@ -16,6 +16,13 @@ export interface RateResult {
   created: boolean; // true when the user had no active rating of the title before
 }
 
+export interface RatingHistoryEntry {
+  tconst: string;
+  primaryTitle: string;
+  rating: number;
+  lastChange: Date;
+}
+
 // Shared SELECT, so every query returns the columns the Rating interface expects.
 const SELECT = `
   SELECT uconst,
@@ -25,6 +32,34 @@ const SELECT = `
           updated_at AS "updatedAt",
           deleted_at AS "deletedAt"
   FROM user_title_ratings`;
+
+export async function ratingHistory(
+  uconst: number, limit: number, offset: number): Promise<RatingHistoryEntry[]> {
+  const { rows } = await pool.query<RatingHistoryEntry>(
+    `SELECT tconst,
+            title_name  AS "primaryTitle",
+            rating,
+            last_change AS "lastChange"
+      FROM get_title_rating_history($1)
+      ORDER BY last_change DESC, tconst
+      LIMIT $2 OFFSET $3`,
+    [uconst, limit, offset]);
+  return rows;
+}
+
+export async function countRatings(uconst: number): Promise<number> {
+  const { rows } = await pool.query<{ total: number }>(
+    'SELECT count(*)::int AS total FROM get_title_rating_history($1)',
+  [uconst]);
+  return rows[0].total;
+}
+
+export async function getRating(uconst: number, tconst: string): Promise<UserRating | undefined> {
+  const { rows } = await pool.query<UserRating>(
+    `${SELECT} WHERE uconst = $1 AND tconst = $2 AND deleted_at IS NULL`,
+    [uconst, tconst]);
+  return rows[0];
+}
 
 // Creates or changes the user's rating of a title with rate(), which also
 // updates the title's average and the name ratings.
