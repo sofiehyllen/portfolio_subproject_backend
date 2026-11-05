@@ -5,6 +5,7 @@ import { toUserRatingDto, toUserDto, toUserSearchHistoryDto } from './dto.js';
 import * as ratings from '../data/ratings.js';
 import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
+import { hashPassword, checkPassword } from '../utils/passwords.js'
 
 export const router = Router();
 
