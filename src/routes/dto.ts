@@ -2,7 +2,7 @@
  * Data Transfer Objects (DTOs) — the shapes sent to clients in API responses.
  */
 import { UserRating } from "../data/ratings.js";
-import { Title, TitleSummary } from '../data/titles.js';
+import { Actor, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
 const API_BASE = '/api';
@@ -66,6 +66,47 @@ export function toTitleDto(title: Title): TitleDto {
   };
 }
 
+export interface CreditDto {
+  person: { url: string; name: string };
+  category: string;
+  job: string | null;
+  characters: string[];
+}
+
+// One title in full: the list fields plus genres, rating and credits.
+export interface TitleDetailDto extends TitleDto {
+  genres: string[];
+  rating: { average: number; votes: number } | null;
+  credits: CreditDto[];
+}
+
+export interface ActorDto {
+  url: string;
+  name: string;
+  nameRating: number | null;
+}
+
+export function toActorDto(actor: Actor): ActorDto {
+  return {
+    url: uri.person(actor.nconst),
+    name: actor.name,
+    nameRating: actor.nameRating,
+  };
+}
+
+export function toTitleDetailDto(title: TitleDetail): TitleDetailDto {
+  return {
+    ...toTitleDto(title),
+    genres: title.genres,
+    rating: title.rating,
+    credits: title.credits.map(credit => ({
+      person: { url: uri.person(credit.nconst), name: credit.name },
+      category: credit.category,
+      job: credit.job,
+      characters: credit.characters,
+    })),
+  };
+}
 export interface TitleSummaryDto {
   url: string;
   primaryTitle: string;
