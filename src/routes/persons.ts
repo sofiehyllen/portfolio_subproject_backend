@@ -6,6 +6,11 @@ import { toPersonsDto } from './dto.js';
 
 export const router = Router();
 
+/**
+ * Parser a string into a positive integer ID that fits in a Postgres `integer`
+ * @param value 
+ * @returns The parsed number or `udentified` if the string is not positive integer or exceeds 2147483647
+ */
 function parseConst(value: string): number | undefined {
   if (!/^[1-9]\d*$/.test(value)) return undefined;
   const id = Number(value);
