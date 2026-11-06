@@ -5,7 +5,7 @@ import { UserRating } from "../data/ratings.js";
 import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
-import { onePerson, Person } from "../data/persons.js";
+import { onePerson, Person, PersonTitle } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -176,7 +176,7 @@ export interface PersonsDto {
   primaryName: string;
   birthYear: number | null;
   deathYear: number | null;
-  avgNameRating: number
+  avgNameRating: number | null;
 }
 
 
@@ -209,5 +209,26 @@ export function toOnePersonDto(item: onePerson): onePersonDto {
       url:          uri.title(i.tconst),
       primaryTitle: i.primaryTitle
     }))
+  };
+}
+
+
+export interface onePersonTitleDto {
+  urlTitle:       string;
+  urlPerson:      string,
+  category:       string;
+  job:            string | null;
+  primaryTitle:   string;
+  characterName:  string | null;
+}
+
+export function toOnePersonTitleDto(item: PersonTitle): onePersonTitleDto {
+  return {
+    urlTitle:       uri.title(item.tconst),
+    urlPerson:      uri.person(item.nconst),
+    category:       item.category,
+    job:            item.job,
+    primaryTitle:   item.primaryTitle,
+    characterName:  item.characterName
   };
 }
