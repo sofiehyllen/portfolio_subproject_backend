@@ -27,7 +27,7 @@ router.param('nconst', (_req, res, next, value: string) => {
 router.get('/', async (req, res, next) => {
     try {
         const page = pageOf(req.query);
-        const {items, total} =  await persons.persons(page.limit, page.offset);
+        const {items, total} =  await persons.getPersons(page.limit, page.offset);
 
         res.json(paged(req, page, total, toPersonsDto(items)));
 
