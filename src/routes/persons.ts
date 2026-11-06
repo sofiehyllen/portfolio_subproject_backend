@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged} from '../routes/pagination.js'
-import { toPersonsDto, toOnePersonDto } from './dto.js';
+import { toPersonsDto, toOnePersonDto, toOnePersonTitleDto } from './dto.js';
 
 export const router = Router();
 
@@ -56,3 +56,19 @@ router.get('/:nconst', async (_req, res, next) => {
     }
 });
 
+// GET /api/persons/{nconst}/titles
+// Paged titles the person has been credited on, each with their role (category, job, characters)
+router.get('/:nconst/titles', async (req, res, next) => {
+    try {
+        const nconst: string = res.locals.nconst;
+        const person = await persons.getOnePerson(nconst);
+        if (person === undefined) throw new error.NotFound('Person not found');
+
+        const page = pageOf(req.query);
+        const {items, total} =  await persons.getPersonTitles(nconst, page.limit, page.offset);
+
+        res.json(paged(req, page, total, items.map(toOnePersonTitleDto)));
+    } catch (error) {
+        next(error);  
+    }
+});
