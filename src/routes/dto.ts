@@ -179,6 +179,8 @@ export interface PersonsDto {
   avgNameRating: number
 }
 
+
+// should this mapping happen here or in route 
 export function toPersonsDto(items: Person[]): PersonsDto[] {
   return items.map(i => ({
     url: uri.persons(),
@@ -188,3 +190,4 @@ export function toPersonsDto(items: Person[]): PersonsDto[] {
     avgNameRating: i.avgNameRating
   }));
 }
+
