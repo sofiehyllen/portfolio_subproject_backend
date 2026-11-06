@@ -17,6 +17,7 @@ function parseConst(value: string): number | undefined {
   return id <= 2147483647 ? id : undefined; // fits a Postgres integer
 }
 
+// validates the :nconst route param and stores the value in res.locals
 router.param('nconst', (_req, res, next, value: string) => {
     const nconst = parseConst(value);
     if (nconst === undefined) {
