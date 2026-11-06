@@ -23,7 +23,6 @@ export async function getUserSearchHistory(uconst: number, limit: number, offset
         [uconst]);
 
     return { items, total: countRows[0].total };
-
 }
 
 export async function deleteUserSearchHistory(uconst: number) {

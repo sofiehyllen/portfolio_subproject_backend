@@ -5,6 +5,7 @@ import { UserRating } from "../data/ratings.js";
 import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
+import { onePerson, Person } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -13,6 +14,7 @@ export const uri = {
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
   rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
   searchEntry: (uconst: string | number, sconst: string | number) => `${API_BASE}/users/${uconst}/search-history/${sconst}`,
+  persons: () => `${API_BASE}/persons/`,
 };
 
 // The public profile. The password hash is never sent to the client.
@@ -168,3 +170,44 @@ export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: numbe
     createdAt: sh.createdAt
   }));
 } 
+
+export interface PersonsDto {
+  url: string;
+  primaryName: string;
+  birthYear: number | null;
+  deathYear: number | null;
+  avgNameRating: number
+}
+
+
+// should this mapping happen here or in route 
+export function toPersonsDto(item: Person): PersonsDto {
+  return {
+    url:            uri.person(item.nconst),
+    primaryName:    item.primaryName,
+    birthYear:      item.birthYear,
+    deathYear:      item.deathYear,
+    avgNameRating:  item.avgNameRating
+  };
+}
+
+export interface onePersonDto {
+  url: string;
+  primaryName: string,
+  avgNameRating: number | null,
+  professions: string[],
+  knownFor: {url: string, primaryTitle: string}[]
+}
+
+export function toOnePersonDto(item: onePerson): onePersonDto {
+  return {
+    url:            uri.person(item.nconst),
+    primaryName:    item.primaryName,
+    avgNameRating:  item.avgNameRating,
+    professions:    item.professions,
+    knownFor:       item.knownFor.map(i => ({
+      url:          uri.title(i.tconst),
+      primaryTitle: i.primaryTitle
+    }))
+  };
+}
