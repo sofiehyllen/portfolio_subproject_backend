@@ -7,24 +7,22 @@ import { toPersonsDto } from './dto.js';
 export const router = Router();
 
 /**
- * Parser a string into a positive integer ID that fits in a Postgres `integer`
+ * Validates an IMDb-style person ID (e.g. "nm0000042").
  * @param value 
- * @returns The parsed number or `udentified` if the string is not positive integer or exceeds 2147483647
+ * @returns The ID if it matches the format, or `undefined`
  */
-function parseConst(value: string): number | undefined {
-  if (!/^[1-9]\d*$/.test(value)) return undefined;
-  const id = Number(value);
-  return id <= 2147483647 ? id : undefined; // fits a Postgres integer
+function parseNconst(value: string): string | undefined {
+  return /^nm\d{7,}$/.test(value) ? value : undefined;
 }
 
 // validates the :nconst route param and stores the value in res.locals
 router.param('nconst', (_req, res, next, value: string) => {
-    const nconst = parseConst(value);
+    const nconst = parseNconst(value);
     if (nconst === undefined) {
-        return next(new error.BadRequest('sconst must be a positive integer'));
-        return;
+        console.log(value);
+        return next(new error.BadRequest('nconst must be a string starting with nm and have at least 7 digits'));
     }
-    res.locals.uconst = nconst;
+    res.locals.nconst = nconst;
     next();
 });
 
@@ -44,14 +42,14 @@ router.get('/', async (req, res, next) => {
 
 
 // GET /api/persons/{nconst}: One person with name rating, professions and known-for titles
-router.get('/:ncosnt', async (req, res, next) => {
+router.get('/:nconst', async (_req, res, next) => {
     try {
-        const nconst: string = res.locals.ncosnt;
+        const nconst: string = res.locals.nconst;
         const foundPerson: persons.Person[] | undefined = await persons.getOnePerson(nconst);
 
         // not sure if this is an error
         // but it should be as its look up by specific nconst
-        if (foundPerson === undefined) throw new error.NotFound('Person not found');
+        if (foundPerson?.length === 0 || foundPerson === undefined) throw new error.NotFound('Person not found');
 
         res.json(toPersonsDto(foundPerson));
     } catch (error) {
