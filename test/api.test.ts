@@ -25,6 +25,23 @@ describe('GET /api/titles (paged listing)', () => {
     }
   });
 
+  it('gives every item its rating, the same as on the title itself', async () => {
+    const res = await request(app).get('/api/titles?limit=20');
+
+    for (const item of res.body.items) {
+      expect(item).toHaveProperty('rating');
+      if (item.rating !== null) {
+        expect(item.rating).toEqual({
+          average: expect.any(Number),
+          votes: expect.any(Number),
+        });
+      }
+
+      const detail = await request(app).get(item.url);
+      expect(item.rating).toEqual(detail.body.rating);
+    }
+  });
+
   it('gives a next link that leads to the following page', async () => {
     const first = await request(app).get('/api/titles?limit=5');
     const second = await request(app).get(first.body.links.next);
