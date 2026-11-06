@@ -43,11 +43,11 @@ export async function getPersons(limit: number, offset: number) {
 export async function getOnePerson(nconst: string): Promise<Person[] | undefined> {
   const result  = await pool.query<Person>(`
     SELECT  nconst, 
-            primary_name    as  "primaryName"
-            birth_year      as  "birthYear"
-            death_year      as  "deathYear"
+            primary_name    as  "primaryName",
+            birth_year      as  "birthYear",
+            death_year      as  "deathYear",
             avg_name_rating as  "avgNameRating"
-    FROM person 
+    FROM persons
     WHERE nconst = $1`,
     [nconst]);
 
