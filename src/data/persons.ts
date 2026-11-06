@@ -8,7 +8,13 @@ export interface Person {
   avgNameRating: number;
 }
 
-export async function persons(limit: number, offset: number) {
+/**
+ * Gets a paginated list of persons, ordered alphabetically by primary name.
+ * @param limit 
+ * @param offset 
+ * @returns An object with `items` (the requested page of persons) and `total` (the number of persons in the table)
+ */
+export async function getPersons(limit: number, offset: number) {
   const { rows: items } = await pool.query<Person>(
     `SELECT nconst,
             primary_name    AS "primaryName",
@@ -36,7 +42,8 @@ export async function getOnePerson(nconst: string): Promise<Person[] | undefined
             birth_year      as  "birthYear"
             death_year      as  "deathYear"
             avg_name_rating as  "avgNameRating"
-    FROM get_person($1)`,
+    FROM person 
+    WHERE nconst = $1`,
     [nconst]);
 
     return result.rows; 
