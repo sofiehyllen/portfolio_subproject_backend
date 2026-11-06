@@ -83,7 +83,7 @@ export function toTitleSummaryDto(title: TitleSummary): TitleSummaryDto {
 export interface UserBookmarkTitleDto {
   url: string;
   title: string;
-  createdAt: string;
+  createdAt: Date;
 }
 
 export function toUserBookmarkTitleDto(bookmark: BookmarkTitle): UserBookmarkTitleDto {
@@ -97,7 +97,7 @@ export function toUserBookmarkTitleDto(bookmark: BookmarkTitle): UserBookmarkTit
 export interface UserBookmarkPersonDto {
   url: string;
   person: string;
-  createdAt: string;
+  createdAt: Date;
 }
 
 export function toUserBookmarkPersonDto(bookmark: BookmarkPerson): UserBookmarkPersonDto {

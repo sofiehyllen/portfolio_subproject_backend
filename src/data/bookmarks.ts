@@ -3,13 +3,13 @@ import { pool } from '../db.js';
 export interface BookmarkTitle {
   uconst: number;
   tconst: string;
-  createdAt: string;
+  createdAt: Date;
 }
 
 export interface BookmarkPerson {
   uconst: number;
   nconst: string;
-  createdAt: string;
+  createdAt: Date;
 }
 
 /*      Bookmarks     */
@@ -17,7 +17,7 @@ export interface BookmarkPerson {
 //Get list of users bookmarked titles
 export async function getTitleBookmarks(uconst: number): Promise<BookmarkTitle[]> {
   const { rows } = await pool.query<BookmarkTitle>(
-    `SELECT uconst, tconst, created_at AS "createdAt"
+    `SELECT title_name AS "titleName", created_at AS "createdAt"
     FROM get_title_bookmarks($1)`,
     [uconst]
   );
@@ -101,7 +101,7 @@ export async function removeTitleBookmark(uconst: number, tconst: string): Promi
 //Get list of users bookmarked persons
 export async function getPersonBookmarks(uconst: number): Promise<BookmarkPerson[]> {
   const { rows } = await pool.query<BookmarkPerson>(
-    `SELECT uconst, nconst, created_at AS "createdAt"
+    `SELECT person_name AS "personName", created_at AS "createdAt"
     FROM get_person_bookmarks($1)`,
     [uconst]
   );
