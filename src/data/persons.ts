@@ -8,8 +8,8 @@ export interface Person {
   avgNameRating: number;
 }
 
-export async function persons(): Promise<Person[]> {
-  const { rows } = await pool.query<Person>(
+export async function persons(limit: number, offset: number) {
+  const { rows: items } = await pool.query<Person>(
     `SELECT nconst,
             primary_name    AS "primaryName",
             birth_year      AS "birthYear",
@@ -17,9 +17,16 @@ export async function persons(): Promise<Person[]> {
             avg_name_rating AS "avgNameRating"
     FROM persons
     ORDER BY primary_name
-    LIMIT 25 OFFSET 100`
+    LIMIT $1 
+    OFFSET $2`,
+    [limit, offset]
   );
-  return rows;
+
+  const { rows: countRows } = await pool.query(`
+    SELECT count(*)::int as total
+    FROM persons`);
+
+  return { items, total: countRows[0].total};
 }
 
 export async function getOnePerson(nconst: string): Promise<Person[] | undefined> {
