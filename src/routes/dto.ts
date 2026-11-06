@@ -5,7 +5,7 @@ import { UserRating } from "../data/ratings.js";
 import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
-import { Person } from "../data/persons.js";
+import { onePerson, Person } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -174,20 +174,40 @@ export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: numbe
 export interface PersonsDto {
   url: string;
   primaryName: string;
-  birthYear: number;
-  deathYear: number;
+  birthYear: number | null;
+  deathYear: number | null;
   avgNameRating: number
 }
 
 
 // should this mapping happen here or in route 
-export function toPersonsDto(items: Person[]): PersonsDto[] {
-  return items.map(i => ({
-    url: uri.persons(),
-    primaryName: i.primaryName,
-    birthYear: i.birthYear,
-    deathYear: i.deathYear,
-    avgNameRating: i.avgNameRating
-  }));
+export function toPersonsDto(item: Person): PersonsDto {
+  return {
+    url:            uri.person(item.nconst),
+    primaryName:    item.primaryName,
+    birthYear:      item.birthYear,
+    deathYear:      item.deathYear,
+    avgNameRating:  item.avgNameRating
+  };
 }
 
+export interface onePersonDto {
+  url: string;
+  primaryName: string,
+  avgNameRating: number | null,
+  professions: string[],
+  knownFor: {url: string, primaryTitle: string}[]
+}
+
+export function toOnePersonDto(item: onePerson): onePersonDto {
+  return {
+    url:            uri.person(item.nconst),
+    primaryName:    item.primaryName,
+    avgNameRating:  item.avgNameRating,
+    professions:    item.professions,
+    knownFor:       item.knownFor.map(i => ({
+      url:          uri.title(i.tconst),
+      primaryTitle: i.primaryTitle
+    }))
+  };
+}
