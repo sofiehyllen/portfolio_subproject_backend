@@ -6,13 +6,14 @@ import { toPersonsDto } from './dto.js';
 
 export const router = Router();
 
-function parseUconst(value: string): number | undefined {
+function parseConst(value: string): number | undefined {
   if (!/^[1-9]\d*$/.test(value)) return undefined;
   const id = Number(value);
   return id <= 2147483647 ? id : undefined; // fits a Postgres integer
 }
+
 router.param('nconst', (_req, res, next, value: string) => {
-    const nconst = parseUconst(value);
+    const nconst = parseConst(value);
     if (nconst === undefined) {
         return next(new error.BadRequest('sconst must be a positive integer'));
         return;
