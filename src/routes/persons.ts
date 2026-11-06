@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged} from '../routes/pagination.js'
-import { toPersonsDto } from './dto.js';
+import { toPersonsDto, toOnePersonDto } from './dto.js';
 
 export const router = Router();
 
@@ -19,7 +19,6 @@ function parseNconst(value: string): string | undefined {
 router.param('nconst', (_req, res, next, value: string) => {
     const nconst = parseNconst(value);
     if (nconst === undefined) {
-        console.log(value);
         return next(new error.BadRequest('nconst must be a string starting with nm and have at least 7 digits'));
     }
     res.locals.nconst = nconst;
@@ -33,7 +32,7 @@ router.get('/', async (req, res, next) => {
         const page = pageOf(req.query);
         const {items, total} =  await persons.getPersons(page.limit, page.offset);
 
-        res.json(paged(req, page, total, toPersonsDto(items)));
+        res.json(paged(req, page, total, items.map(toPersonsDto)));
 
     } catch (error) {
         next(error);
@@ -45,14 +44,15 @@ router.get('/', async (req, res, next) => {
 router.get('/:nconst', async (_req, res, next) => {
     try {
         const nconst: string = res.locals.nconst;
-        const foundPerson: persons.Person[] | undefined = await persons.getOnePerson(nconst);
+        const foundPerson: persons.onePerson | undefined = await persons.getOnePerson(nconst);
 
         // not sure if this is an error
         // but it should be as its look up by specific nconst
-        if (foundPerson?.length === 0 || foundPerson === undefined) throw new error.NotFound('Person not found');
+        if (foundPerson === undefined) throw new error.NotFound('Person not found');
 
-        res.json(toPersonsDto(foundPerson));
+        res.json(toOnePersonDto(foundPerson));
     } catch (error) {
         next(error);  
     }
 });
+
