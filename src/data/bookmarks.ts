@@ -14,13 +14,30 @@ export interface BookmarkPerson {
 
 /*      Bookmarks     */
 
+export async function count(): Promise<number> {
+    const { rows } = await pool.query<{ total: number }>(
+        `SELECT COUNT(*)::int AS "total"
+        FROM bookmark_title`
+    );
+    return rows[0].total;
+}
+
 //Get list of users bookmarked titles
-export async function getTitleBookmarks(uconst: number): Promise<BookmarkTitle[]> {
+export async function getTitleBookmarks(uconst: number, limit: number, offset: number): Promise<BookmarkTitle[] | undefined > {
   const { rows } = await pool.query<BookmarkTitle>(
     `SELECT title_name AS "titleName", created_at AS "createdAt"
-    FROM get_title_bookmarks($1)`,
-    [uconst]
+    FROM get_title_bookmarks($1)
+    LIMIT $2
+    OFFSET $3`,
+    [uconst, limit, offset]
   );
+
+//   const { rows: countRows } = await pool.query(
+//     `SELECT COUNT(*)::int AS "total"
+//     FROM bookmark_title`
+//   );
+
+  //return { items, total: countRows[0].total};
   return rows;
 }
 

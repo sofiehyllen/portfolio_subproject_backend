@@ -10,9 +10,9 @@ const API_BASE = '/api';
 export const uri = {
   title: (tconst: string) => `${API_BASE}/titles/${tconst}`,
   person: (nconst: string) => `${API_BASE}/persons/${nconst}`,
-  user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
-  bookmarkTitle: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/bookmarks/title/${tconst}`,
-  bookmarkPerson: (uconst: string | number, nconst: string) => `${API_BASE}/users/${uconst}/bookmarks/person/${nconst}`,
+  user: (uconst: number) => `${API_BASE}/users/${uconst}`,
+  bookmarkTitle: (uconst: number, tconst: string) => `${API_BASE}/users/${uconst}/bookmarks/title/${tconst}`,
+  bookmarkPerson: (uconst: number, nconst: string) => `${API_BASE}/users/${uconst}/bookmarks/person/${nconst}`,
 };
 
 // The public profile. The password hash is never sent to the client.
