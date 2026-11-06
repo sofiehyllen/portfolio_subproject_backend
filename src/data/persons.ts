@@ -35,6 +35,11 @@ export async function getPersons(limit: number, offset: number) {
   return { items, total: countRows[0].total};
 }
 
+/**
+ * Gets a single person by their unique identifier
+ * @param nconst 
+ * @returns An array containing the matching person (empty if none found)
+ */
 export async function getOnePerson(nconst: string): Promise<Person[] | undefined> {
   const result  = await pool.query<Person>(`
     SELECT  nconst, 
