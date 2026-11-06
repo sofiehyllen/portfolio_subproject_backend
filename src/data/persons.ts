@@ -5,7 +5,7 @@ export interface Person {
   primaryName:    string;
   birthYear:      number | null;
   deathYear:      number | null;
-  avgNameRating:  number;
+  avgNameRating:  number | null;
 }
 
 export interface KnownFor {
@@ -21,6 +21,16 @@ export interface onePerson {
   knownFor:       KnownFor[];
 }
 
+export interface PersonTitle {
+  tconst:         string;
+  nconst:         string;
+  category:       string;
+  job:            string | null;
+  primaryTitle:   string;
+  characterName:  string | null;
+}
+
+
 /**
  * Gets a paginated list of persons, ordered alphabetically by primary name.
  * @param limit 
@@ -30,10 +40,10 @@ export interface onePerson {
 export async function getPersons(limit: number, offset: number) {
   const { rows: items } = await pool.query<Person>(
     `SELECT nconst,
-            primary_name    AS "primaryName",
-            birth_year      AS "birthYear",
-            death_year      AS "deathYear",
-            avg_name_rating AS "avgNameRating"
+            primary_name            AS "primaryName",
+            birth_year              AS "birthYear",
+            death_year              AS "deathYear",
+            avg_name_rating::float8 AS "avgNameRating"
     FROM persons
     ORDER BY primary_name, nconst
     LIMIT $1 
@@ -57,8 +67,8 @@ export async function getOnePerson(nconst: string): Promise<onePerson | undefine
   const result  = await pool.query<onePerson>(`
     select 
       p.nconst,
-      p.primary_name as "primaryName", 
-      p.avg_name_rating as "avgNameRating", 
+      p.primary_name            as "primaryName", 
+      p.avg_name_rating::float8 as "avgNameRating", 
       array (
         select pr.profession_name
         from person_professions pp
@@ -77,4 +87,41 @@ export async function getOnePerson(nconst: string): Promise<onePerson | undefine
     [nconst]);
 
     return result.rows[0]; 
+}
+
+const personTitlesString: string = `
+    from title_persons tp
+    join titles t on tp.tconst = t.tconst
+    left join title_person_characters tpc 
+            on tpc.tconst = tp.tconst and tpc.ordering = tp.ordering
+    where tp.nconst = $1`
+
+/**
+ * Gets a paginated list of the titles a person has been credited on.
+ * A credit with several characters gives one row per character.
+ * @param nconst 
+ * @param limit 
+ * @param offset 
+ * @returns An object with `items` (the requested page of credits) and `total` (the number of rows for this person)
+ */
+export async function getPersonTitles(nconst: string, limit: number, offset: number) {
+  const {rows: items} = await pool.query<PersonTitle>(`
+    select tp.tconst,
+       tp.nconst,
+       tp.category,
+       tp.job,
+       t.primary_title as "primaryTitle",
+       tpc.character_name as "characterName"
+    ${personTitlesString}
+    order by t.primary_title, tp.tconst, tp.ordering, tpc.character_name
+    limit $2
+    offset $3`,
+  [nconst, limit, offset]);
+
+  const { rows: countRows } = await pool.query(`
+    select count(*)::int as total 
+    ${personTitlesString}`, 
+    [nconst]);
+
+  return { items, total: countRows[0].total};
 }
