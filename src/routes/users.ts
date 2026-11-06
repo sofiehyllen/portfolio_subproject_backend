@@ -52,6 +52,16 @@ router.param('uconst', (_req, res, next, value: string) => {
   next();
 });
 
+router.param('sconst', (_req, res, next, value: string) => {
+  const sconst = parseUconst(value);
+  if (sconst === undefined){
+    return next(new BadRequest('sconst must be a positive integer'));
+  }
+  res.locals.sconst = sconst;
+  next();
+});
+
+
 // GET /api/users/{uconst}: the user's profile (never the password hash).
 // TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
 router.get('/:uconst', async (_req, res, next) => {
@@ -187,6 +197,27 @@ router.get('/:uconst/search-history', async (req, res, next) => {
 });
 
 // DELETE /api/users/{uconst}/search-history/{sconst}: delete a specific search-history entry
+router.delete('/:uconst/search-history/:sconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const sconst: number = res.locals.sconst;
+    const deleted = await search_history.deleteUserSearchHistoryEntry(uconst, sconst);
+    if (!deleted) throw new NotFound('Search history entry was not found');
 
+    res.status(204).end();
+  } catch (error) {
+    next(error)
+  }
+});
 
-// DELETE /api/users{uconst}/search-history: delete user's search history
+// DELETE /api/users/{uconst}/search-history: delete user's search history
+// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
+router.delete('/:uconst/search-history', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    await search_history.deleteUserSearchHistory(uconst);
+    res.status(204).end();
+  } catch (error) {
+    next(error)
+  }
+});
