@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
-import { validateNewUser, validateUserUpdate } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePassword } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
@@ -186,10 +186,8 @@ router.put('/:uconst/password', async (req, res, next) => {
     const {currentPassword, newPassword} = req.body ?? {};
     const uconst: number = res.locals.uconst;
 
-    if (!currentPassword || 
-        !newPassword || 
-        typeof currentPassword !== 'string' || 
-        typeof newPassword !== 'string') 
+    if (currentPassword === '' || newPassword === '' || 
+        typeof currentPassword !== 'string' || typeof newPassword !== 'string') 
         throw new BadRequest('Current and new passwords are required');
     
     const user = await users.getUser(uconst);
@@ -197,6 +195,12 @@ router.put('/:uconst/password', async (req, res, next) => {
 
     const isPasswordValid = await checkPassword(currentPassword, user.passwordHash);
     if (!isPasswordValid) throw new Forbidden('Current password is invalid');
+    
+    const errors = validatePassword(newPassword, {
+      username: user.username,
+      currPassword: currentPassword
+    });
+    if (errors.length > 0) throw new BadRequest(errors.join('; '));
 
     const newHash = await hashPassword(newPassword);
 
