@@ -10,7 +10,7 @@ const API_BASE = '/api';
 
 export const uri = {
   title: (tconst: string) => `${API_BASE}/titles/${tconst}`,
-  person: (nconst: string) => `${API_BASE}/persons/${nconst}`,
+  person: (nconst: string) => `${API_BASE}/person/${nconst}`,
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
   rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
   searchEntry: (uconst: string | number, sconst: string | number) => `${API_BASE}/users/${uconst}/search-history/${sconst}`,
@@ -190,6 +190,7 @@ export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: numbe
 } 
 
 export interface PersonDto {
+export interface PersonDto {
   url: string;
   primaryName: string;
   birthYear: number     | null;
@@ -250,3 +251,4 @@ export function toOnePersonTitleDto(item: PersonTitle): onePersonTitleDto {
     characterName:  item.characterName
   };
 }
+
