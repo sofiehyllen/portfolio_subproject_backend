@@ -2,9 +2,9 @@
  * Data Transfer Objects (DTOs) — the shapes sent to clients in API responses.
  */
 import { RatingHistoryEntry, UserRating } from "../data/ratings.js";
-import { Title, TitleSummary } from '../data/titles.js';
+import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
-
+import { UserSearchHistory } from "../data/search_history.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -12,6 +12,7 @@ export const uri = {
   person: (nconst: string) => `${API_BASE}/persons/${nconst}`,
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
   rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
+  searchEntry: (uconst: string | number, sconst: string | number) => `${API_BASE}/users/${uconst}/search-history/${sconst}`,
 };
 
 // The public profile. The password hash is never sent to the client.
@@ -21,7 +22,7 @@ export interface UserDto {
   lastName: string;
   username: string;
   email: string;
-  createdAt: string;
+  createdAt: Date;
 }
 
 export function toUserDto(user: User): UserDto {
@@ -65,6 +66,47 @@ export function toTitleDto(title: Title): TitleDto {
   };
 }
 
+export interface CreditDto {
+  person: { url: string; name: string };
+  category: string;
+  job: string | null;
+  characters: string[];
+}
+
+// One title in full: the list fields plus genres, rating and credits.
+export interface TitleDetailDto extends TitleDto {
+  genres: string[];
+  rating: { average: number; votes: number } | null;
+  credits: CreditDto[];
+}
+
+export interface ActorDto {
+  url: string;
+  name: string;
+  nameRating: number | null;
+}
+
+export function toActorDto(actor: Actor): ActorDto {
+  return {
+    url: uri.person(actor.nconst),
+    name: actor.name,
+    nameRating: actor.nameRating,
+  };
+}
+
+export function toTitleDetailDto(title: TitleDetail): TitleDetailDto {
+  return {
+    ...toTitleDto(title),
+    genres: title.genres,
+    rating: title.rating,
+    credits: title.credits.map(credit => ({
+      person: { url: uri.person(credit.nconst), name: credit.name },
+      category: credit.category,
+      job: credit.job,
+      characters: credit.characters,
+    })),
+  };
+}
 export interface TitleSummaryDto {
   url: string;
   primaryTitle: string;
@@ -76,6 +118,22 @@ export function toTitleSummaryDto(title: TitleSummary): TitleSummaryDto {
     url: uri.title(title.tconst),
     primaryTitle: title.primaryTitle,
     startYear: title.startYear,
+  };
+}
+
+export interface SimilarMovieDto {
+  url: string;
+  primaryTitle: string;
+  similarityScore: number;
+  commonGenres: string[];
+}
+
+export function toSimilarMovieDto(movie: SimilarMovie): SimilarMovieDto {
+  return {
+    url: uri.title(movie.tconst),
+    primaryTitle: movie.primaryTitle,
+    similarityScore: movie.similarityScore,
+    commonGenres: movie.commonGenres,
   };
 }
 
@@ -114,3 +172,18 @@ export function toRatingHistoryDto(uconst: number, entry: RatingHistoryEntry): R
     lastChange: entry.lastChange
   }
 }
+
+export interface UserSearchHistoryDto {
+  url: string;
+  searchString: string;
+  createdAt: Date
+}
+
+export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: number): UserSearchHistoryDto[] {
+  return items.map(sh => ({
+    url: uri.searchEntry(uconst, sh.sconst),
+    searchString: sh.searchString,
+    createdAt: sh.createdAt
+  }));
+} 
+
