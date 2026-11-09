@@ -18,6 +18,11 @@ export interface UserUpdateInput {
   email?: string;
 }
 
+export interface PasswordUpdateInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
 // Field rules. The maximum lengths match the columns of the users table.
 const NAME_MAX = 50;
 const EMAIL_MAX = 256;
@@ -154,4 +159,20 @@ export function validateWords(value: unknown): string[] {
     throw new BadRequest(`each word can be at most ${WORD_MAX} characters`);
   }
   return words;
+}
+
+export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
+  const b = asObject(body);
+  const currentPassword = b.currentPassword;
+  const newPassword = b.newPassword;
+
+  if (currentPassword === '' || newPassword === '' ||
+      typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+        throw new BadRequest('Current and new passcodes are required');
+  }
+
+  return {
+    currentPassword,
+    newPassword
+  };
 }
