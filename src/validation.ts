@@ -28,7 +28,7 @@ const PASSWORD_MAX = 128;
 
 function asObject(body: unknown): Record<string, unknown> {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    throw new BadRequest('body must be a JSON object');
+    throw new BadRequest('Body must be a JSON object');
   }
   return body as Record<string, unknown>;
 }
@@ -46,7 +46,7 @@ function text(value: unknown, field: string, max: number | undefined, errors: st
 // Lowercased, so the UNIQUE constraint also catches Foo@x.dk vs foo@x.dk
 function email(value: unknown, errors: string[]): string {
   const result = text(value, 'email', EMAIL_MAX, errors).toLowerCase();
-  if (result && !EMAIL.test(result)) errors.push('email is not a valid email address');
+  if (result && !EMAIL.test(result)) errors.push('email is not a valid');
   return result;
 }
 
@@ -87,7 +87,7 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
   for (const field of Object.keys(b)) {
     if (field === 'username') errors.push('username cannot be changed');
     else if (field === 'password') errors.push('password is changed with PUT /api/users/{uconst}/password');
-    else if (!['firstName', 'lastName', 'email'].includes(field)) errors.push(`unknown field ${field}`);
+    else if (!['firstName', 'lastName', 'email'].includes(field)) errors.push(`Unknown field ${field}`);
   }
 
   const update: UserUpdateInput = {};
@@ -96,7 +96,7 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
   if (b.email !== undefined) update.email = email(b.email, errors);
 
   if (errors.length === 0 && Object.keys(update).length === 0) {
-    errors.push('send at least one of firstName, lastName, email');
+    errors.push('Send at least one of firstName, lastName, email');
   }
 
   if (errors.length > 0) throw new BadRequest(errors.join('; '));

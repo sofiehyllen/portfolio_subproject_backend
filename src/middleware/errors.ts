@@ -21,10 +21,10 @@ export function errorHandler(
   if (err instanceof Forbidden)  { sendError(res, 403, err.message); return; }
 
   // Errors from express.json(): invalid JSON (400), body too large (413), wrong encoding (415)
-  if (err.status === 400) { sendError(res, 400, 'invalid JSON body'); return; }
+  if (err.status === 400) { sendError(res, 400, 'Invalid JSON body'); return; }
   if (err.status && err.status >= 400 && err.status < 500) { sendError(res, err.status, err.message); return; }
 
-  // Anything else is a bug or a database error: log it, never send details to the client
+  // Anything else is a bug or a database error:
   console.error(err);
-  sendError(res, 500, 'internal error');
+  sendError(res, 500, 'Internal error');
 }

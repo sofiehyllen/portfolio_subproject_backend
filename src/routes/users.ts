@@ -89,7 +89,7 @@ router.patch('/:uconst', async (req, res, next) => {
     if (!updated) throw new NotFound('User not found');
 
     const user = await users.getUser(uconst);
-    if (!user) throw new Error(`user ${uconst} missing right after update`);
+    if (!user) throw new Error(`User ${uconst} missing right after update`);
 
     res.json(toUserDto(user));
   } catch (err) {
@@ -191,10 +191,10 @@ router.put('/:uconst/password', async (req, res, next) => {
         !newPassword || 
         typeof currentPassword !== 'string' || 
         typeof newPassword !== 'string') 
-        throw new BadRequest('Current and new passwords are required');
+        throw new BadRequest('currentPassword and newPassword are required');
 
     const isPasswordValid = await checkPassword(currentPassword, user.passwordHash);
-    if (!isPasswordValid) throw new Forbidden('Current password is invalid');
+    if (!isPasswordValid) throw new Forbidden('currentPassword is incorrect');
 
     const newHash = await hashPassword(newPassword);
     await users.updateUserHashPassword(uconst, newHash);

@@ -11,7 +11,7 @@ app.use('/api/titles', titlesRouter);
 app.use('/api/users', usersRouter);
 
 app.use((_req, _res, next) => {
-  next(new NotFound('no such endpoint'));
+  next(new NotFound('No such endpoint'));
 });
 
 app.use(errorHandler); // last, after every route
