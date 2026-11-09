@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged} from '../routes/pagination.js'
-import { toPersonsDto, toOnePersonDto } from './dto.js';
+import { toPersonDto, toOnePersonDto } from './dto.js';
 
 export const router = Router();
 
@@ -32,7 +32,7 @@ router.get('/', async (req, res, next) => {
         const page = pageOf(req.query);
         const {items, total} =  await persons.getPersons(page.limit, page.offset);
 
-        res.json(paged(req, page, total, items.map(toPersonsDto)));
+        res.json(paged(req, page, total, items.map(toPersonDto)));
 
     } catch (error) {
         next(error);
