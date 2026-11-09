@@ -119,7 +119,7 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 Every list response has the same structure: `total` (the number of items in the whole list), `limit`, `offset`, `items`, and `links` with `prev` and `next`. Each link is the URI of the same request at the neighbouring page, with all other query parameters kept, and is `null` when that page does not exist.
 
-**Sorting.** Every list has a deterministic order, so pages never overlap or skip rows. Only the browsing list of titles (`GET /api/titles` without a search) lets the client choose it; every other list has a fixed order: persons by id, ranked searches by their rank (then id), bookmarks and histories newest first.
+**Sorting.** Every list has a deterministic order, so pages never overlap or skip rows. Only the browsing list of titles (`GET /api/titles` without a search) lets the client choose it; every other list has a fixed order: persons are ordered by name (then id), ranked searches by their rank (then id), bookmarks and histories newest first.
 
 **Browsing titles.** Without a search, `GET /api/titles` accepts these parameters. Titles without a value for the sort field (for example no rating) come last in both directions, and the id breaks ties. An unknown `sort` or `order` gives status code 400. An unknown genre or title type is not an error; it gives an empty list.
 
