@@ -86,7 +86,7 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 | `GET /api/persons/{nconst}/titles` | Paged titles the person has been credited on, each with their role (category, job, characters)| 200 | 400 invalid nconst; 404 unknown person |
 | `GET /api/persons/{nconst}/co-players` | Paged actors who share titles with the person, most frequent first | 200 | 400 invalid nconst; 404 unknown person |
 | `GET /api/persons/{nconst}/words` | Paged most frequent words across the person's titles | 200 | 400 invalid nconst; 404 unknown person |
-| `GET /api/related-words?words=a,b` | Paged words most associated with titles matching all the given words. Not logged in the search history | 200 | 400 missing or invalid `words` |
+| `GET /api/related-words?words=a,b` | Paged words most associated with titles matching all the given words, at most 10 in all. Not logged in the search history | 200 | 400 missing or invalid `words` |
 
 ### Personal data (token required, owner only)
 
@@ -135,6 +135,7 @@ Every list response has the same structure: `total` (the number of items in the 
 GET /api/titles?keywords=space,war&match=weighted&limit=20&offset=0
 GET /api/titles?title=alien&person=weaver
 GET /api/persons?name=hanks&actorsOnly=true
+GET /api/related-words?words=space,war
 GET /api/users/5/ratings?limit=10&offset=10
 ```
 
