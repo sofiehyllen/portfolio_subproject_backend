@@ -5,6 +5,7 @@ import { RatingHistoryEntry, UserRating } from "../data/ratings.js";
 import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
+import { OnePerson, Person } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -13,6 +14,7 @@ export const uri = {
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
   rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
   searchEntry: (uconst: string | number, sconst: string | number) => `${API_BASE}/users/${uconst}/search-history/${sconst}`,
+  persons: () => `${API_BASE}/person/`,
 };
 
 // The public profile. The password hash is never sent to the client.
@@ -186,4 +188,45 @@ export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: numbe
     createdAt: sh.createdAt
   }));
 } 
+
+export interface PersonDto {
+  url: string;
+  primaryName: string;
+  birthYear: number     | null;
+  deathYear: number     | null;
+  avgNameRating: number | null;
+}
+
+
+
+export function toPersonDto(item: Person): PersonDto {
+  return {
+    url:            uri.person(item.nconst),
+    primaryName:    item.primaryName,
+    birthYear:      item.birthYear,
+    deathYear:      item.deathYear,
+    avgNameRating:  item.avgNameRating
+  };
+}
+
+export interface OnePersonDto {
+  url: string;
+  primaryName: string,
+  avgNameRating: number | null,
+  professions: string[],
+  knownFor: {url: string, primaryTitle: string}[]
+}
+
+export function toOnePersonDto(item: OnePerson): OnePersonDto {
+  return {
+    url:            uri.person(item.nconst),
+    primaryName:    item.primaryName,
+    avgNameRating:  item.avgNameRating,
+    professions:    item.professions,
+    knownFor:       item.knownFor.map(i => ({
+      url:          uri.title(i.tconst),
+      primaryTitle: i.primaryTitle
+    }))
+  };
+}
 
