@@ -19,6 +19,11 @@ export interface UserUpdateInput {
   email?: string;
 }
 
+export interface PasswordUpdateInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
 // Field rules. The maximum lengths match the columns of the users table.
 const NAME_MAX = 50;
 const EMAIL_MAX = 256;
@@ -68,11 +73,7 @@ export function validateNewUser(body: unknown): NewUserInput {
 
   // Not trimmed: spaces are allowed in passwords
   const password = b.password;
-  if (typeof password !== 'string' || password === '') {
-    errors.push('password is required');
-  } else if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
-    errors.push(`password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters`);
-  }
+  errors.push(...validatePassword(password, { username }));
 
   if (errors.length > 0) throw new BadRequest(errors.join('; '));
   return { firstName, lastName, username, email: mail, password: password as string };
@@ -102,6 +103,59 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
 
   if (errors.length > 0) throw new BadRequest(errors.join('; '));
   return update;
+}
+
+export function validatePassword(password: unknown, optional: {username?: string, currPassword?: string} = {}): string[] {
+  if (typeof password !== 'string' || password === '') {
+    return ['password is required'];
+  }
+
+  const errors: string[] = [];
+  if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX ) {
+    errors.push(`password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters`);      
+  }
+
+  if (!/[a-z]/.test(password)) {
+    errors.push('password must contain a lower case letter');
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    errors.push('password must contain an upper case letter');
+  }
+
+  if (!/[0-9]/.test(password)) {
+    errors.push('password must contain a number');
+  }
+
+  if (!/[^A-Za-z0-9\s]/.test(password)) {
+    errors.push('password must contain a special character');
+  }
+
+  if (optional.username && password.toLocaleLowerCase() === optional.username.toLocaleLowerCase()) {
+    errors.push('password cannot be the same as the username');
+  }
+
+  if (optional.currPassword !== undefined && password === optional.currPassword) {
+    errors.push('new password cannot be the same as the current password');
+  }
+
+  return errors;
+}
+
+export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
+  const b = asObject(body);
+  const currentPassword = b.currentPassword;
+  const newPassword = b.newPassword;
+
+  if (currentPassword === '' || newPassword === '' ||
+      typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+        throw new BadRequest('Current and new passcodes are required');
+  }
+
+  return {
+    currentPassword,
+    newPassword
+  };
 }
 
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
@@ -178,3 +232,4 @@ export function validateWords(value: unknown): string[] {
   }
   return words;
 }
+
