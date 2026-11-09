@@ -1,14 +1,23 @@
 /**
  * Data-access layer for the `titles` table.
  *
- * Exports two interfaces and three query functions:
- * - `Title` — full row shape returned by `list`.
- * - `TitleSummary` — compact shape (tconst, primaryTitle, startYear) returned by `searchText`.
+ * Query functions:
  * - `list(browse, limit, offset)` — paged slice of titles, filtered by genre and title type
- *   and sorted by the chosen field (title, year, rating, votes or runtime) and direction.
- * - `count(filter)` — number of titles matching the filter, used to build paging metadata for `list`.
- * - `searchText(logAs, text, limit, offset)` — paged substring search via `string_search`;
- *   logs the search under `logAs` (a user id) on the first page, or skips logging if null.
+ *   and sorted by the chosen field (`SORT_FIELDS`: title, year, rating, votes or runtime)
+ *   and direction; titles without a value for the sort field come last.
+ * - `count(filter)` — number of titles matching the filter, used for the total of `list`.
+ * - `get(tconst)` — one title with genres, rating and credits, or undefined if not found.
+ * - `actors(tconst, limit, offset)` — paged actors of the title, highest name rating first;
+ *   undefined if the title does not exist.
+ * - `similar(tconst, limit, offset)` — paged movies sharing genres with the title, most shared
+ *   first; undefined if the title does not exist.
+ * - `searchText(logAs, text, limit, offset)` — paged substring search via `string_search`,
+ *   ordered by tconst, with the total number of matches. Logs the search under `logAs`
+ *   (a user id), or skips logging if null; the route passes null after the first page.
+ *
+ * Types: `Title` (row shape of `list`, extended by `TitleDetail` with genres and `Credit`s),
+ * `TitleSummary` (tconst, primaryTitle, startYear; returned by `searchText`), `Actor`,
+ * `SimilarMovie`, and `TitleFilter` / `TitleBrowse` / `SortField` / `SortOrder` for `list`.
  */
 import { pool } from '../db.js';
 
