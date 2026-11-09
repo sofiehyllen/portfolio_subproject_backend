@@ -1,0 +1,4 @@
+@host = http://localhost:3000
+
+PUT {{host}}/api/users/2/bookmarks/titles/tt0299075
+

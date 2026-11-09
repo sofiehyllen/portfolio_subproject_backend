@@ -3,12 +3,14 @@ import { pool } from '../db.js';
 export interface BookmarkTitle {
   uconst: number;
   tconst: string;
+  title: string;
   createdAt: Date;
 }
 
 export interface BookmarkPerson {
   uconst: number;
   nconst: string;
+  person: string;
   createdAt: Date;
 }
 
@@ -22,36 +24,15 @@ export async function count(): Promise<number> {
     return rows[0].total;
 }
 
-export async function listTitleBookmarks(uconst: number, limit: number, offset: number) {
-    const { rows } = await pool.query<BookmarkTitle>(
-        `SELECT t.primary_name AS "title", b.created_at AS "createdAt"
-        FROM bookmark_title b
-            NATURAL JOIN titles t
-        WHERE b.uconst = $1
-            AND b.tconst = t.tconst
-        ORDER BY t.primary_name
-        LIMIT $2
-        OFFSET $3`,
-        [uconst, limit, offset]
-    );
-    return rows;
-}
 //Get list of users bookmarked titles
 export async function getTitleBookmarks(uconst: number, limit: number, offset: number): Promise<BookmarkTitle[] | undefined > {
   const { rows } = await pool.query<BookmarkTitle>(
-    `SELECT title_name AS "titleName", created_at AS "createdAt"
+    `SELECT tconst, title_name AS "title", created_at AS "createdAt"
     FROM get_title_bookmarks($1)
     LIMIT $2
     OFFSET $3`,
     [uconst, limit, offset]
   );
-
-//   const { rows: countRows } = await pool.query(
-//     `SELECT COUNT(*)::int AS "total"
-//     FROM bookmark_title`
-//   );
-
-  //return { items, total: countRows[0].total};
   return rows;
 }
 
@@ -128,13 +109,14 @@ export async function removeTitleBookmark(uconst: number, tconst: string): Promi
     }
 }
 
-
 //Get list of users bookmarked persons
-export async function getPersonBookmarks(uconst: number): Promise<BookmarkPerson[]> {
+export async function getPersonBookmarks(uconst: number, limit: number, offset: number): Promise<BookmarkPerson[] | undefined > {
   const { rows } = await pool.query<BookmarkPerson>(
-    `SELECT person_name AS "personName", created_at AS "createdAt"
-    FROM get_person_bookmarks($1)`,
-    [uconst]
+    `SELECT nconst, person_name AS "person", created_at AS "createdAt"
+    FROM get_person_bookmarks($1)
+    LIMIT $2
+    OFFSET $3`,
+    [uconst, limit, offset]
   );
   return rows;
 }

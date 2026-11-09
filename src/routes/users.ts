@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as users from '../data/users.js';
 import { NotFound } from '../middleware/errors.js';
 import { pageOf, paged } from '../routes/pagination.js';
-import { toUserDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto, toBookmarkTitleDto } from './dto.js';
+import { toUserDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
 import * as bookmark from '../data/bookmarks.js';
 
 export const router = Router();
@@ -61,36 +61,6 @@ router.delete('/:uconst', async (_req, res, next) => {
 /*      Bookmarks     */
 
 // GET /api/users/{uconst}/bookmarks/titles
-// router.get('/:uconst/bookmarks/titles/', async (req, res, next) => {
-//   try {
-//     const page = pageOf(req.query);
-//     const {items, total} = await bookmark.getTitleBookmarks(page.limit, page.offset);
-//     const uconst: number = res.locals.uconst;
-//     const bookmarkedTitles = await bookmark.getTitleBookmarks(uconst);
-//     if (!bookmarkedTitles) {
-//       throw new NotFound('Bookmarked titles not found');
-//     }
-//     res.json(toUserBookmarkTitleDto(bookmarkedTitles[0]));
-//   } catch (err) {
-//     next(err);
-//   }
-// });
-
-// GET /api/users/{uconst}/bookmarks/titles - NEW version
-router.get('/:uconst/bookmarks/titles/', async (req, res, next) => {
-  try {
-    const page = pageOf(req.query as Record <string, unknown>);
-
-    const uconst: number = res.locals.uconst;
-
-    const all = await bookmark.listTitleBookmarks(uconst, page.limit, page.offset);
-    res.json(all.map(toBookmarkTitleDto));
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/users/{uconst}/bookmarks/titles - OLD version
 router.get('/:uconst/bookmarks/titles/', async (req, res, next) => {
   // TO DO: Path returns 'undefined' after '/titles/'. Figure out why and fix it
   try {
@@ -101,13 +71,15 @@ router.get('/:uconst/bookmarks/titles/', async (req, res, next) => {
     const items = await bookmark.getTitleBookmarks(uconst, page.limit, page.offset);
     const total = await bookmark.count();
 
-    //const {items, total} = await bookmark.getTitleBookmarks(uconst, page.limit, page.offset);
-    //const bookmarkedTitles = await bookmark.getTitleBookmarks(uconst);
     if (!items) {
       throw new NotFound('Bookmarked titles not found');
     }
     
-    res.json(paged(req, page, total, items.map(toUserBookmarkTitleDto)));
+    res.json(paged(req, page, total, items.map(item => {
+      item.uconst = uconst;
+      return toUserBookmarkTitleDto(item)
+    })));
+
   } catch (err) {
     next(err);
   }
@@ -145,14 +117,24 @@ router.delete('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
 });
 
 // GET /api/users/{uconst}/bookmarks/persons
-router.get('/:uconst/bookmarks/persons', async (_req, res, next) => {
+router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
   try {
+    const page = pageOf(req.query as Record <string, unknown>);
+    
     const uconst: number = res.locals.uconst;
-    const bookmarkedPersons = await bookmark.getPersonBookmarks(uconst);
-    if (!bookmarkedPersons) {
+
+    const items = await bookmark.getPersonBookmarks(uconst, page.limit, page.offset);
+    const total = await bookmark.count();
+
+    if (!items) {
       throw new NotFound('Bookmarked persons not found');
     }
-    res.json(toUserBookmarkPersonDto(bookmarkedPersons[0]));
+    
+    res.json(paged(req, page, total, items.map(item => {
+      item.uconst = uconst;
+      return toUserBookmarkPersonDto(item)
+    })));
+
   } catch (err) {
     next(err);
   }

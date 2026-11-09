@@ -11,8 +11,8 @@ export const uri = {
   title: (tconst: string) => `${API_BASE}/titles/${tconst}`,
   person: (nconst: string) => `${API_BASE}/persons/${nconst}`,
   user: (uconst: number) => `${API_BASE}/users/${uconst}`,
-  bookmarkTitle: (uconst: number, tconst: string) => `${API_BASE}/users/${uconst}/bookmarks/title/${tconst}`,
-  bookmarkPerson: (uconst: number, nconst: string) => `${API_BASE}/users/${uconst}/bookmarks/person/${nconst}`,
+  bookmarkTitle: (uconst: number, tconst: string) => `${API_BASE}/users/${uconst}/bookmarks/titles/${tconst}`,
+  bookmarkPerson: (uconst: number, nconst: string) => `${API_BASE}/users/${uconst}/bookmarks/persons/${nconst}`,
 };
 
 // The public profile. The password hash is never sent to the client.
@@ -86,18 +86,10 @@ export interface UserBookmarkTitleDto {
   createdAt: Date;
 }
 
-export function toBookmarkTitleDto(bookmark: BookmarkTitle): UserBookmarkTitleDto {
-  return {
-    url: uri.bookmarkTitle(bookmark.uconst, bookmark.tconst),
-    title: uri.title(bookmark.tconst),
-    createdAt: bookmark.createdAt,
-  }
-}
-
 export function toUserBookmarkTitleDto(bookmark: BookmarkTitle): UserBookmarkTitleDto {
   return {
     url: uri.bookmarkTitle(bookmark.uconst, bookmark.tconst),
-    title: uri.title(bookmark.tconst),
+    title: bookmark.title,
     createdAt: bookmark.createdAt,
   };
 }
@@ -111,7 +103,7 @@ export interface UserBookmarkPersonDto {
 export function toUserBookmarkPersonDto(bookmark: BookmarkPerson): UserBookmarkPersonDto {
   return {
     url: uri.bookmarkPerson(bookmark.uconst, bookmark.nconst),
-    person: uri.person(bookmark.nconst),
+    person: bookmark.person,
     createdAt: bookmark.createdAt,
   };
 }
