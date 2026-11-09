@@ -77,7 +77,7 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 | Method and path | Does what | Success | Failure |
 |---|---|---|---|
-| `GET /api/titles` | Paged list of titles, optionally narrowed by one search mode | 200 | 400 invalid search parameter, or modes mixed; 401 invalid token |
+| `GET /api/titles` | Paged list of titles, either browsed (sorted and filtered by genre and title type) or narrowed by one search mode | 200 | 400 invalid search, sort or filter parameter, unknown query parameter, or modes mixed; 401 invalid token |
 | `GET /api/titles/{tconst}` | One title with genres, rating and credits | 200 | 404 unknown title |
 | `GET /api/titles/{tconst}/actors` | Paged actors of the title, highest name rating first | 200 | 404 unknown title |
 | `GET /api/titles/{tconst}/similar` | Paged movies sharing genres with the title. A title that is not a movie or tvMovie gives an empty list | 200 | 404 unknown title |
@@ -119,9 +119,18 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 Every list response has the same structure: `total` (the number of items in the whole list), `limit`, `offset`, `items`, and `links` with `prev` and `next`. Each link is the URI of the same request at the neighbouring page, with all other query parameters kept, and is `null` when that page does not exist.
 
-**Sorting.** The client cannot choose the order. Every list has a fixed, deterministic order, so pages never overlap or skip rows: titles alphabetically by primary title (then id as tiebreaker), persons by id, ranked searches by their rank (then id), bookmarks and histories newest first.
+**Sorting.** Every list has a deterministic order, so pages never overlap or skip rows. Only the browsing list of titles (`GET /api/titles` without a search) lets the client choose it; every other list has a fixed order: persons are ordered by name (then id), ranked searches by their rank (then id), bookmarks and histories newest first.
 
-**Filtering titles.** `GET /api/titles` accepts one search mode per request. Mixing modes gives status code 400.
+**Browsing titles.** Without a search, `GET /api/titles` accepts these parameters. Titles without a value for the sort field (for example no rating) come last in both directions, and the id breaks ties. An unknown `sort` or `order` gives status code 400. An unknown genre or title type is not an error; it gives an empty list.
+
+| Parameter | Type | Default | Rule |
+|---|---|---|---|
+| `sort` | string | `title` | `title` (primary title), `year` (start year), `rating` (average rating), `votes` (number of votes) or `runtime` (minutes) |
+| `order` | string | `asc` | `asc` or `desc` |
+| `genre` | string | none | Only titles with this genre, for example `Drama` (1-100 characters, case-insensitive) |
+| `titleType` | string | none | Only titles of this type, for example `movie` or `tvSeries` (1-100 characters, case-insensitive) |
+
+**Filtering titles.** `GET /api/titles` accepts one search mode per request. Mixing modes, or combining a search with the browsing parameters above, gives status code 400.
 
 | Mode | Parameters | Meaning |
 |---|---|---|
@@ -129,9 +138,23 @@ Every list response has the same structure: `total` (the number of items in the 
 | Keywords | `keywords` (comma separated, 1-10 words, each 1-50 characters), `match` = `all`, `any` or `weighted` (default `weighted`) | `all`: every keyword; `any`: at least one, ranked by how many; `weighted`: ranked by relevance |
 | Structured | any of `title`, `plot`, `character`, `person` (each 1-100 characters) | Every given field must match; at least one is required |
 
+**Unknown parameters.** `GET /api/titles` accepts only the parameters listed in this section (paging, browsing and search). Any other query parameter, for example a typo like `?sortt=year`, gives status code 400 instead of being silently ignored, so the client finds out that the parameter had no effect. The check is made before anything else, in both browsing and search mode, and the message names every unknown parameter:
+
+```
+GET /api/titles?text=love&sortt=year
+```
+
+```
+400 Bad Request
+Content-Type: application/json
+
+{ "status": 400, "error": "Bad Request", "message": "unknown query parameter sortt" }
+```
+
 **Filtering persons.** `GET /api/persons` accepts `name` (substring, case-insensitive, 1-100 characters) and `actorsOnly=true`.
 
 ```
+GET /api/titles?sort=rating&order=desc&genre=Drama&titleType=movie
 GET /api/titles?keywords=space,war&match=weighted&limit=20&offset=0
 GET /api/titles?title=alien&person=weaver
 GET /api/persons?name=hanks&actorsOnly=true

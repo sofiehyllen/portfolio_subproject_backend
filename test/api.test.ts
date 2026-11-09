@@ -64,6 +64,81 @@ describe('GET /api/titles (paged listing)', () => {
   });
 });
 
+describe('GET /api/titles (sorting and filtering)', () => {
+  it('sorts by the chosen field and direction', async () => {
+    const res = await request(app).get('/api/titles?sort=votes&order=desc&limit=10');
+
+    expect(res.status).toBe(200);
+    const votes = res.body.items.map((item: { rating: { votes: number } }) => item.rating.votes);
+    expect(votes).toEqual([...votes].sort((a, b) => b - a));
+  });
+
+  it('filters by genre and title type, and the total counts only matching titles', async () => {
+    const all = await request(app).get('/api/titles?limit=1');
+    const res = await request(app).get('/api/titles?genre=Comedy&titleType=movie&limit=10');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
+    expect(res.body.total).toBeLessThan(all.body.total);
+    for (const item of res.body.items) expect(item.titleType).toBe('movie');
+  });
+
+  it('keeps sorting and filters in the paging links', async () => {
+    const res = await request(app).get('/api/titles?sort=year&order=desc&titleType=movie&limit=5');
+
+    const next = new URL(res.body.links.next, 'http://localhost');
+    expect(next.searchParams.get('sort')).toBe('year');
+    expect(next.searchParams.get('order')).toBe('desc');
+    expect(next.searchParams.get('titleType')).toBe('movie');
+    expect(next.searchParams.get('offset')).toBe('5');
+  });
+
+  it('gives 400 for an unknown sort field or direction', async () => {
+    const res = await request(app).get('/api/titles?sort=popularity&order=up');
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('sort must be one of');
+    expect(res.body.message).toContain('order must be asc or desc');
+  });
+
+  it('gives 400 when sorting or filtering is mixed with a text search', async () => {
+    const res = await request(app).get('/api/titles?text=love&sort=rating');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: 'sort cannot be combined with text' });
+  });
+
+  it.each([
+    ['empty', 'text='],
+    ['blank', 'text=%20%20'],
+    ['too long', `text=${'a'.repeat(101)}`],
+    ['sent twice', 'text=love&text=war'],
+  ])('gives 400 for search text that is %s', async (_case, qs) => {
+    const res = await request(app).get(`/api/titles?${qs}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: 'text must be 1-100 characters' });
+  });
+
+  it('trims the search text', async () => {
+    const plain = await request(app).get('/api/titles?text=love');
+    const padded = await request(app).get('/api/titles?text=%20love%20');
+
+    expect(padded.status).toBe(200);
+    expect(padded.body.total).toBe(plain.body.total);
+  });
+
+  it.each([
+    ['browsing', 'keywords=war&sort=year', 'keywords'],
+    ['searching', 'text=love&sortt=year', 'sortt'],
+  ])('gives 400 for a query parameter it does not accept when %s, instead of ignoring it', async (_mode, qs, param) => {
+    const res = await request(app).get(`/api/titles?${qs}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: `unknown query parameter ${param}` });
+  });
+});
+
 describe('GET /api/titles/{tconst}', () => {
   it('returns the title that the list links to, with genres, rating and credits', async () => {
     const list = await request(app).get('/api/titles?limit=1');

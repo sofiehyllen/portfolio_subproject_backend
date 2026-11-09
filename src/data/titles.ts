@@ -1,13 +1,23 @@
 /**
  * Data-access layer for the `titles` table.
  *
- * Exports two interfaces and three query functions:
- * - `Title` — full row shape returned by `list`.
- * - `TitleSummary` — compact shape (tconst, primaryTitle, startYear) returned by `searchText`.
- * - `list(limit, offset)` — paged slice of all titles, ordered alphabetically by primary title.
- * - `count()` — total number of titles, used to build paging metadata for `list`.
- * - `searchText(logAs, text, limit, offset)` — paged substring search via `string_search`;
- *   logs the search under `logAs` (a user id) on the first page, or skips logging if null.
+ * Query functions:
+ * - `list(browse, limit, offset)` — paged slice of titles, filtered by genre and title type
+ *   and sorted by the chosen field (`SORT_FIELDS`: title, year, rating, votes or runtime)
+ *   and direction; titles without a value for the sort field come last.
+ * - `count(filter)` — number of titles matching the filter, used for the total of `list`.
+ * - `get(tconst)` — one title with genres, rating and credits, or undefined if not found.
+ * - `actors(tconst, limit, offset)` — paged actors of the title, highest name rating first;
+ *   undefined if the title does not exist.
+ * - `similar(tconst, limit, offset)` — paged movies sharing genres with the title, most shared
+ *   first; undefined if the title does not exist.
+ * - `searchText(logAs, text, limit, offset)` — paged substring search via `string_search`,
+ *   ordered by tconst, with the total number of matches. Logs the search under `logAs`
+ *   (a user id), or skips logging if null; the route passes null after the first page.
+ *
+ * Types: `Title` (row shape of `list`, extended by `TitleDetail` with genres and `Credit`s),
+ * `TitleSummary` (tconst, primaryTitle, startYear; returned by `searchText`), `Actor`,
+ * `SimilarMovie`, and `TitleFilter` / `TitleBrowse` / `SortField` / `SortOrder` for `list`.
  */
 import { pool } from '../db.js';
 
@@ -33,35 +43,85 @@ export interface TitleSummary {
   startYear: number | null;
 }
 
+// Titles are aliased t and their ratings r, so callers can filter and sort on either.
 const SELECT = `
-  SELECT tconst,
-          title_type      AS "titleType",
-          primary_title   AS "primaryTitle",
-          original_title  AS "originalTitle",
-          is_adult        AS "isAdult",
-          start_year      AS "startYear",
-          end_year        AS "endYear",
-          runtime_minutes AS "runtimeMinutes",
-          awards,
-          poster_url      AS "posterUrl",
-          plot,
-          (SELECT json_build_object('average', r.average_rating::float8,
-                                    'votes', r.num_votes)
-           FROM ratings r WHERE r.tconst = titles.tconst) AS rating
-  FROM titles`;
+  SELECT t.tconst,
+          t.title_type      AS "titleType",
+          t.primary_title   AS "primaryTitle",
+          t.original_title  AS "originalTitle",
+          t.is_adult        AS "isAdult",
+          t.start_year      AS "startYear",
+          t.end_year        AS "endYear",
+          t.runtime_minutes AS "runtimeMinutes",
+          t.awards,
+          t.poster_url      AS "posterUrl",
+          t.plot,
+          CASE WHEN r.tconst IS NULL THEN NULL
+               ELSE json_build_object('average', r.average_rating::float8,
+                                      'votes', r.num_votes)
+          END AS rating
+  FROM titles t
+  LEFT JOIN ratings r ON r.tconst = t.tconst`;
 
-// A page of titles, ordered by title.
-export async function list(limit: number, offset: number): Promise<Title[]> {
+export const SORT_FIELDS = ['title', 'year', 'rating', 'votes', 'runtime'] as const;
+export type SortField = typeof SORT_FIELDS[number];
+export type SortOrder = 'asc' | 'desc';
+
+// The column behind each sort field. Only these strings ever reach ORDER BY.
+const SORT_COLUMN: Record<SortField, string> = {
+  title: 't.primary_title',
+  year: 't.start_year',
+  rating: 'r.average_rating',
+  votes: 'r.num_votes',
+  runtime: 't.runtime_minutes',
+};
+
+export interface TitleFilter {
+  genre?: string;
+  titleType?: string;
+}
+
+export interface TitleBrowse extends TitleFilter {
+  sort: SortField;
+  order: SortOrder;
+}
+
+// The WHERE clause for a filter, numbering its parameters after the ones already used.
+function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params: string[] } {
+  const conditions: string[] = [];
+  const params: string[] = [];
+  if (filter.titleType !== undefined) {
+    params.push(filter.titleType);
+    conditions.push(`lower(t.title_type) = lower($${firstParam + params.length - 1})`);
+  }
+  if (filter.genre !== undefined) {
+    params.push(filter.genre);
+    conditions.push(`EXISTS (SELECT 1 FROM genre_titles gt JOIN genres g ON g.gconst = gt.gconst
+                             WHERE gt.tconst = t.tconst
+                               AND lower(g.genre_name) = lower($${firstParam + params.length - 1}))`);
+  }
+  return { sql: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '', params };
+}
+
+// A page of titles, filtered and sorted as asked. Titles without a value for the
+// sort field come last in both directions; tconst settles ties, so paging stays stable.
+export async function list(browse: TitleBrowse, limit: number, offset: number): Promise<Title[]> {
+  const where = whereOf(browse, 3);
+  const direction = browse.order === 'desc' ? 'DESC' : 'ASC';
   const { rows } = await pool.query<Title>(
-    `${SELECT} ORDER BY primary_title, tconst LIMIT $1 OFFSET $2`,
-    [limit, offset]);
+    `${SELECT} ${where.sql}
+     ORDER BY ${SORT_COLUMN[browse.sort]} ${direction} NULLS LAST, t.tconst
+     LIMIT $1 OFFSET $2`,
+    [limit, offset, ...where.params]);
   return rows;
 }
 
-// How many titles there are in all, for the total in a paged answer.
-export async function count(): Promise<number> {
+// How many titles match the filter in all, for the total in a paged answer.
+export async function count(filter: TitleFilter = {}): Promise<number> {
+  const where = whereOf(filter, 1);
   const { rows } = await pool.query<{ total: number }>(
-    'SELECT count(*)::int AS total FROM titles');
+    `SELECT count(*)::int AS total FROM titles t ${where.sql}`,
+    where.params);
   return rows[0].total;
 }
 
@@ -86,7 +146,7 @@ export async function get(tconst: string): Promise<TitleDetail | undefined> {
                   FROM genre_titles gt JOIN genres g ON g.gconst = gt.gconst
                   WHERE gt.tconst = t.tconst
                   ORDER BY g.genre_name) AS genres
-     FROM (${SELECT} WHERE tconst = $1) AS t`,
+     FROM (${SELECT} WHERE t.tconst = $1) AS t`,
     [tconst]);
   const title = rows[0];
   if (!title) return undefined;

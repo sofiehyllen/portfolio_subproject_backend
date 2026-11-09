@@ -2,6 +2,7 @@
 // BadRequest (400) listing every field that is missing or invalid.
 
 import { BadRequest } from './middleware/errors.js';
+import { SORT_FIELDS, SortField, TitleBrowse } from './data/titles.js';
 
 export interface NewUserInput {
   firstName: string;
@@ -104,7 +105,6 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
   return update;
 }
 
-
 export function validatePassword(password: unknown, optional: {username?: string, currPassword?: string} = {}): string[] {
   if (typeof password !== 'string' || password === '') {
     return ['password is required'];
@@ -140,7 +140,79 @@ export function validatePassword(password: unknown, optional: {username?: string
   }
 
   return errors;
+}
 
+export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
+  const b = asObject(body);
+  const currentPassword = b.currentPassword;
+  const newPassword = b.newPassword;
+
+  if (currentPassword === '' || newPassword === '' ||
+      typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+        throw new BadRequest('Current and new passwords are required');
+  }
+
+  return {
+    currentPassword,
+    newPassword
+  };
+}
+
+const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
+const TITLES_PARAMS = ['text', ...BROWSE_PARAMS, 'limit', 'offset'];
+const FILTER_MAX = 100;
+
+// Query of GET /api/titles, checked once before choosing search or browse:
+// only its own parameters are accepted, so anything else (?keywords=..., a
+// typo like ?sortt=year) gives 400 instead of being silently ignored.
+export function rejectUnknownTitleParams(query: Record<string, unknown>): void {
+  const unknown = Object.keys(query).filter(param => !TITLES_PARAMS.includes(param));
+  if (unknown.length > 0) throw new BadRequest(`unknown query parameter '${unknown.join(', ')}'`);
+}
+
+// Query of GET /api/titles without a search: sort, order, genre and titleType,
+// all optional. The default is alphabetical by title. A parameter that is sent
+// twice (?sort=a&sort=b) arrives as an array and is rejected.
+export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse {
+  const errors: string[] = [];
+
+  const sort = query.sort ?? 'title';
+  if (typeof sort !== 'string' || !(SORT_FIELDS as readonly string[]).includes(sort)) {
+    errors.push(`sort must be one of ${SORT_FIELDS.join(', ')}`);
+  }
+
+  const order = query.order ?? 'asc';
+  if (order !== 'asc' && order !== 'desc') errors.push('order must be asc or desc');
+
+  const browse: TitleBrowse = { sort: sort as SortField, order: order as 'asc' | 'desc' };
+  for (const field of ['genre', 'titleType'] as const) {
+    const value = query[field];
+    if (value === undefined) continue;
+    if (typeof value !== 'string' || value.trim() === '' || value.trim().length > FILTER_MAX) {
+      errors.push(`${field} must be 1-${FILTER_MAX} characters`);
+    } else {
+      browse[field] = value.trim();
+    }
+  }
+
+  if (errors.length > 0) throw new BadRequest(errors.join('; '));
+  return browse;
+}
+
+const SEARCH_MAX = 100;
+
+// Query of GET /api/titles?text=...: the search text, 1-100 characters after
+// trimming, sent once. Sorting and filtering apply to browsing only, not to a
+// search (one mode per request). Returns the trimmed text.
+export function validateTitleSearch(query: Record<string, unknown>): string {
+  const mixed = BROWSE_PARAMS.filter(param => query[param] !== undefined);
+  if (mixed.length > 0) throw new BadRequest(`${mixed.join(', ')} cannot be combined with text`);
+
+  const value = query.text;
+  if (typeof value !== 'string' || value.trim() === '' || value.trim().length > SEARCH_MAX) {
+    throw new BadRequest(`text must be 1-${SEARCH_MAX} characters`);
+  }
+  return value.trim();
 }
 
 const WORDS_MAX = 10;
@@ -161,18 +233,3 @@ export function validateWords(value: unknown): string[] {
   return words;
 }
 
-export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
-  const b = asObject(body);
-  const currentPassword = b.currentPassword;
-  const newPassword = b.newPassword;
-
-  if (currentPassword === '' || newPassword === '' ||
-      typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
-        throw new BadRequest('Current and new passcodes are required');
-  }
-
-  return {
-    currentPassword,
-    newPassword
-  };
-}
