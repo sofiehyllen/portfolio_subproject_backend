@@ -67,11 +67,7 @@ export function validateNewUser(body: unknown): NewUserInput {
 
   // Not trimmed: spaces are allowed in passwords
   const password = b.password;
-  if (typeof password !== 'string' || password === '') {
-    errors.push('password is required');
-  } else if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
-    errors.push(`password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters`);
-  }
+  errors.push(...validatePassword(password, { username }));
 
   if (errors.length > 0) throw new BadRequest(errors.join('; '));
   return { firstName, lastName, username, email: mail, password: password as string };
@@ -101,4 +97,44 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
 
   if (errors.length > 0) throw new BadRequest(errors.join('; '));
   return update;
+}
+
+
+// shouldnt password be a string ? validateNewUser
+export function validatePassword(password: string | unknown, optional: {username?: string, currPassword?: string} = {}): string[] {
+  if (typeof password !== 'string' || password === '') {
+    return ['password is required'];
+  }
+
+  const errors: string[] = [];
+  if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX ) {
+    errors.push(`password must be at least ${PASSWORD_MIN} or at max ${PASSWORD_MAX} characters long`);      
+  }
+
+  if (!/[a-z]/.test(password)) {
+    errors.push('password must contain a lower case letter');
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    errors.push('password must contain an upper case letter');
+  }
+
+  if (!/[0-9]/.test(password)) {
+    errors.push('password must contain a number');
+  }
+
+  if (!/[A-Za-z0-9\s]/.test(password)) {
+    errors.push('password must contain a special character');
+  }
+
+  if (optional.username && password.toLocaleLowerCase() === optional.username.toLocaleLowerCase()) {
+    errors.push('password cannot be the same as the username');
+  }
+
+  if (optional.currPassword !== undefined && password === optional.currPassword) {
+    errors.push('new password cannot be the same as the current password');
+  }
+
+  return errors;
+
 }
