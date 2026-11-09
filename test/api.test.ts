@@ -230,3 +230,55 @@ describe('PUT /api/users/{uid}/password', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('GET /api/related-words', () => {
+  it('returns the most associated words, most frequent first, without the given words', async () => {
+    const res = await request(app).get('/api/related-words?words=space,war');
+
+    expect(res.status).toBe(200);
+    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(res.body.total).toBe(res.body.items.length);
+
+    const counts = res.body.items.map((item: { count: number }) => item.count);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+
+    const found = res.body.items.map((item: { word: string }) => item.word);
+    expect(found).not.toContain('space');
+    expect(found).not.toContain('war');
+  });
+
+  it('pages the list and keeps the words in the paging links', async () => {
+    const res = await request(app).get('/api/related-words?words=space&limit=3');
+
+    expect(res.body.items).toHaveLength(3);
+    expect(res.body.total).toBe(10);
+
+    const next = new URL(res.body.links.next, 'http://localhost');
+    expect(next.pathname).toBe('/api/related-words');
+    expect(next.searchParams.get('words')).toBe('space');
+    expect(next.searchParams.get('offset')).toBe('3');
+
+    const second = await request(app).get(res.body.links.next);
+    expect(second.status).toBe(200);
+    expect(second.body.items).toHaveLength(3);
+  });
+
+  it('gives an empty list when no title has the word', async () => {
+    const res = await request(app).get('/api/related-words?words=zzzznotaword');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 0, items: [] });
+  });
+
+  it.each([
+    ['missing', '/api/related-words'],
+    ['blank', '/api/related-words?words=,%20,'],
+    ['sent twice', '/api/related-words?words=a&words=b'],
+    ['too many words', '/api/related-words?words=a,b,c,d,e,f,g,h,i,j,k'],
+    ['a word that is too long', `/api/related-words?words=${'a'.repeat(51)}`],
+  ])('gives 400 when words is %s', async (_case, url) => {
+    const res = await request(app).get(url);
+
+    expect(res.status).toBe(400);
+  });
+});
