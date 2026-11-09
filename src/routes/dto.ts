@@ -48,6 +48,7 @@ export interface TitleDto {
   awards: string | null;
   posterUrl: string | null;
   plot: string | null;
+  rating: { average: number; votes: number } | null;
 }
 
 export function toTitleDto(title: Title): TitleDto {
@@ -63,6 +64,7 @@ export function toTitleDto(title: Title): TitleDto {
     awards: title.awards,
     posterUrl: title.posterUrl,
     plot: title.plot,
+    rating: title.rating,
   };
 }
 
@@ -73,10 +75,9 @@ export interface CreditDto {
   characters: string[];
 }
 
-// One title in full: the list fields plus genres, rating and credits.
+// One title in full: the list fields plus genres and credits.
 export interface TitleDetailDto extends TitleDto {
   genres: string[];
-  rating: { average: number; votes: number } | null;
   credits: CreditDto[];
 }
 
@@ -98,7 +99,6 @@ export function toTitleDetailDto(title: TitleDetail): TitleDetailDto {
   return {
     ...toTitleDto(title),
     genres: title.genres,
-    rating: title.rating,
     credits: title.credits.map(credit => ({
       person: { url: uri.person(credit.nconst), name: credit.name },
       category: credit.category,

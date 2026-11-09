@@ -23,6 +23,7 @@ export interface Title {
   awards: string | null;
   posterUrl: string | null;
   plot: string | null;
+  rating: { average: number; votes: number } | null; // null when the title has no votes
 }
 
 // The fields shown for a title in a search result.
@@ -43,7 +44,10 @@ const SELECT = `
           runtime_minutes AS "runtimeMinutes",
           awards,
           poster_url      AS "posterUrl",
-          plot
+          plot,
+          (SELECT json_build_object('average', r.average_rating::float8,
+                                    'votes', r.num_votes)
+           FROM ratings r WHERE r.tconst = titles.tconst) AS rating
   FROM titles`;
 
 // A page of titles, ordered by title.
@@ -71,26 +75,21 @@ export interface Credit {
 
 export interface TitleDetail extends Title {
   genres: string[];
-  rating: { average: number; votes: number } | null;
   credits: Credit[];
 }
 
 // One title with its genres, rating and credits, or undefined when no such title exists.
 export async function get(tconst: string): Promise<TitleDetail | undefined> {
-  const { rows } = await pool.query<Title & Pick<TitleDetail, 'genres' | 'rating'>>(
+  const { rows } = await pool.query<Title & Pick<TitleDetail, 'genres'>>(
     `SELECT t.*,
             ARRAY(SELECT g.genre_name::text
                   FROM genre_titles gt JOIN genres g ON g.gconst = gt.gconst
                   WHERE gt.tconst = t.tconst
-                  ORDER BY g.genre_name) AS genres,
-            (SELECT json_build_object('average', r.average_rating::float8,
-                                      'votes', r.num_votes)
-             FROM ratings r WHERE r.tconst = t.tconst) AS rating
+                  ORDER BY g.genre_name) AS genres
      FROM (${SELECT} WHERE tconst = $1) AS t`,
     [tconst]);
   const title = rows[0];
   if (!title) return undefined;
-  const rating = title.rating; // null when the title has no votes
 
   // Credits in IMDb's billing order; a person has several characters in some titles.
   const credits = await pool.query<Credit>(
@@ -108,7 +107,7 @@ export async function get(tconst: string): Promise<TitleDetail | undefined> {
      ORDER BY tp.ordering`,
     [tconst]);
 
-  return { ...title, genres: title.genres, rating, credits: credits.rows };
+  return { ...title, credits: credits.rows };
 }
 
 export interface Actor {
