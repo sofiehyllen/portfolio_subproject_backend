@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
-import { validateNewUser, validateUserUpdate, validatePassword } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
@@ -183,12 +183,8 @@ router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
 router.put('/:uconst/password', async (req, res, next) => {
   // TODO: require a token and check it belongs to {uconst} once auth exists
   try {
-    const {currentPassword, newPassword} = req.body ?? {};
+    const {currentPassword, newPassword} = validatePasswordUpdate(req.body);
     const uconst: number = res.locals.uconst;
-
-    if (currentPassword === '' || newPassword === '' || 
-        typeof currentPassword !== 'string' || typeof newPassword !== 'string') 
-        throw new BadRequest('Current and new passwords are required');
     
     const user = await users.getUser(uconst);
     if (!user) throw new NotFound('User not found'); 
