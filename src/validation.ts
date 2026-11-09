@@ -123,7 +123,7 @@ export function validatePassword(password: string | unknown, optional: {username
     errors.push('password must contain a number');
   }
 
-  if (!/[A-Za-z0-9\s]/.test(password)) {
+  if (!/[^A-Za-z0-9\s]/.test(password)) {
     errors.push('password must contain a special character');
   }
 
