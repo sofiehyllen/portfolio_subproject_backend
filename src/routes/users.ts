@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import { validateNewUser, validateUserUpdate } from '../validation.js';
-import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto } from './dto.js';
+import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
 import { checkPassword, hashPassword } from '../utils/passwords.js';
@@ -40,8 +40,9 @@ function parseUconst(value: string): number | undefined {
 }
 
 // Runs before every route in this router whose path contains :uconst, so
-// the check is written once. An invalid uconst gets a 400 and the route
-// never runs; a valid one is stored in res.locals.uconst as a number.
+// the checks are written once. An invalid uconst gets a 400, an unknown
+// user a 404, and the route never runs. A valid uconst is stored in
+// res.locals.uconst and the user in res.locals.user.
 router.param('uconst', async (_req, res, next, value: string) => {
   try {
     const uconst = parseUconst(value);
