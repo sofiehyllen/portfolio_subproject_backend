@@ -100,8 +100,7 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
 }
 
 
-// shouldnt password be a string ? validateNewUser
-export function validatePassword(password: string | unknown, optional: {username?: string, currPassword?: string} = {}): string[] {
+export function validatePassword(password: unknown, optional: {username?: string, currPassword?: string} = {}): string[] {
   if (typeof password !== 'string' || password === '') {
     return ['password is required'];
   }
