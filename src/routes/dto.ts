@@ -14,7 +14,7 @@ export const uri = {
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
   rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
   searchEntry: (uconst: string | number, sconst: string | number) => `${API_BASE}/users/${uconst}/search-history/${sconst}`,
-  persons: () => `${API_BASE}/persons/`,
+  persons: () => `${API_BASE}/person/`,
 };
 
 // The public profile. The password hash is never sent to the client.
@@ -198,8 +198,8 @@ export interface PersonsDto {
 }
 
 
-// should this mapping happen here or in route 
-export function toPersonsDto(item: Person): PersonsDto {
+
+export function toPersonDto(item: Person): PersonsDto {
   return {
     url:            uri.person(item.nconst),
     primaryName:    item.primaryName,
