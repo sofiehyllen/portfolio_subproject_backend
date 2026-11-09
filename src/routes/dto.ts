@@ -86,6 +86,14 @@ export interface UserBookmarkTitleDto {
   createdAt: Date;
 }
 
+export function toBookmarkTitleDto(bookmark: BookmarkTitle): UserBookmarkTitleDto {
+  return {
+    url: uri.bookmarkTitle(bookmark.uconst, bookmark.tconst),
+    title: uri.title(bookmark.tconst),
+    createdAt: bookmark.createdAt,
+  }
+}
+
 export function toUserBookmarkTitleDto(bookmark: BookmarkTitle): UserBookmarkTitleDto {
   return {
     url: uri.bookmarkTitle(bookmark.uconst, bookmark.tconst),

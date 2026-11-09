@@ -22,6 +22,20 @@ export async function count(): Promise<number> {
     return rows[0].total;
 }
 
+export async function listTitleBookmarks(uconst: number, limit: number, offset: number) {
+    const { rows } = await pool.query<BookmarkTitle>(
+        `SELECT t.primary_name AS "title", b.created_at AS "createdAt"
+        FROM bookmark_title b
+            NATURAL JOIN titles t
+        WHERE b.uconst = $1
+            AND b.tconst = t.tconst
+        ORDER BY t.primary_name
+        LIMIT $2
+        OFFSET $3`,
+        [uconst, limit, offset]
+    );
+    return rows;
+}
 //Get list of users bookmarked titles
 export async function getTitleBookmarks(uconst: number, limit: number, offset: number): Promise<BookmarkTitle[] | undefined > {
   const { rows } = await pool.query<BookmarkTitle>(

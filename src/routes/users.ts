@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as users from '../data/users.js';
 import { NotFound } from '../middleware/errors.js';
 import { pageOf, paged } from '../routes/pagination.js';
-import { toUserDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
+import { toUserDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto, toBookmarkTitleDto } from './dto.js';
 import * as bookmark from '../data/bookmarks.js';
 
 export const router = Router();
@@ -76,11 +76,28 @@ router.delete('/:uconst', async (_req, res, next) => {
 //   }
 // });
 
+// GET /api/users/{uconst}/bookmarks/titles - NEW version
+router.get('/:uconst/bookmarks/titles/', async (req, res, next) => {
+  try {
+    const page = pageOf(req.query as Record <string, unknown>);
+
+    const uconst: number = res.locals.uconst;
+
+    const all = await bookmark.listTitleBookmarks(uconst, page.limit, page.offset);
+    res.json(all.map(toBookmarkTitleDto));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/users/{uconst}/bookmarks/titles - OLD version
 router.get('/:uconst/bookmarks/titles/', async (req, res, next) => {
   // TO DO: Path returns 'undefined' after '/titles/'. Figure out why and fix it
   try {
-    const page = pageOf(req.query);
+    const page = pageOf(req.query as Record <string, unknown>);
+
     const uconst: number = res.locals.uconst;
+
     const items = await bookmark.getTitleBookmarks(uconst, page.limit, page.offset);
     const total = await bookmark.count();
 
@@ -89,6 +106,7 @@ router.get('/:uconst/bookmarks/titles/', async (req, res, next) => {
     if (!items) {
       throw new NotFound('Bookmarked titles not found');
     }
+    
     res.json(paged(req, page, total, items.map(toUserBookmarkTitleDto)));
   } catch (err) {
     next(err);
