@@ -189,7 +189,7 @@ export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: numbe
   }));
 } 
 
-export interface PersonsDto {
+export interface PersonDto {
   url: string;
   primaryName: string;
   birthYear: number     | null;
@@ -199,7 +199,7 @@ export interface PersonsDto {
 
 
 
-export function toPersonDto(item: Person): PersonsDto {
+export function toPersonDto(item: Person): PersonDto {
   return {
     url:            uri.person(item.nconst),
     primaryName:    item.primaryName,
