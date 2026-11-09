@@ -108,6 +108,26 @@ describe('GET /api/titles (sorting and filtering)', () => {
     expect(res.body).toEqual({ error: 'sort cannot be combined with text' });
   });
 
+  it.each([
+    ['empty', 'text='],
+    ['blank', 'text=%20%20'],
+    ['too long', `text=${'a'.repeat(101)}`],
+    ['sent twice', 'text=love&text=war'],
+  ])('gives 400 for search text that is %s', async (_case, qs) => {
+    const res = await request(app).get(`/api/titles?${qs}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'text must be 1-100 characters' });
+  });
+
+  it('trims the search text', async () => {
+    const plain = await request(app).get('/api/titles?text=love');
+    const padded = await request(app).get('/api/titles?text=%20love%20');
+
+    expect(padded.status).toBe(200);
+    expect(padded.body.total).toBe(plain.body.total);
+  });
+
   it('gives 400 for a query parameter it does not accept, instead of ignoring it', async () => {
     const res = await request(app).get('/api/titles?keywords=war&sort=year');
 

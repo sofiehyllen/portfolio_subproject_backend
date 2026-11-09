@@ -2,7 +2,8 @@
  * Route handlers for the `/api/titles` collection.
  *
  * Exposes one endpoint with two modes:
- * - `GET /?text=...` — paged substring search; results ordered by tconst. The search
+ * - `GET /?text=...` — paged substring search (text 1-100 characters, trimmed);
+ *   results ordered by tconst. The search
  *   is logged in the user's history on the first page only (offset 0).
  *   Sorting and filtering parameters are rejected with 400 in this mode.
  * - `GET /` — paged list of all titles. Optional `sort` (title, year, rating, votes,
@@ -12,7 +13,7 @@ import { Router } from 'express';
 import * as titles from '../data/titles.js';
 import { NotFound } from '../middleware/errors.js';
 import { toActorDto, toSimilarMovieDto, toTitleDetailDto, toTitleDto, toTitleSummaryDto } from './dto.js';
-import { rejectBrowseParams, validateTitleBrowse } from '../validation.js';
+import { validateTitleBrowse, validateTitleSearch } from '../validation.js';
 import { pageOf, searchLogUser } from "./pagination.js";
 import { paged } from "./pagination.js";
 
@@ -24,10 +25,10 @@ router.get('/', async (req, res, next) => {
     const page = pageOf(query);
 
     // Substring search: ?text=...
-    if (typeof req.query.text === 'string') {
-      rejectBrowseParams(query);
+    if (query.text !== undefined) {
+      const text = validateTitleSearch(query);
       const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
-      const { items, total } = await titles.searchText(logAs, req.query.text, page.limit, page.offset);
+      const { items, total } = await titles.searchText(logAs, text, page.limit, page.offset);
       res.json(paged(req, page, total, items.map(toTitleSummaryDto)));
       return;
     }

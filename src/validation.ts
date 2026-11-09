@@ -142,8 +142,18 @@ export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse
   return browse;
 }
 
-// Sorting and filtering apply to browsing only, not to a search (one mode per request).
-export function rejectBrowseParams(query: Record<string, unknown>): void {
+const SEARCH_MAX = 100;
+
+// Query of GET /api/titles?text=...: the search text, 1-100 characters after
+// trimming, sent once. Sorting and filtering apply to browsing only, not to a
+// search (one mode per request). Returns the trimmed text.
+export function validateTitleSearch(query: Record<string, unknown>): string {
   const mixed = BROWSE_PARAMS.filter(param => query[param] !== undefined);
   if (mixed.length > 0) throw new BadRequest(`${mixed.join(', ')} cannot be combined with text`);
+
+  const value = query.text;
+  if (typeof value !== 'string' || value.trim() === '' || value.trim().length > SEARCH_MAX) {
+    throw new BadRequest(`text must be 1-${SEARCH_MAX} characters`);
+  }
+  return value.trim();
 }
