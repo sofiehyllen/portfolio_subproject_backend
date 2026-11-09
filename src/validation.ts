@@ -167,7 +167,7 @@ const FILTER_MAX = 100;
 // typo like ?sortt=year) gives 400 instead of being silently ignored.
 export function rejectUnknownTitleParams(query: Record<string, unknown>): void {
   const unknown = Object.keys(query).filter(param => !TITLES_PARAMS.includes(param));
-  if (unknown.length > 0) throw new BadRequest(`unknown query parameter ${unknown.join(', ')}`);
+  if (unknown.length > 0) throw new BadRequest(`unknown query parameter '${unknown.join(', ')}'`);
 }
 
 // Query of GET /api/titles without a search: sort, order, genre and titleType,
