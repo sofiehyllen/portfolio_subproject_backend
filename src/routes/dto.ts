@@ -174,9 +174,9 @@ export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: numbe
 export interface PersonsDto {
   url: string;
   primaryName: string;
-  birthYear: number | null;
-  deathYear: number | null;
-  avgNameRating: number
+  birthYear: number     | null;
+  deathYear: number     | null;
+  avgNameRating: number | null;
 }
 
 
