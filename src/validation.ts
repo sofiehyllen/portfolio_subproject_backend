@@ -102,3 +102,21 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
   if (errors.length > 0) throw new BadRequest(errors.join('; '));
   return update;
 }
+
+const WORDS_MAX = 10;
+const WORD_MAX = 50;
+
+// The words query parameter: comma separated, 1-10 words, each 1-50 characters.
+// A parameter that is sent twice (?words=a&words=b) arrives as an array and is rejected.
+export function validateWords(value: unknown): string[] {
+  if (value === undefined) throw new BadRequest('words is required');
+  if (typeof value !== 'string') throw new BadRequest('words must be one comma separated list');
+
+  const words = value.split(',').map(word => word.trim()).filter(word => word !== '');
+  if (words.length === 0) throw new BadRequest('words is required');
+  if (words.length > WORDS_MAX) throw new BadRequest(`words can have at most ${WORDS_MAX} words`);
+  if (words.some(word => word.length > WORD_MAX)) {
+    throw new BadRequest(`each word can be at most ${WORD_MAX} characters`);
+  }
+  return words;
+}
