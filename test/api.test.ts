@@ -85,7 +85,7 @@ describe('GET /api/titles/{tconst}', () => {
     const res = await request(app).get('/api/titles/tt0000000');
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'Title not found' });
+    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
   });
 });
 
@@ -113,9 +113,9 @@ describe('GET /api/titles/{tconst}/actors', () => {
 
   it('gives 404 for an unknown title', async () => {
     const res = await request(app).get('/api/titles/tt0000000/actors');
-
+    
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'Title not found' });
+    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
   });
 });
 
@@ -152,9 +152,8 @@ describe('GET /api/titles/{tconst}/similar', () => {
 
   it('gives 404 for an unknown title', async () => {
     const res = await request(app).get('/api/titles/tt0000000/similar');
-
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'Title not found' });
+    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
   });
 });
 
