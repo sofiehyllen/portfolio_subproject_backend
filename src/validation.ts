@@ -2,6 +2,7 @@
 // BadRequest (400) listing every field that is missing or invalid.
 
 import { BadRequest } from './middleware/errors.js';
+import { SORT_FIELDS, SortField, TitleBrowse } from './data/titles.js';
 
 export interface NewUserInput {
   firstName: string;
@@ -101,4 +102,42 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
 
   if (errors.length > 0) throw new BadRequest(errors.join('; '));
   return update;
+}
+
+const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
+const FILTER_MAX = 100;
+
+// Query of GET /api/titles without a search: sort, order, genre and titleType,
+// all optional. The default is alphabetical by title. A parameter that is sent
+// twice (?sort=a&sort=b) arrives as an array and is rejected.
+export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse {
+  const errors: string[] = [];
+
+  const sort = query.sort ?? 'title';
+  if (typeof sort !== 'string' || !(SORT_FIELDS as readonly string[]).includes(sort)) {
+    errors.push(`sort must be one of ${SORT_FIELDS.join(', ')}`);
+  }
+
+  const order = query.order ?? 'asc';
+  if (order !== 'asc' && order !== 'desc') errors.push('order must be asc or desc');
+
+  const browse: TitleBrowse = { sort: sort as SortField, order: order as 'asc' | 'desc' };
+  for (const field of ['genre', 'titleType'] as const) {
+    const value = query[field];
+    if (value === undefined) continue;
+    if (typeof value !== 'string' || value.trim() === '' || value.trim().length > FILTER_MAX) {
+      errors.push(`${field} must be 1-${FILTER_MAX} characters`);
+    } else {
+      browse[field] = value.trim();
+    }
+  }
+
+  if (errors.length > 0) throw new BadRequest(errors.join('; '));
+  return browse;
+}
+
+// Sorting and filtering apply to browsing only, not to a search (one mode per request).
+export function rejectBrowseParams(query: Record<string, unknown>): void {
+  const mixed = BROWSE_PARAMS.filter(param => query[param] !== undefined);
+  if (mixed.length > 0) throw new BadRequest(`${mixed.join(', ')} cannot be combined with text`);
 }
