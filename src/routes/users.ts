@@ -150,6 +150,35 @@ router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
   }
 });
 
+// GET /api/users/{uconst}/ratings: paged rating history, newest change first.
+router.get('/:uconst/ratings', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const page = pageOf(req.query as Record<string, unknown>);
+
+    const items = await ratings.ratingHistory(uconst, page.limit, page.offset);
+    const total = await ratings.countRatings(uconst);
+
+    res.json(paged(req, page, total, items.map((item) => toRatingHistoryDto(uconst, item))));
+  } catch (err) {
+    next(err)
+  }
+})
+
+// GET /api/users/{uconst}/ratings/{tconst}: the user's active rating of one title.
+// 404 when the user has never rated the title, or the rating has been removed.
+router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const rating = await ratings.getRating(uconst, req.params.tconst);
+    if (!rating) throw new NotFound('Rating not found');
+
+    res.json(toUserRatingDto(rating));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PUT /api/users/{uconst}/password: replaces the user's password
 router.put('/:uconst/password', async (req, res, next) => {
   // TODO: require a token and check it belongs to {uconst} once auth exists
