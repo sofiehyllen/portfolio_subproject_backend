@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
-import { validateNewUser, validateUserUpdate } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
@@ -40,22 +40,30 @@ function parseUconst(value: string): number | undefined {
 }
 
 // Runs before every route in this router whose path contains :uconst, so
-// the check is written once. An invalid uconst gets a 400 and the route
-// never runs; a valid one is stored in res.locals.uconst as a number.
-router.param('uconst', (_req, res, next, value: string) => {
-  const uconst = parseUconst(value);
-  if (uconst === undefined) {
-    res.status(400).json({ error: 'uconst must be a positive integer' });
-    return;
+// the checks are written once. An invalid uconst gets a 400, an unknown
+// user a 404, and the route never runs. A valid uconst is stored in
+// res.locals.uconst and the user in res.locals.user.
+router.param('uconst', async (_req, res, next, value: string) => {
+  try {
+    const uconst = parseUconst(value);
+    if (uconst === undefined) { throw new BadRequest('uconst must be a positive integer'); }
+
+    const user = await users.getUser(uconst);
+      if (!user) throw new NotFound('User not found');
+
+    res.locals.uconst = uconst;
+    res.locals.user = user;
+    next();
+  } catch(err) {
+    next(err);
   }
-  res.locals.uconst = uconst;
-  next();
+  
 });
 
 router.param('sconst', (_req, res, next, value: string) => {
   const sconst = parseUconst(value);
   if (sconst === undefined){
-    return next(new BadRequest('sconst must be a positive integer'));
+    throw new BadRequest('sconst must be a positive integer');
   }
   res.locals.sconst = sconst;
   next();
@@ -64,16 +72,9 @@ router.param('sconst', (_req, res, next, value: string) => {
 
 // GET /api/users/{uconst}: the user's profile (never the password hash).
 // TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
-router.get('/:uconst', async (_req, res, next) => {
-  try {
-    const uconst: number = res.locals.uconst;
-    const user = await users.getUser(uconst);
-    if (!user) throw new NotFound('User not found');
-
-    res.json(toUserDto(user));
-  } catch (err) {
-    next(err);
-  }
+router.get('/:uconst', (_req, res) => {
+  const user: users.User = res.locals.user;
+  res.json(toUserDto(user));
 });
 
 // PATCH /api/users/{uconst}: changes the fields sent (firstName, lastName,
@@ -88,7 +89,7 @@ router.patch('/:uconst', async (req, res, next) => {
     if (!updated) throw new NotFound('User not found');
 
     const user = await users.getUser(uconst);
-    if (!user) throw new Error(`user ${uconst} missing right after update`);
+    if (!user) throw new Error(`User ${uconst} missing right after update`);
 
     res.json(toUserDto(user));
   } catch (err) {
@@ -120,8 +121,7 @@ router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
     
     // Check the input before asking the database
     if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
-      res.status(400).json({ error: 'rating must be an integer between 1 and 10' });
-      return;
+      throw new BadRequest('rating must be an integer between 1 and 10');
     }
 
     // saves the rating and updates the averages
@@ -183,23 +183,22 @@ router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
 router.put('/:uconst/password', async (req, res, next) => {
   // TODO: require a token and check it belongs to {uconst} once auth exists
   try {
-    const {currentPassword, newPassword} = req.body ?? {};
+    const {currentPassword, newPassword} = validatePasswordUpdate(req.body);
     const uconst: number = res.locals.uconst;
-
-    if (!currentPassword || 
-        !newPassword || 
-        typeof currentPassword !== 'string' || 
-        typeof newPassword !== 'string') 
-        throw new BadRequest('Current and new passwords are required');
     
     const user = await users.getUser(uconst);
     if (!user) throw new NotFound('User not found'); 
 
     const isPasswordValid = await checkPassword(currentPassword, user.passwordHash);
     if (!isPasswordValid) throw new Forbidden('Current password is invalid');
+    
+    const errors = validatePassword(newPassword, {
+      username: user.username,
+      currPassword: currentPassword
+    });
+    if (errors.length > 0) throw new BadRequest(errors.join('; '));
 
     const newHash = await hashPassword(newPassword);
-
     await users.updateUserHashPassword(uconst, newHash);
     
     return res.status(204).end();
