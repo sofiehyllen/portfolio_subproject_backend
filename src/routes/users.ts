@@ -185,7 +185,6 @@ router.put('/:uconst/password', async (req, res, next) => {
   try {
     const {currentPassword, newPassword} = req.body ?? {};
     const uconst: number = res.locals.uconst;
-    const user: users.User = res.locals.user;
 
     if (currentPassword === '' || newPassword === '' || 
         typeof currentPassword !== 'string' || typeof newPassword !== 'string') 
