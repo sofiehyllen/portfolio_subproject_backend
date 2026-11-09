@@ -108,7 +108,7 @@ export function validatePassword(password: string | unknown, optional: {username
 
   const errors: string[] = [];
   if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX ) {
-    errors.push(`password must be at least ${PASSWORD_MIN} or at max ${PASSWORD_MAX} characters long`);      
+    errors.push(`password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters`);      
   }
 
   if (!/[a-z]/.test(password)) {
