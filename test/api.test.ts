@@ -175,7 +175,7 @@ describe('PUT /api/users/{uid}/password', () => {
   it('returns 204 for a valid password update', async () => {
     const res = await request(app)
       .put(`/api/users/${userId}/password`)
-      .send({currentPassword: 'password', newPassword: 'newPassword'});
+      .send({currentPassword: 'password', newPassword: 'NewPassw0rd!'});
     
     expect(res.status).toBe(204);
   });

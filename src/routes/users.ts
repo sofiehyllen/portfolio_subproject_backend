@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
-import { validateNewUser, validateUserUpdate } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
@@ -183,18 +183,20 @@ router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
 router.put('/:uconst/password', async (req, res, next) => {
   // TODO: require a token and check it belongs to {uconst} once auth exists
   try {
-    const {currentPassword, newPassword} = req.body ?? {};
+    const {currentPassword, newPassword} = validatePasswordUpdate(req.body);
     const uconst: number = res.locals.uconst;
-    const user: users.User = res.locals.user;
-
-    if (!currentPassword || 
-        !newPassword || 
-        typeof currentPassword !== 'string' || 
-        typeof newPassword !== 'string') 
-        throw new BadRequest('currentPassword and newPassword are required');
+    
+    const user = await users.getUser(uconst);
+    if (!user) throw new NotFound('User not found'); 
 
     const isPasswordValid = await checkPassword(currentPassword, user.passwordHash);
-    if (!isPasswordValid) throw new Forbidden('currentPassword is incorrect');
+    if (!isPasswordValid) throw new Forbidden('Current password is invalid');
+    
+    const errors = validatePassword(newPassword, {
+      username: user.username,
+      currPassword: currentPassword
+    });
+    if (errors.length > 0) throw new BadRequest(errors.join('; '));
 
     const newHash = await hashPassword(newPassword);
     await users.updateUserHashPassword(uconst, newHash);
