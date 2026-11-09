@@ -97,15 +97,15 @@ describe('GET /api/titles (sorting and filtering)', () => {
     const res = await request(app).get('/api/titles?sort=popularity&order=up');
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toContain('sort must be one of');
-    expect(res.body.error).toContain('order must be asc or desc');
+    expect(res.body.message).toContain('sort must be one of');
+    expect(res.body.message).toContain('order must be asc or desc');
   });
 
   it('gives 400 when sorting or filtering is mixed with a text search', async () => {
     const res = await request(app).get('/api/titles?text=love&sort=rating');
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'sort cannot be combined with text' });
+    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: 'sort cannot be combined with text' });
   });
 
   it.each([
@@ -117,7 +117,7 @@ describe('GET /api/titles (sorting and filtering)', () => {
     const res = await request(app).get(`/api/titles?${qs}`);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'text must be 1-100 characters' });
+    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: 'text must be 1-100 characters' });
   });
 
   it('trims the search text', async () => {
@@ -135,7 +135,7 @@ describe('GET /api/titles (sorting and filtering)', () => {
     const res = await request(app).get(`/api/titles?${qs}`);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: `unknown query parameter ${param}` });
+    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: `unknown query parameter ${param}` });
   });
 });
 
@@ -160,7 +160,7 @@ describe('GET /api/titles/{tconst}', () => {
     const res = await request(app).get('/api/titles/tt0000000');
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'Title not found' });
+    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
   });
 });
 
@@ -188,9 +188,9 @@ describe('GET /api/titles/{tconst}/actors', () => {
 
   it('gives 404 for an unknown title', async () => {
     const res = await request(app).get('/api/titles/tt0000000/actors');
-
+    
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'Title not found' });
+    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
   });
 });
 
@@ -227,9 +227,8 @@ describe('GET /api/titles/{tconst}/similar', () => {
 
   it('gives 404 for an unknown title', async () => {
     const res = await request(app).get('/api/titles/tt0000000/similar');
-
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'Title not found' });
+    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
   });
 });
 
@@ -303,6 +302,58 @@ describe('PUT /api/users/{uid}/password', () => {
       .put(`/api/users/${userId}/password`)
       .send({currentPassword: undefined});
       
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /api/related-words', () => {
+  it('returns the most associated words, most frequent first, without the given words', async () => {
+    const res = await request(app).get('/api/related-words?words=space,war');
+
+    expect(res.status).toBe(200);
+    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(res.body.total).toBe(res.body.items.length);
+
+    const counts = res.body.items.map((item: { count: number }) => item.count);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+
+    const found = res.body.items.map((item: { word: string }) => item.word);
+    expect(found).not.toContain('space');
+    expect(found).not.toContain('war');
+  });
+
+  it('pages the list and keeps the words in the paging links', async () => {
+    const res = await request(app).get('/api/related-words?words=space&limit=3');
+
+    expect(res.body.items).toHaveLength(3);
+    expect(res.body.total).toBe(10);
+
+    const next = new URL(res.body.links.next, 'http://localhost');
+    expect(next.pathname).toBe('/api/related-words');
+    expect(next.searchParams.get('words')).toBe('space');
+    expect(next.searchParams.get('offset')).toBe('3');
+
+    const second = await request(app).get(res.body.links.next);
+    expect(second.status).toBe(200);
+    expect(second.body.items).toHaveLength(3);
+  });
+
+  it('gives an empty list when no title has the word', async () => {
+    const res = await request(app).get('/api/related-words?words=zzzznotaword');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 0, items: [] });
+  });
+
+  it.each([
+    ['missing', '/api/related-words'],
+    ['blank', '/api/related-words?words=,%20,'],
+    ['sent twice', '/api/related-words?words=a&words=b'],
+    ['too many words', '/api/related-words?words=a,b,c,d,e,f,g,h,i,j,k'],
+    ['a word that is too long', `/api/related-words?words=${'a'.repeat(51)}`],
+  ])('gives 400 when words is %s', async (_case, url) => {
+    const res = await request(app).get(url);
+
     expect(res.status).toBe(400);
   });
 });
