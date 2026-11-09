@@ -190,7 +190,6 @@ export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: numbe
 } 
 
 export interface PersonDto {
-export interface PersonDto {
   url: string;
   primaryName: string;
   birthYear: number     | null;
