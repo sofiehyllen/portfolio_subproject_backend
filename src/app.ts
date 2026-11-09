@@ -2,7 +2,7 @@ import express from 'express';
 import { errorHandler } from './middleware/errors.js';
 import { router as titlesRouter } from './routes/titles.js';
 import { router as usersRouter } from './routes/users.js';
-import { router as personsRouter} from './routes/persons.js'
+import { router as personsRouter} from './routes/persons.js';
 
 export const app = express();
 
