@@ -113,6 +113,12 @@ const FILTER_MAX = 100;
 export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse {
   const errors: string[] = [];
 
+  // Only these parameters are accepted; anything else (?keywords=..., a typo
+  // like ?sortt=year) gives 400 instead of being silently ignored.
+  const allowed = [...BROWSE_PARAMS, 'limit', 'offset'];
+  const unknown = Object.keys(query).filter(param => !allowed.includes(param));
+  if (unknown.length > 0) errors.push(`unknown query parameter ${unknown.join(', ')}`);
+
   const sort = query.sort ?? 'title';
   if (typeof sort !== 'string' || !(SORT_FIELDS as readonly string[]).includes(sort)) {
     errors.push(`sort must be one of ${SORT_FIELDS.join(', ')}`);

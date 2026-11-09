@@ -107,6 +107,13 @@ describe('GET /api/titles (sorting and filtering)', () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: 'sort cannot be combined with text' });
   });
+
+  it('gives 400 for a query parameter it does not accept, instead of ignoring it', async () => {
+    const res = await request(app).get('/api/titles?keywords=war&sort=year');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'unknown query parameter keywords' });
+  });
 });
 
 describe('GET /api/titles/{tconst}', () => {
