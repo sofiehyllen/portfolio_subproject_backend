@@ -128,11 +128,14 @@ describe('GET /api/titles (sorting and filtering)', () => {
     expect(padded.body.total).toBe(plain.body.total);
   });
 
-  it('gives 400 for a query parameter it does not accept, instead of ignoring it', async () => {
-    const res = await request(app).get('/api/titles?keywords=war&sort=year');
+  it.each([
+    ['browsing', 'keywords=war&sort=year', 'keywords'],
+    ['searching', 'text=love&sortt=year', 'sortt'],
+  ])('gives 400 for a query parameter it does not accept when %s, instead of ignoring it', async (_mode, qs, param) => {
+    const res = await request(app).get(`/api/titles?${qs}`);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'unknown query parameter keywords' });
+    expect(res.body).toEqual({ error: `unknown query parameter ${param}` });
   });
 });
 

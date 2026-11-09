@@ -13,7 +13,7 @@ import { Router } from 'express';
 import * as titles from '../data/titles.js';
 import { NotFound } from '../middleware/errors.js';
 import { toActorDto, toSimilarMovieDto, toTitleDetailDto, toTitleDto, toTitleSummaryDto } from './dto.js';
-import { validateTitleBrowse, validateTitleSearch } from '../validation.js';
+import { rejectUnknownTitleParams, validateTitleBrowse, validateTitleSearch } from '../validation.js';
 import { pageOf, searchLogUser } from "./pagination.js";
 import { paged } from "./pagination.js";
 
@@ -22,6 +22,7 @@ export const router = Router();
 router.get('/', async (req, res, next) => {
   try {
     const query = req.query as Record<string, unknown>;
+    rejectUnknownTitleParams(query);
     const page = pageOf(query);
 
     // Substring search: ?text=...

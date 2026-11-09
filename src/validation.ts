@@ -105,19 +105,22 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
 }
 
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
+const TITLES_PARAMS = ['text', ...BROWSE_PARAMS, 'limit', 'offset'];
 const FILTER_MAX = 100;
+
+// Query of GET /api/titles, checked once before choosing search or browse:
+// only its own parameters are accepted, so anything else (?keywords=..., a
+// typo like ?sortt=year) gives 400 instead of being silently ignored.
+export function rejectUnknownTitleParams(query: Record<string, unknown>): void {
+  const unknown = Object.keys(query).filter(param => !TITLES_PARAMS.includes(param));
+  if (unknown.length > 0) throw new BadRequest(`unknown query parameter ${unknown.join(', ')}`);
+}
 
 // Query of GET /api/titles without a search: sort, order, genre and titleType,
 // all optional. The default is alphabetical by title. A parameter that is sent
 // twice (?sort=a&sort=b) arrives as an array and is rejected.
 export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse {
   const errors: string[] = [];
-
-  // Only these parameters are accepted; anything else (?keywords=..., a typo
-  // like ?sortt=year) gives 400 instead of being silently ignored.
-  const allowed = [...BROWSE_PARAMS, 'limit', 'offset'];
-  const unknown = Object.keys(query).filter(param => !allowed.includes(param));
-  if (unknown.length > 0) errors.push(`unknown query parameter ${unknown.join(', ')}`);
 
   const sort = query.sort ?? 'title';
   if (typeof sort !== 'string' || !(SORT_FIELDS as readonly string[]).includes(sort)) {
