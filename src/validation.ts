@@ -149,7 +149,7 @@ export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
 
   if (currentPassword === '' || newPassword === '' ||
       typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
-        throw new BadRequest('Current and new passcodes are required');
+        throw new BadRequest('Current and new passwords are required');
   }
 
   return {
