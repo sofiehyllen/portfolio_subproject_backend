@@ -13,7 +13,7 @@ export interface KnownFor {
   primaryTitle: string;
 }
 
-export interface onePerson {
+export interface OnePerson {
   nconst:         string;
   primaryName:    string;
   avgNameRating:  number | null;
@@ -63,8 +63,8 @@ export async function getPersons(limit: number, offset: number) {
  * @param nconst 
  * @returns The matching person (undefined if none found)
  */
-export async function getOnePerson(nconst: string): Promise<onePerson | undefined> {
-  const result  = await pool.query<onePerson>(`
+export async function getOnePerson(nconst: string): Promise<OnePerson | undefined> {
+  const result  = await pool.query<OnePerson>(`
     select 
       p.nconst,
       p.primary_name            as "primaryName", 
@@ -77,7 +77,10 @@ export async function getOnePerson(nconst: string): Promise<onePerson | undefine
         order by pr.profession_name
       ) as professions, 
       COALESCE(
-        (SELECT json_agg(json_build_object('tconst', t.tconst, 'primaryTitle', t.primary_title))
+        (SELECT json_agg(
+                    json_build_object('tconst', t.tconst, 'primaryTitle', t.primary_title)
+                    order by t.primary_title, t.tconst
+                )
         FROM person_known_for pkf
         JOIN titles t USING (tconst)
         WHERE pkf.nconst = p.nconst),

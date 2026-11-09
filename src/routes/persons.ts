@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged} from '../routes/pagination.js'
-import { toPersonsDto, toOnePersonDto, toOnePersonTitleDto } from './dto.js';
+import { toPersonDto, toOnePersonDto, toOnePersonTitleDto } from './dto.js';
 
 export const router = Router();
 
@@ -32,7 +32,7 @@ router.get('/', async (req, res, next) => {
         const page = pageOf(req.query);
         const {items, total} =  await persons.getPersons(page.limit, page.offset);
 
-        res.json(paged(req, page, total, items.map(toPersonsDto)));
+        res.json(paged(req, page, total, items.map(toPersonDto)));
 
     } catch (error) {
         next(error);
@@ -44,7 +44,7 @@ router.get('/', async (req, res, next) => {
 router.get('/:nconst', async (_req, res, next) => {
     try {
         const nconst: string = res.locals.nconst;
-        const foundPerson: persons.onePerson | undefined = await persons.getOnePerson(nconst);
+        const foundPerson: persons.OnePerson | undefined = await persons.getOnePerson(nconst);
 
         // not sure if this is an error
         // but it should be as its look up by specific nconst

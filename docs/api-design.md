@@ -56,7 +56,7 @@ Every other path needs `Authorization: Bearer <token>`, and the user in the toke
 Searches on `/api/titles` and `/api/persons` accept an optional token. When one is present, the search is logged in the user's history. A token that is present but invalid is rejected with 401, not ignored.
 
 **Failure codes used everywhere:**
-`400` the request is malformed or a parameter fails validation (the server cannot process it as sent);
+`400` the request is malformed or a parameter fails validation (the server cannot process it as sent), including a path identifier in the wrong format (`nconst` must start with `nm` followed by at least 7 digits);
 `401` no valid token (the caller is not identified), or wrong username or password at login;
 `403` the caller is identified but not allowed: the token belongs to another user, or the current password given when changing the password is wrong;
 `404` the resource does not exist (also for a deleted rating);
@@ -82,10 +82,10 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 | `GET /api/titles/{tconst}/actors` | Paged actors of the title, highest name rating first | 200 | 404 unknown title |
 | `GET /api/titles/{tconst}/similar` | Paged movies sharing genres with the title. A title that is not a movie or tvMovie gives an empty list | 200 | 404 unknown title |
 | `GET /api/persons` | Paged list of persons, optionally filtered by `name` and `actorsOnly` | 200 | 400 invalid search parameter; 401 invalid token |
-| `GET /api/persons/{nconst}` | One person with name rating, professions and known-for titles | 200 | 404 unknown person |
-| `GET /api/persons/{nconst}/titles` | Paged titles the person has been credited on, each with their role (category, job, characters)| 200 | 404 unknown person |
-| `GET /api/persons/{nconst}/co-players` | Paged actors who share titles with the person, most frequent first | 200 | 404 unknown person |
-| `GET /api/persons/{nconst}/words` | Paged most frequent words across the person's titles | 200 | 404 unknown person |
+| `GET /api/persons/{nconst}` | One person with name rating, professions and known-for titles | 200 | 400 invalid nconst; 404 unknown person |
+| `GET /api/persons/{nconst}/titles` | Paged titles the person has been credited on, each with their role (category, job, characters)| 200 | 400 invalid nconst; 404 unknown person |
+| `GET /api/persons/{nconst}/co-players` | Paged actors who share titles with the person, most frequent first | 200 | 400 invalid nconst; 404 unknown person |
+| `GET /api/persons/{nconst}/words` | Paged most frequent words across the person's titles | 200 | 400 invalid nconst; 404 unknown person |
 | `GET /api/related-words?words=a,b` | Paged words most associated with titles matching all the given words. Not logged in the search history | 200 | 400 missing or invalid `words` |
 
 ### Personal data (token required, owner only)
@@ -100,8 +100,8 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 | `PUT /api/users/{uconst}/bookmarks/titles/{tconst}` | Bookmarks a title. Repeating it changes nothing | 204 | 401; 403; 404 unknown title |
 | `DELETE /api/users/{uconst}/bookmarks/titles/{tconst}` | Removes a title bookmark | 204 | 401; 403; 404 no such bookmark |
 | `GET /api/users/{uconst}/bookmarks/persons` | Paged person bookmarks, newest first | 200 | 401; 403 |
-| `PUT /api/users/{uconst}/bookmarks/persons/{nconst}` | Bookmarks a person. Repeating it changes nothing | 204 | 401; 403; 404 unknown person |
-| `DELETE /api/users/{uconst}/bookmarks/persons/{nconst}` | Removes a person bookmark | 204 | 401; 403; 404 no such bookmark |
+| `PUT /api/users/{uconst}/bookmarks/persons/{nconst}` | Bookmarks a person. Repeating it changes nothing | 204 | 400 invalid nconst; 401; 403; 404 unknown person |
+| `DELETE /api/users/{uconst}/bookmarks/persons/{nconst}` | Removes a person bookmark | 204 | 400 invalid nconst; 401; 403; 404 no such bookmark |
 | `GET /api/users/{uconst}/search-history` | Paged search history, newest first | 200 | 401; 403 |
 | `DELETE /api/users/{uconst}/search-history/{sconst}` | Deletes one history entry | 204 | 401; 403; 404 no such entry for this user |
 | `DELETE /api/users/{uconst}/search-history` | Clears the whole history | 204 | 401; 403 |
@@ -167,7 +167,8 @@ Content-Type: application/json
       "runtimeMinutes": 175,
       "awards": null,
       "posterUrl": null,
-      "plot": "The aging patriarch of an organized crime dynasty transfers control to his reluctant son."
+      "plot": "The aging patriarch of an organized crime dynasty transfers control to his reluctant son.",
+      "rating": { "average": 9.2, "votes": 2000000 }
     },
     {
       "url": "http://localhost:3000/api/titles/tt0111161",
@@ -180,7 +181,8 @@ Content-Type: application/json
       "runtimeMinutes": 142,
       "awards": null,
       "posterUrl": null,
-      "plot": "Two imprisoned men bond over a number of years, finding solace and eventual redemption."
+      "plot": "Two imprisoned men bond over a number of years, finding solace and eventual redemption.",
+      "rating": { "average": 9.3, "votes": 3000000 }
     }
   ],
   "links": {
@@ -191,7 +193,7 @@ Content-Type: application/json
 ```
 
 Every item has a `url`, so the client can follow it without building any address itself.
-`prev` is `null` because this is the first page. Fields with no data in the database are `null`.
+`prev` is `null` because this is the first page. Fields with no data in the database are `null`, and so is `rating` for a title without votes.
 
 Every error has the same shape, with no stack trace, SQL or database identifiers:
 

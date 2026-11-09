@@ -1,11 +1,11 @@
 /**
  * Data Transfer Objects (DTOs) — the shapes sent to clients in API responses.
  */
-import { UserRating } from "../data/ratings.js";
+import { RatingHistoryEntry, UserRating } from "../data/ratings.js";
 import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
-import { onePerson, Person, PersonTitle } from "../data/persons.js";
+import { OnePerson, Person, PersonTitle } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -14,7 +14,7 @@ export const uri = {
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
   rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
   searchEntry: (uconst: string | number, sconst: string | number) => `${API_BASE}/users/${uconst}/search-history/${sconst}`,
-  persons: () => `${API_BASE}/persons/`,
+  persons: () => `${API_BASE}/person/`,
 };
 
 // The public profile. The password hash is never sent to the client.
@@ -50,6 +50,7 @@ export interface TitleDto {
   awards: string | null;
   posterUrl: string | null;
   plot: string | null;
+  rating: { average: number; votes: number } | null;
 }
 
 export function toTitleDto(title: Title): TitleDto {
@@ -65,6 +66,7 @@ export function toTitleDto(title: Title): TitleDto {
     awards: title.awards,
     posterUrl: title.posterUrl,
     plot: title.plot,
+    rating: title.rating,
   };
 }
 
@@ -75,10 +77,9 @@ export interface CreditDto {
   characters: string[];
 }
 
-// One title in full: the list fields plus genres, rating and credits.
+// One title in full: the list fields plus genres and credits.
 export interface TitleDetailDto extends TitleDto {
   genres: string[];
-  rating: { average: number; votes: number } | null;
   credits: CreditDto[];
 }
 
@@ -100,7 +101,6 @@ export function toTitleDetailDto(title: TitleDetail): TitleDetailDto {
   return {
     ...toTitleDto(title),
     genres: title.genres,
-    rating: title.rating,
     credits: title.credits.map(credit => ({
       person: { url: uri.person(credit.nconst), name: credit.name },
       category: credit.category,
@@ -157,6 +157,24 @@ export function toUserRatingDto(rating: UserRating): UserRatingDto {
   };
 }
 
+export interface RatingHistoryDto {
+  url: string;
+  title: string;
+  primaryTitle: string;
+  rating: number;
+  lastChange: Date;
+}
+
+export function toRatingHistoryDto(uconst: number, entry: RatingHistoryEntry): RatingHistoryDto {
+  return {
+    url: uri.rating(uconst, entry.tconst),
+    title: uri.title(entry.tconst),
+    primaryTitle: entry.primaryTitle,
+    rating: entry.rating,
+    lastChange: entry.lastChange
+  }
+}
+
 export interface UserSearchHistoryDto {
   url: string;
   searchString: string;
@@ -171,17 +189,17 @@ export function toUserSearchHistoryDto(items: UserSearchHistory[], uconst: numbe
   }));
 } 
 
-export interface PersonsDto {
+export interface PersonDto {
   url: string;
   primaryName: string;
-  birthYear: number | null;
-  deathYear: number | null;
+  birthYear: number     | null;
+  deathYear: number     | null;
   avgNameRating: number | null;
 }
 
 
-// should this mapping happen here or in route 
-export function toPersonsDto(item: Person): PersonsDto {
+
+export function toPersonDto(item: Person): PersonDto {
   return {
     url:            uri.person(item.nconst),
     primaryName:    item.primaryName,
@@ -191,7 +209,7 @@ export function toPersonsDto(item: Person): PersonsDto {
   };
 }
 
-export interface onePersonDto {
+export interface OnePersonDto {
   url: string;
   primaryName: string,
   avgNameRating: number | null,
@@ -199,7 +217,7 @@ export interface onePersonDto {
   knownFor: {url: string, primaryTitle: string}[]
 }
 
-export function toOnePersonDto(item: onePerson): onePersonDto {
+export function toOnePersonDto(item: OnePerson): OnePersonDto {
   return {
     url:            uri.person(item.nconst),
     primaryName:    item.primaryName,
