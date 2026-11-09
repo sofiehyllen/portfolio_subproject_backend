@@ -5,7 +5,7 @@ export interface Person {
   primaryName:    string;
   birthYear:      number | null;
   deathYear:      number | null;
-  avgNameRating:  number;
+  avgNameRating:  number | null;
 }
 
 export interface KnownFor {
@@ -33,7 +33,7 @@ export async function getPersons(limit: number, offset: number) {
             primary_name    AS "primaryName",
             birth_year      AS "birthYear",
             death_year      AS "deathYear",
-            avg_name_rating AS "avgNameRating"
+            avg_name_rating::float8 AS "avgNameRating"
     FROM persons
     ORDER BY primary_name, nconst
     LIMIT $1 
@@ -58,7 +58,7 @@ export async function getOnePerson(nconst: string): Promise<onePerson | undefine
     select 
       p.nconst,
       p.primary_name as "primaryName", 
-      p.avg_name_rating as "avgNameRating", 
+      p.avg_name_rating::float8 as "avgNameRating", 
       array (
         select pr.profession_name
         from person_professions pp
