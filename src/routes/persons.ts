@@ -44,7 +44,7 @@ router.get('/', async (req, res, next) => {
 router.get('/:nconst', async (_req, res, next) => {
     try {
         const nconst: string = res.locals.nconst;
-        const foundPerson: persons.onePerson | undefined = await persons.getOnePerson(nconst);
+        const foundPerson: persons.OnePerson | undefined = await persons.getOnePerson(nconst);
 
         // not sure if this is an error
         // but it should be as its look up by specific nconst
