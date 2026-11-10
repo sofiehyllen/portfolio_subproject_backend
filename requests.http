@@ -1,4 +1,11 @@
 @host = http://localhost:3000
 
 PUT {{host}}/api/users/2/bookmarks/titles/tt0299075
+Content-Type: application/json
 
+{
+    "uconst": 2,
+    "tconst": "tt0299075",
+    "title": ,
+    "createdAt": 
+}
