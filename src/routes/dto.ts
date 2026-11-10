@@ -132,9 +132,9 @@ export interface UserBookmarkTitleDto {
   createdAt: Date;
 }
 
-export function toUserBookmarkTitleDto(bookmark: BookmarkTitle): UserBookmarkTitleDto {
+export function toUserBookmarkTitleDto(uconst: number, bookmark: BookmarkTitle): UserBookmarkTitleDto {
   return {
-    url: uri.bookmarkTitle(bookmark.uconst, bookmark.tconst),
+    url: uri.bookmarkTitle(uconst, bookmark.tconst),
     title: bookmark.title,
     createdAt: bookmark.createdAt,
   };
@@ -146,9 +146,9 @@ export interface UserBookmarkPersonDto {
   createdAt: Date;
 }
 
-export function toUserBookmarkPersonDto(bookmark: BookmarkPerson): UserBookmarkPersonDto {
+export function toUserBookmarkPersonDto(uconst: number, bookmark: BookmarkPerson): UserBookmarkPersonDto {
   return {
-    url: uri.bookmarkPerson(bookmark.uconst, bookmark.nconst),
+    url: uri.bookmarkPerson(uconst, bookmark.nconst),
     person: bookmark.person,
     createdAt: bookmark.createdAt,
   };

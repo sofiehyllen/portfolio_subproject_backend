@@ -226,10 +226,7 @@ router.get('/:uconst/bookmarks/titles', async (req, res, next) => {
     const items = await bookmark.getTitleBookmarks(uconst, page.limit, page.offset);
     const total = await bookmark.countTitleBookmarks(uconst);
 
-    res.json(paged(req, page, total, items.map(item => {
-      item.uconst = uconst;
-      return toUserBookmarkTitleDto(item);
-    })));
+    res.json(paged(req, page, total, items.map((item) => toUserBookmarkTitleDto(uconst, item))));
 
   } catch (err) {
     next(err);
@@ -278,10 +275,7 @@ router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
     const items = await bookmark.getPersonBookmarks(uconst, page.limit, page.offset);
     const total = await bookmark.countPersonBookmarks(uconst);
 
-    res.json(paged(req, page, total, items.map(item => {
-      item.uconst = uconst;
-      return toUserBookmarkPersonDto(item)
-    })));
+    res.json(paged(req, page, total, items.map((item) => toUserBookmarkPersonDto(uconst, item))));
 
   } catch (err) {
     next(err)
