@@ -243,7 +243,8 @@ router.delete('/:uconst/search-history/:sconst', async (req, res, next) => {
 router.delete('/:uconst/search-history', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    await search_history.deleteUserSearchHistory(uconst);
+    const deleted = await search_history.deleteUserSearchHistory(uconst);
+    if (!deleted) throw new NotFound('Search history entries were not found');
     res.status(204).end();
   } catch (error) {
     next(error)
