@@ -6,6 +6,7 @@ export interface Person {
   birthYear:      number | null;
   deathYear:      number | null;
   avgNameRating:  number | null;
+  roles:          string[];
 }
 
 export interface KnownFor {
@@ -18,8 +19,24 @@ export interface OnePerson {
   primaryName:    string;
   avgNameRating:  number | null;
   professions:    string[];
+  roles:          string[];
   knownFor:       KnownFor[];
 }
+
+// Filter for GET /api/persons: roles keeps only persons with at least one
+// credit in title_persons in one of the given categories (e.g. actor, writer).
+export interface PersonFilter {
+  roles: string[];
+}
+
+// Shared by the page query and the count query, so total always matches the filter.
+const PERSON_FILTER = `
+  WHERE cardinality($1::text[]) = 0 OR EXISTS (
+    SELECT 1
+    FROM title_persons tp
+    WHERE tp.nconst = p.nconst
+      AND tp.category = ANY($1::text[])
+  )`;
 
 /**
  * Gets a paginated list of persons, ordered alphabetically by primary name.
@@ -27,23 +44,34 @@ export interface OnePerson {
  * @param offset 
  * @returns An object with `items` (the requested page of persons) and `total` (the number of persons in the table)
  */
-export async function getPersons(limit: number, offset: number) {
+export async function getPersons(filter: PersonFilter, limit: number, offset: number) {
   const { rows: items } = await pool.query<Person>(
-    `SELECT nconst,
-            primary_name    AS "primaryName",
-            birth_year      AS "birthYear",
-            death_year      AS "deathYear",
-            avg_name_rating::float8 AS "avgNameRating"
-    FROM persons
-    ORDER BY primary_name, nconst
-    LIMIT $1 
-    OFFSET $2`,
-    [limit, offset]
+    `SELECT p.nconst,
+            p.primary_name    AS "primaryName",
+            p.birth_year      AS "birthYear",
+            p.death_year      AS "deathYear",
+            p.avg_name_rating::float8 AS "avgNameRating",
+            array(
+              SELECT DISTINCT tp.category
+              FROM title_persons tp
+              WHERE tp.nconst = p.nconst
+              ORDER BY tp.category
+            ) AS roles
+    FROM persons p
+    ${PERSON_FILTER}
+    ORDER BY p.primary_name, p.nconst
+    LIMIT $2
+    OFFSET $3`,
+    [filter.roles, limit, offset]
   );
 
-  const { rows: countRows } = await pool.query(`
-    SELECT count(*)::int as total
-    FROM persons`);
+
+  const { rows: countRows } = await pool.query(
+    `SELECT count(*)::int AS total
+    FROM persons p
+    ${PERSON_FILTER}`,
+    [filter.roles]
+  );
 
   return { items, total: countRows[0].total};
 }
@@ -65,7 +93,13 @@ export async function getOnePerson(nconst: string): Promise<OnePerson | undefine
         join professions pr on pr.pconst = pp.pconst
         where pp.nconst = p.nconst
         order by pr.profession_name
-      ) as professions, 
+      ) as professions,
+      array (
+        select distinct tp.category
+        from title_persons tp
+        where tp.nconst = p.nconst
+        order by tp.category
+      ) as roles,
       COALESCE(
         (SELECT json_agg(
                     json_build_object('tconst', t.tconst, 'primaryTitle', t.primary_title)

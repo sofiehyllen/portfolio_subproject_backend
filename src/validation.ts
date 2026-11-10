@@ -3,6 +3,7 @@
 
 import { BadRequest } from './middleware/errors.js';
 import { SORT_FIELDS, SortField, TitleBrowse } from './data/titles.js';
+import { PersonFilter } from "./data/persons.js";
 
 export interface NewUserInput {
   firstName: string;
@@ -233,3 +234,23 @@ export function validateWords(value: unknown): string[] {
   return words;
 }
 
+const ROLES_MAX = 5;
+const ROLE = /^[a-z_]{1,50}$/;
+
+// Query of GET /api/persons: role is optional, a comma separated list of 1-5
+// credit categories (?role=actor,actress,writer).
+export function validatePersonFilter(query: Record<string, unknown>): PersonFilter {
+  const value = query.role;
+  if (value === undefined) return { roles: [] };
+  if (typeof value !== 'string') throw new BadRequest('role must be one comma separated list');
+
+  const roles = [...new Set(
+    value.split(',').map(role => role.trim().toLowerCase()).filter(role => role !== '')
+  )];
+  if (roles.length === 0) throw new BadRequest('role must not be empty');
+  if (roles.length > ROLES_MAX) throw new BadRequest(`role can have at most ${ROLES_MAX} values`);
+  if (roles.some(role => !ROLE.test(role))) {
+    throw new BadRequest('each role must be 1-50 characters: lower case letters and _');
+  }
+  return { roles };
+}

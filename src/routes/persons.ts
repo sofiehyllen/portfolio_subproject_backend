@@ -3,6 +3,7 @@ import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged} from '../routes/pagination.js'
 import { toPersonDto, toOnePersonDto } from './dto.js';
+import { validatePersonFilter } from "../validation.js";
 
 export const router = Router();
 
@@ -25,18 +26,19 @@ router.param('nconst', (_req, res, next, value: string) => {
     next();
 });
 
-// GET api/persons/: Paged list of persons, optionally filtered by name and actorsOnly
+
+// GET api/persons/: Paged list of persons, optionally filtered by role
 // 400 invalid search parameter; 401 invalid token
 router.get('/', async (req, res, next) => {
-    try {
-        const page = pageOf(req.query);
-        const {items, total} =  await persons.getPersons(page.limit, page.offset);
+  try {
+    const filter = validatePersonFilter(req.query);
+    const page = pageOf(req.query);
+    const { items, total } = await persons.getPersons(filter, page.limit, page.offset);
 
-        res.json(paged(req, page, total, items.map(toPersonDto)));
-
-    } catch (error) {
-        next(error);
-    }
+    res.json(paged(req, page, total, items.map(toPersonDto)));
+  } catch (error) {
+    next(error);
+  }
 });
 
 
