@@ -224,7 +224,7 @@ router.get('/:uconst/bookmarks/titles', async (req, res, next) => {
     const uconst: number = res.locals.uconst;
 
     const items = await bookmark.getTitleBookmarks(uconst, page.limit, page.offset);
-    const total = await bookmark.count(uconst);
+    const total = await bookmark.countTitleBookmarks(uconst);
 
     res.json(paged(req, page, total, items.map(item => {
       item.uconst = uconst;
@@ -241,7 +241,8 @@ router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const tconst = req.params.tconst;
-    await bookmark.addTitleBookmark(uconst, tconst);
+    const added = await bookmark.addTitleBookmark(uconst, tconst);
+    if (!added) throw new NotFound('Title not found');
 
     res.status(204).end();
 
@@ -275,7 +276,7 @@ router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
     const uconst: number = res.locals.uconst;
 
     const items = await bookmark.getPersonBookmarks(uconst, page.limit, page.offset);
-    const total = await bookmark.count(uconst);
+    const total = await bookmark.countPersonBookmarks(uconst);
 
     res.json(paged(req, page, total, items.map(item => {
       item.uconst = uconst;
@@ -292,8 +293,9 @@ router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const nconst = req.params.nconst;
-    await bookmark.addPersonBookmark(uconst, nconst);
-
+    const added = await bookmark.addPersonBookmark(uconst, nconst);
+    if (!added) throw new NotFound('Person not found');
+    
     res.status(204).end();
 
   } catch (err) {

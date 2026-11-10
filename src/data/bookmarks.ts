@@ -15,11 +15,21 @@ export interface BookmarkPerson {
 }
 
 /*      Bookmarks     */
-
-export async function count(uconst: number): Promise<number> {
+// Count all title bookmarks of a user
+export async function countTitleBookmarks(uconst: number): Promise<number> {
   const { rows } = await pool.query<{ total: number }>(
     `SELECT COUNT(*)::int AS "total"
       FROM bookmark_title
+      WHERE uconst = $1`,
+    [uconst]);
+  return rows[0].total;
+}
+
+// Count all person bookmarks of a user
+export async function countPersonBookmarks(uconst: number): Promise<number> {
+  const { rows } = await pool.query<{ total: number }>(
+    `SELECT COUNT(*)::int AS "total"
+      FROM bookmark_person
       WHERE uconst = $1`,
     [uconst]);
   return rows[0].total;
@@ -40,32 +50,12 @@ export async function getTitleBookmarks(uconst: number, limit: number, offset: n
 }
 
 // Create title bookmark
-export async function addTitleBookmark(uconst: number, tconst: string): Promise<BookmarkTitle> {
-  const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
+export async function addTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
+  const title = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
+  if (!title.rowCount) return false;
 
-      // Check if user exist
-      await client.query(`SELECT uconst FROM users WHERE uconst = $1`, [uconst]);
-
-      // Check if title exist
-      await client.query(`SELECT tconst FROM titles WHERE tconst = $1`, [tconst]);
-
-      // Add new bookmark to bookmark_title
-      const { rows } = await client.query<BookmarkTitle>(
-          `SELECT add_title_bookmark($1, $2)`,
-          [uconst, tconst]
-      );
-
-      await client.query('COMMIT');
-      return rows[0];
-        
-    } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-    } finally {
-        client.release();
-    }
+  await pool.query('SELECT add_title_bookmark($1, $2)', [uconst, tconst]);
+  return true;
 }
 
 // Delete title bookmark
@@ -113,43 +103,12 @@ export async function getPersonBookmarks(uconst: number, limit: number, offset: 
 }
 
 // Create person bookmark
-export async function addPersonBookmark(uconst: number, nconst: string): Promise<BookmarkPerson> {
-  const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
+export async function addPersonBookmark(uconst: number, nconst: string): Promise<boolean> {
+  const person = await pool.query('SELECT 1 FROM persons WHERE nconst = $1', [nconst]);
+  if (!person.rowCount) return false;
 
-        // Check if user exist
-        await client.query(
-            `SELECT uconst
-            FROM users
-            WHERE uconst = $1`,
-            [uconst]
-        );
-
-        // Check if person exist
-        await client.query(
-            `SELECT nconst
-            FROM persons
-            WHERE nconst = $1`,
-            [nconst]
-        );
-
-        // Add new bookmark to bookmark_person
-        const { rows } = await client.query<BookmarkPerson>(
-            `SELECT add_person_bookmark($1, $2)`,
-            [uconst, nconst]
-        );
-
-        await client.query('COMMIT');
-        return rows[0];
-        
-    } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-        
-    } finally {
-        client.release();
-    }
+  await pool.query('SELECT add_person_bookmark($1, $2)', [uconst, nconst]);
+  return true;
 }
 
 // Delete person bookmark
