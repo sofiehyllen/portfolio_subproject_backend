@@ -14,12 +14,8 @@ export interface KnownFor {
   primaryTitle: string;
 }
 
-export interface OnePerson {
-  nconst:         string;
-  primaryName:    string;
-  avgNameRating:  number | null;
+export interface PersonDetails extends Person {
   professions:    string[];
-  roles:          string[];
   knownFor:       KnownFor[];
 }
 
@@ -81,12 +77,14 @@ export async function getPersons(filter: PersonFilter, limit: number, offset: nu
  * @param nconst 
  * @returns The matching person (undefined if none found)
  */
-export async function getOnePerson(nconst: string): Promise<OnePerson | undefined> {
-  const result  = await pool.query<OnePerson>(`
+export async function getPersonDetails(nconst: string): Promise<PersonDetails | undefined> {
+  const result  = await pool.query<PersonDetails>(`
     select 
       p.nconst,
-      p.primary_name as "primaryName", 
-      p.avg_name_rating::float8 as "avgNameRating", 
+      p.primary_name as "primaryName",
+      p.birth_year as "birthYear",
+      p.death_year as "deathYear",
+      p.avg_name_rating::float8 as "avgNameRating",
       array (
         select pr.profession_name
         from person_professions pp

@@ -5,7 +5,7 @@ import { RatingHistoryEntry, UserRating } from "../data/ratings.js";
 import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
-import { OnePerson, Person } from "../data/persons.js";
+import { PersonDetails, Person } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -210,22 +210,15 @@ export function toPersonDto(item: Person): PersonDto {
   };
 }
 
-export interface OnePersonDto {
-  url: string;
-  primaryName: string,
-  avgNameRating: number | null,
+export interface PersonDetailsDto extends PersonDto {
   professions: string[],
-  roles: string[],
   knownFor: {url: string, primaryTitle: string}[]
 }
 
-export function toOnePersonDto(item: OnePerson): OnePersonDto {
+export function toPersonDetailsDto(item: PersonDetails): PersonDetailsDto {
   return {
-    url:            uri.person(item.nconst),
-    primaryName:    item.primaryName,
-    avgNameRating:  item.avgNameRating,
+    ...toPersonDto(item),
     professions:    item.professions,
-    roles:          item.roles,
     knownFor:       item.knownFor.map(i => ({
       url:          uri.title(i.tconst),
       primaryTitle: i.primaryTitle
