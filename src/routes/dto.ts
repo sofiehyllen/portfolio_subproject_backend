@@ -129,13 +129,15 @@ export function toTitleSummaryDto(title: TitleSummary): TitleSummaryDto {
 export interface UserBookmarkTitleDto {
   url: string;
   title: string;
+  primaryTitle: string;
   createdAt: Date;
 }
 
 export function toUserBookmarkTitleDto(uconst: number, bookmark: BookmarkTitle): UserBookmarkTitleDto {
   return {
     url: uri.bookmarkTitle(uconst, bookmark.tconst),
-    title: bookmark.title,
+    title: uri.title(bookmark.tconst),
+    primaryTitle: bookmark.title,
     createdAt: bookmark.createdAt,
   };
 }
@@ -143,13 +145,15 @@ export function toUserBookmarkTitleDto(uconst: number, bookmark: BookmarkTitle):
 export interface UserBookmarkPersonDto {
   url: string;
   person: string;
+  primaryName: string,
   createdAt: Date;
 }
 
 export function toUserBookmarkPersonDto(uconst: number, bookmark: BookmarkPerson): UserBookmarkPersonDto {
   return {
     url: uri.bookmarkPerson(uconst, bookmark.nconst),
-    person: bookmark.person,
+    person: uri.person(bookmark.nconst),
+    primaryName: bookmark.person,
     createdAt: bookmark.createdAt,
   };
 }

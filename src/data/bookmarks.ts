@@ -39,6 +39,7 @@ export async function getTitleBookmarks(uconst: number, limit: number, offset: n
             title_name AS "title", 
             created_at AS "createdAt"
     FROM get_title_bookmarks($1)
+    ORDER BY "createdAt" DESC, tconst
     LIMIT $2
     OFFSET $3`,
     [uconst, limit, offset]
@@ -91,6 +92,7 @@ export async function getPersonBookmarks(uconst: number, limit: number, offset: 
             person_name AS "person", 
             created_at AS "createdAt"
     FROM get_person_bookmarks($1)
+    ORDER BY "createdAt" DESC, nconst
     LIMIT $2
     OFFSET $3`,
     [uconst, limit, offset]
