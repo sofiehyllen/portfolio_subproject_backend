@@ -56,7 +56,7 @@ Every other path needs `Authorization: Bearer <token>`, and the user in the toke
 Searches on `/api/titles` and `/api/persons` accept an optional token. When one is present, the search is logged in the user's history. A token that is present but invalid is rejected with 401, not ignored.
 
 **Failure codes used everywhere:**
-`400` the request is malformed or a parameter fails validation (the server cannot process it as sent);
+`400` the request is malformed or a parameter fails validation (the server cannot process it as sent), including a path identifier in the wrong format (`nconst` must start with `nm` followed by at least 7 digits);
 `401` no valid token (the caller is not identified), or wrong username or password at login;
 `403` the caller is identified but not allowed: the token belongs to another user, or the current password given when changing the password is wrong;
 `404` the resource does not exist (also for a deleted rating);
@@ -77,16 +77,16 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 | Method and path | Does what | Success | Failure |
 |---|---|---|---|
-| `GET /api/titles` | Paged list of titles, optionally narrowed by one search mode | 200 | 400 invalid search parameter, or modes mixed; 401 invalid token |
+| `GET /api/titles` | Paged list of titles, either browsed (sorted and filtered by genre and title type) or narrowed by one search mode | 200 | 400 invalid search, sort or filter parameter, unknown query parameter, or modes mixed; 401 invalid token |
 | `GET /api/titles/{tconst}` | One title with genres, rating and credits | 200 | 404 unknown title |
 | `GET /api/titles/{tconst}/actors` | Paged actors of the title, highest name rating first | 200 | 404 unknown title |
 | `GET /api/titles/{tconst}/similar` | Paged movies sharing genres with the title. A title that is not a movie or tvMovie gives an empty list | 200 | 404 unknown title |
 | `GET /api/persons` | Paged list of persons, optionally filtered by `name` and `actorsOnly` | 200 | 400 invalid search parameter; 401 invalid token |
-| `GET /api/persons/{nconst}` | One person with name rating, professions and known-for titles | 200 | 404 unknown person |
-| `GET /api/persons/{nconst}/titles` | Paged titles the person has been credited on, each with their role (category, job, characters)| 200 | 404 unknown person |
-| `GET /api/persons/{nconst}/co-players` | Paged actors who share titles with the person, most frequent first | 200 | 404 unknown person |
-| `GET /api/persons/{nconst}/words` | Paged most frequent words across the person's titles | 200 | 404 unknown person |
-| `GET /api/related-words?words=a,b` | Paged words most associated with titles matching all the given words. Not logged in the search history | 200 | 400 missing or invalid `words` |
+| `GET /api/persons/{nconst}` | One person with name rating, professions and known-for titles | 200 | 400 invalid nconst; 404 unknown person |
+| `GET /api/persons/{nconst}/titles` | Paged titles the person has been credited on, each with their role (category, job, characters)| 200 | 400 invalid nconst; 404 unknown person |
+| `GET /api/persons/{nconst}/co-players` | Paged actors who share titles with the person, most frequent first | 200 | 400 invalid nconst; 404 unknown person |
+| `GET /api/persons/{nconst}/words` | Paged most frequent words across the person's titles | 200 | 400 invalid nconst; 404 unknown person |
+| `GET /api/related-words?words=a,b` | Paged words most associated with titles matching all the given words, at most 10 in all. Not logged in the search history | 200 | 400 missing or invalid `words` |
 
 ### Personal data (token required, owner only)
 
@@ -100,8 +100,8 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 | `PUT /api/users/{uconst}/bookmarks/titles/{tconst}` | Bookmarks a title. Repeating it changes nothing | 204 | 401; 403; 404 unknown title |
 | `DELETE /api/users/{uconst}/bookmarks/titles/{tconst}` | Removes a title bookmark | 204 | 401; 403; 404 no such bookmark |
 | `GET /api/users/{uconst}/bookmarks/persons` | Paged person bookmarks, newest first | 200 | 401; 403 |
-| `PUT /api/users/{uconst}/bookmarks/persons/{nconst}` | Bookmarks a person. Repeating it changes nothing | 204 | 401; 403; 404 unknown person |
-| `DELETE /api/users/{uconst}/bookmarks/persons/{nconst}` | Removes a person bookmark | 204 | 401; 403; 404 no such bookmark |
+| `PUT /api/users/{uconst}/bookmarks/persons/{nconst}` | Bookmarks a person. Repeating it changes nothing | 204 | 400 invalid nconst; 401; 403; 404 unknown person |
+| `DELETE /api/users/{uconst}/bookmarks/persons/{nconst}` | Removes a person bookmark | 204 | 400 invalid nconst; 401; 403; 404 no such bookmark |
 | `GET /api/users/{uconst}/search-history` | Paged search history, newest first | 200 | 401; 403 |
 | `DELETE /api/users/{uconst}/search-history/{sconst}` | Deletes one history entry | 204 | 401; 403; 404 no such entry for this user |
 | `DELETE /api/users/{uconst}/search-history` | Clears the whole history | 204 | 401; 403 |
@@ -119,9 +119,18 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 
 Every list response has the same structure: `total` (the number of items in the whole list), `limit`, `offset`, `items`, and `links` with `prev` and `next`. Each link is the URI of the same request at the neighbouring page, with all other query parameters kept, and is `null` when that page does not exist.
 
-**Sorting.** The client cannot choose the order. Every list has a fixed, deterministic order, so pages never overlap or skip rows: titles and persons by id, ranked searches by their rank (then id), bookmarks and histories newest first.
+**Sorting.** Every list has a deterministic order, so pages never overlap or skip rows. Only the browsing list of titles (`GET /api/titles` without a search) lets the client choose it; every other list has a fixed order: persons are ordered by name (then id), ranked searches by their rank (then id), bookmarks and histories newest first.
 
-**Filtering titles.** `GET /api/titles` accepts one search mode per request. Mixing modes gives status code 400.
+**Browsing titles.** Without a search, `GET /api/titles` accepts these parameters. Titles without a value for the sort field (for example no rating) come last in both directions, and the id breaks ties. An unknown `sort` or `order` gives status code 400. An unknown genre or title type is not an error; it gives an empty list.
+
+| Parameter | Type | Default | Rule |
+|---|---|---|---|
+| `sort` | string | `title` | `title` (primary title), `year` (start year), `rating` (average rating), `votes` (number of votes) or `runtime` (minutes) |
+| `order` | string | `asc` | `asc` or `desc` |
+| `genre` | string | none | Only titles with this genre, for example `Drama` (1-100 characters, case-insensitive) |
+| `titleType` | string | none | Only titles of this type, for example `movie` or `tvSeries` (1-100 characters, case-insensitive) |
+
+**Filtering titles.** `GET /api/titles` accepts one search mode per request. Mixing modes, or combining a search with the browsing parameters above, gives status code 400.
 
 | Mode | Parameters | Meaning |
 |---|---|---|
@@ -129,12 +138,27 @@ Every list response has the same structure: `total` (the number of items in the 
 | Keywords | `keywords` (comma separated, 1-10 words, each 1-50 characters), `match` = `all`, `any` or `weighted` (default `weighted`) | `all`: every keyword; `any`: at least one, ranked by how many; `weighted`: ranked by relevance |
 | Structured | any of `title`, `plot`, `character`, `person` (each 1-100 characters) | Every given field must match; at least one is required |
 
+**Unknown parameters.** `GET /api/titles` accepts only the parameters listed in this section (paging, browsing and search). Any other query parameter, for example a typo like `?sortt=year`, gives status code 400 instead of being silently ignored, so the client finds out that the parameter had no effect. The check is made before anything else, in both browsing and search mode, and the message names every unknown parameter:
+
+```
+GET /api/titles?text=love&sortt=year
+```
+
+```
+400 Bad Request
+Content-Type: application/json
+
+{ "status": 400, "error": "Bad Request", "message": "unknown query parameter sortt" }
+```
+
 **Filtering persons.** `GET /api/persons` accepts `name` (substring, case-insensitive, 1-100 characters) and `actorsOnly=true`.
 
 ```
+GET /api/titles?sort=rating&order=desc&genre=Drama&titleType=movie
 GET /api/titles?keywords=space,war&match=weighted&limit=20&offset=0
 GET /api/titles?title=alien&person=weaver
 GET /api/persons?name=hanks&actorsOnly=true
+GET /api/related-words?words=space,war
 GET /api/users/5/ratings?limit=10&offset=10
 ```
 
@@ -158,17 +182,31 @@ Content-Type: application/json
   "items": [
     {
       "url": "http://localhost:3000/api/titles/tt0068646",
-      "title": "The Godfather",
       "titleType": "movie",
+      "primaryTitle": "The Godfather",
+      "originalTitle": "The Godfather",
+      "isAdult": false,
       "startYear": 1972,
+      "endYear": null,
+      "runtimeMinutes": 175,
+      "awards": null,
+      "posterUrl": null,
+      "plot": "The aging patriarch of an organized crime dynasty transfers control to his reluctant son.",
       "rating": { "average": 9.2, "votes": 2000000 }
     },
     {
       "url": "http://localhost:3000/api/titles/tt0111161",
-      "title": "The Shawshank Redemption",
       "titleType": "movie",
+      "primaryTitle": "The Shawshank Redemption",
+      "originalTitle": "The Shawshank Redemption",
+      "isAdult": false,
       "startYear": 1994,
-      "rating": { "average": 9.3, "votes": 2900000 }
+      "endYear": null,
+      "runtimeMinutes": 142,
+      "awards": null,
+      "posterUrl": null,
+      "plot": "Two imprisoned men bond over a number of years, finding solace and eventual redemption.",
+      "rating": { "average": 9.3, "votes": 3000000 }
     }
   ],
   "links": {
@@ -179,7 +217,7 @@ Content-Type: application/json
 ```
 
 Every item has a `url`, so the client can follow it without building any address itself.
-`prev` is `null` because this is the first page. A title without votes has `"rating": null`.
+`prev` is `null` because this is the first page. Fields with no data in the database are `null`, and so is `rating` for a title without votes.
 
 Every error has the same shape, with no stack trace, SQL or database identifiers:
 
