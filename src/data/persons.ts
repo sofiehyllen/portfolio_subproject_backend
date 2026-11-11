@@ -16,11 +16,10 @@ export interface KnownFor {
 
 export interface PersonDetail extends Person {
   roles:    string[];
-  knownFor:       KnownFor[];
+  knownFor: KnownFor[];
 }
 
-// Filter for GET /api/persons: roles keeps only persons with at least one
-// credit in title_persons in one of the given categories (e.g. actor, writer).
+// Filter for GET /api/persons
 export interface PersonFilter {
   professions: string[];
 }
@@ -36,12 +35,7 @@ const PERSON_FILTER = `
         AND pr.profession_name = ANY($1::text[])
     )`;
 
-/**
- * Gets a paginated list of persons, ordered alphabetically by primary name.
- * @param limit 
- * @param offset 
- * @returns An object with `items` (the requested page of persons) and `total` (the number of persons in the table)
- */
+// Gets a paginated list of persons, ordered alphabetically by primary name, plus the total number of matching persons.
 export async function getPersons(filter: PersonFilter, limit: number, offset: number) {
   const { rows: items } = await pool.query<Person>(
     `SELECT p.nconst,
@@ -75,11 +69,7 @@ export async function getPersons(filter: PersonFilter, limit: number, offset: nu
   return { items, total: countRows[0].total};
 }
 
-/**
- * Gets a single person by their unique identifier
- * @param nconst 
- * @returns The matching person (undefined if none found)
- */
+// Gets a single person, or undefined when no such person exists.
 export async function getPersonDetail(nconst: string): Promise<PersonDetail | undefined> {
   const result  = await pool.query<PersonDetail>(`
     select 
