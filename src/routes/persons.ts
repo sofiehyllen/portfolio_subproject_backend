@@ -7,11 +7,7 @@ import { validatePersonBrowse } from "../validation.js";
 
 export const router = Router();
 
-/**
- * Validates an IMDb-style person ID (e.g. "nm0000042").
- * @param value 
- * @returns The ID if it matches the format, or `undefined`
- */
+// nconst is an IMDb-style string (e.g. "nm0000042"): nm followed by at least 7 digits.
 function parseNconst(value: string): string | undefined {
   return /^nm\d{7,}$/.test(value) ? value : undefined;
 }
@@ -48,8 +44,6 @@ router.get('/:nconst', async (_req, res, next) => {
         const nconst: string = res.locals.nconst;
         const foundPerson: persons.PersonDetail | undefined = await persons.getPersonDetail(nconst);
 
-        // not sure if this is an error
-        // but it should be as its look up by specific nconst
         if (foundPerson === undefined) throw new error.NotFound('Person not found');
 
         res.json(toPersonDetailDto(foundPerson));

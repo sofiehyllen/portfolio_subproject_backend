@@ -3,7 +3,7 @@
 
 import { BadRequest } from './middleware/errors.js';
 import { SORT_FIELDS, SortField, SortOrder, TitleBrowse } from './data/titles.js';
-import { PERSON_SORT_FIELDS, PersonBrowse, PersonFilter } from "./data/persons.js";
+import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
 import { Sort } from "./data/sorting.js";
 
 export interface NewUserInput {

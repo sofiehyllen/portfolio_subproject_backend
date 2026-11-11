@@ -1,9 +1,15 @@
 /**
  * Data-access layer for the `persons` table.
  *
- * Query functions:
- * - `getPersons(filter, limit, offset)` — paged slice of persons matching the filter,
- *   ordered alphabetically by primary name, plus the total number of matches.
+ * Exports six types and two query functions:
+ * - `Person` — a person row with name, birth/death year, name rating and professions.
+ * - `KnownFor` — a compact title (tconst and primaryTitle) used in `PersonDetail`.
+ * - `PersonDetail` — extends `Person` with `roles` (credit categories) and `knownFor` titles.
+ * - `PersonFilter` — optional name search and actorsOnly flag for `getPersons`.
+ * - `PersonBrowse` — extends `PersonFilter` with sort field and direction.
+ * - `PERSON_SORT_FIELDS` / `PersonSortField` — the allowed sort fields: name, rating.
+ * - `getPersons(browse, limit, offset)` — paged slice of persons matching the filter,
+ *   sorted by the chosen field and direction, plus the total number of matches.
  * - `getPersonDetail(nconst)` — one person with roles and known-for titles,
  *   or undefined when no such person exists.
  */
@@ -63,9 +69,9 @@ const PERSON_COLUMNS = `
         ORDER BY pr.profession_name) AS professions`;
 
 
-// The FROM clause of the page query and the count query, so total always
-// matches the filter. With a name, the database function decides which persons
-// match, and $1 is the name. The function name is chosen from a boolean.
+// The FROM clause shared by the page query and the count query, so total always
+// matches the filter. With a name, name_search or actor_search (when actorsOnly
+// is set) decides which persons match; without a name every person is included.
 function personSource(filter: PersonFilter): { from: string; params: string[] } {
   if (filter.name === undefined) {
     return { from: 'persons p', params: [] };
@@ -78,8 +84,9 @@ function personSource(filter: PersonFilter): { from: string; params: string[] } 
 }
 
 
-// A page of persons, ordered alphabetically by primary name, plus the total number of matching persons.
-// name_search and actor_search do not log, so the functions can be called twice.
+// A page of persons sorted by the chosen field and direction, plus the total number of matches.
+// name_search and actor_search do not log, so both queries can call them independently.
+//TODO: implement logging
 export async function getPersons(browse: PersonBrowse, limit: number, offset: number): 
 Promise<{ items: Person[]; total: number }> {
   const { from, params } = personSource(browse);
