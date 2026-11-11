@@ -14,7 +14,7 @@ export interface KnownFor {
   primaryTitle: string;
 }
 
-export interface PersonDetails extends Person {
+export interface PersonDetail extends Person {
   roles:    string[];
   knownFor:       KnownFor[];
 }
@@ -80,8 +80,8 @@ export async function getPersons(filter: PersonFilter, limit: number, offset: nu
  * @param nconst 
  * @returns The matching person (undefined if none found)
  */
-export async function getPersonDetails(nconst: string): Promise<PersonDetails | undefined> {
-  const result  = await pool.query<PersonDetails>(`
+export async function getPersonDetail(nconst: string): Promise<PersonDetail | undefined> {
+  const result  = await pool.query<PersonDetail>(`
     select 
       p.nconst,
       p.primary_name as "primaryName",

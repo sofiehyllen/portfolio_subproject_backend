@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged} from '../routes/pagination.js'
-import { toPersonDto, toPersonDetailsDto } from './dto.js';
+import { toPersonDto, toPersonDetailDto } from './dto.js';
 import { validatePersonFilter } from "../validation.js";
 
 export const router = Router();
@@ -46,13 +46,13 @@ router.get('/', async (req, res, next) => {
 router.get('/:nconst', async (_req, res, next) => {
     try {
         const nconst: string = res.locals.nconst;
-        const foundPerson: persons.PersonDetails | undefined = await persons.getPersonDetails(nconst);
+        const foundPerson: persons.PersonDetail | undefined = await persons.getPersonDetail(nconst);
 
         // not sure if this is an error
         // but it should be as its look up by specific nconst
         if (foundPerson === undefined) throw new error.NotFound('Person not found');
 
-        res.json(toPersonDetailsDto(foundPerson));
+        res.json(toPersonDetailDto(foundPerson));
     } catch (error) {
         next(error);  
     }

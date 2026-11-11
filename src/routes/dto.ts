@@ -5,7 +5,7 @@ import { RatingHistoryEntry, UserRating } from "../data/ratings.js";
 import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
 import { UserSearchHistory } from "../data/search_history.js";
-import { PersonDetails, Person } from "../data/persons.js";
+import { PersonDetail, Person } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -210,12 +210,12 @@ export function toPersonDto(item: Person): PersonDto {
   };
 }
 
-export interface PersonDetailsDto extends PersonDto {
+export interface PersonDetailDto extends PersonDto {
   roles: string[],
   knownFor: {url: string, primaryTitle: string}[]
 }
 
-export function toPersonDetailsDto(item: PersonDetails): PersonDetailsDto {
+export function toPersonDetailDto(item: PersonDetail): PersonDetailDto {
   return {
     ...toPersonDto(item),
     roles:    item.roles,
