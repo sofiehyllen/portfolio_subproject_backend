@@ -3,6 +3,8 @@
 
 import { BadRequest } from './middleware/errors.js';
 import { SORT_FIELDS, SortField, TitleBrowse } from './data/titles.js';
+import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
+import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
 
 export interface NewUserInput {
   firstName: string;
@@ -158,6 +160,25 @@ export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
   };
 }
 
+// sort and order of a list the client may sort: sort must be one of the list's
+// fields (default defaultField), order asc or desc (default asc). Errors are
+// added to errors, so they are reported together with the list's other errors.
+export function parseSort<F extends string>(
+query: Record<string, unknown>, fields: readonly F[], defaultField: F, errors: string[],
+): Sort<F> {
+  const sort = query.sort ?? defaultField;
+  if (typeof sort !== 'string' || !(fields as readonly string[]).includes(sort)) {
+    errors.push(`sort must be one of ${fields.join(', ')}`);
+  }
+
+  const order = query.order ?? 'asc';
+  if (typeof order !== 'string' || !(SORT_ORDERS as readonly string[]).includes(order)) {
+    errors.push(`order must be one of ${SORT_ORDERS.join(', ')}`);
+  }
+
+  return { sort: sort as F, order: order as SortOrder };
+}
+
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
 const TITLES_PARAMS = ['text', ...BROWSE_PARAMS, 'limit', 'offset'];
 const FILTER_MAX = 100;
@@ -233,3 +254,39 @@ export function validateWords(value: unknown): string[] {
   return words;
 }
 
+const PERSONS_PARAMS = ['name', 'actorsOnly', 'sort', 'order', 'limit', 'offset'];
+const PERSON_NAME_MAX = 100;
+
+// Query of GET /api/persons: 
+//    name (1-100 characters after trimming)
+//    actorsOnly (true or false, default false)
+//    sort (name or rating, default name)
+//    order (asc or desc, default asc)
+// All parameters are optional. 
+// Unknown parameters give 400, as on GET /api/titles.
+export function validatePersonBrowse(query: Record<string, unknown>): PersonBrowse {
+  const unknown = Object.keys(query).filter(param => !PERSONS_PARAMS.includes(param)); // collect params not in the allowed list
+  if (unknown.length > 0) throw new BadRequest(`unknown query parameter '${unknown.join(', ')}'`); // reject immediately — typo or wrong endpoint
+
+  const errors: string[] = []; // collect all field errors before throwing, so the client sees them all at once
+
+  let name: string | undefined;
+  if (query.name !== undefined) { // name is optional; skip the whole block when the client did not send it
+    const value = query.name;
+    if (typeof value !== 'string' || value.trim() === '' || value.trim().length > PERSON_NAME_MAX) { // blank strings and over-long names are invalid
+      errors.push(`name must be 1-${PERSON_NAME_MAX} characters`); // add to errors
+    } else {
+      name = value.trim(); // trim leading/trailing whitespace
+    }
+  }
+
+  const flag = query.actorsOnly ?? 'false'; // default to 'false' when not sent
+  if (flag !== 'true' && flag !== 'false') errors.push('actorsOnly must be true or false');
+  const actorsOnly = flag === 'true'; // convert the string to a boolean
+  if (actorsOnly && query.name === undefined) errors.push('actorsOnly requires name');
+
+  const sort = parseSort(query, PERSON_SORT_FIELDS, 'name', errors); // validate sort and order; errors are added to the shared array
+
+  if (errors.length > 0) throw new BadRequest(errors.join('; ')); // throw once with all collected errors
+  return { name, actorsOnly, ...sort }; // spread sort to include both the sort field and direction
+}

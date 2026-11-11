@@ -2,15 +2,12 @@ import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged} from '../routes/pagination.js'
-import { toPersonDto, toOnePersonDto } from './dto.js';
+import { toPersonDto, toPersonDetailDto } from './dto.js';
+import { validatePersonBrowse } from "../validation.js";
 
 export const router = Router();
 
-/**
- * Validates an IMDb-style person ID (e.g. "nm0000042").
- * @param value 
- * @returns The ID if it matches the format, or `undefined`
- */
+// nconst is an IMDb-style string (e.g. "nm0000042"): nm followed by at least 7 digits.
 function parseNconst(value: string): string | undefined {
   return /^nm\d{7,}$/.test(value) ? value : undefined;
 }
@@ -25,18 +22,19 @@ router.param('nconst', (_req, res, next, value: string) => {
     next();
 });
 
-// GET api/persons/: Paged list of persons, optionally filtered by name and actorsOnly
+
+// GET api/persons/: Paged list of persons
 // 400 invalid search parameter; 401 invalid token
 router.get('/', async (req, res, next) => {
-    try {
-        const page = pageOf(req.query);
-        const {items, total} =  await persons.getPersons(page.limit, page.offset);
+  try {
+    const browse = validatePersonBrowse(req.query);
+    const page = pageOf(req.query);
+    const { items, total } = await persons.getPersons(browse, page.limit, page.offset);
 
-        res.json(paged(req, page, total, items.map(toPersonDto)));
-
-    } catch (error) {
-        next(error);
-    }
+    res.json(paged(req, page, total, items.map(toPersonDto)));
+  } catch (error) {
+    next(error);
+  }
 });
 
 
@@ -44,13 +42,11 @@ router.get('/', async (req, res, next) => {
 router.get('/:nconst', async (_req, res, next) => {
     try {
         const nconst: string = res.locals.nconst;
-        const foundPerson: persons.OnePerson | undefined = await persons.getOnePerson(nconst);
+        const foundPerson: persons.PersonDetail | undefined = await persons.getPersonDetail(nconst);
 
-        // not sure if this is an error
-        // but it should be as its look up by specific nconst
         if (foundPerson === undefined) throw new error.NotFound('Person not found');
 
-        res.json(toOnePersonDto(foundPerson));
+        res.json(toPersonDetailDto(foundPerson));
     } catch (error) {
         next(error);  
     }

@@ -1,4 +1,20 @@
+/**
+ * Data-access layer for the `persons` table.
+ *
+ * Exports six types and two query functions:
+ * - `Person` — a person row with name, birth/death year, name rating and professions.
+ * - `KnownFor` — a compact title (tconst and primaryTitle) used in `PersonDetail`.
+ * - `PersonDetail` — extends `Person` with `roles` (credit categories) and `knownFor` titles.
+ * - `PersonFilter` — optional name search and actorsOnly flag for `getPersons`.
+ * - `PersonBrowse` — extends `PersonFilter` with sort field and direction.
+ * - `PERSON_SORT_FIELDS` / `PersonSortField` — the allowed sort fields: name, rating.
+ * - `getPersons(browse, limit, offset)` — paged slice of persons matching the filter,
+ *   sorted by the chosen field and direction, plus the total number of matches.
+ * - `getPersonDetail(nconst)` — one person with roles and known-for titles,
+ *   or undefined when no such person exists.
+ */
 import { pool } from '../db.js';
+import { orderBy, Sort } from './sorting.js';
 
 export interface Person {
   nconst:         string;
@@ -6,6 +22,7 @@ export interface Person {
   birthYear:      number | null;
   deathYear:      number | null;
   avgNameRating:  number | null;
+  professions:    string[];
 }
 
 export interface KnownFor {
@@ -13,71 +30,105 @@ export interface KnownFor {
   primaryTitle: string;
 }
 
-export interface OnePerson {
-  nconst:         string;
-  primaryName:    string;
-  avgNameRating:  number | null;
-  professions:    string[];
-  knownFor:       KnownFor[];
+export interface PersonDetail extends Person {
+  roles:    string[];
+  knownFor: KnownFor[];
 }
 
-/**
- * Gets a paginated list of persons, ordered alphabetically by primary name.
- * @param limit 
- * @param offset 
- * @returns An object with `items` (the requested page of persons) and `total` (the number of persons in the table)
- */
-export async function getPersons(limit: number, offset: number) {
-  const { rows: items } = await pool.query<Person>(
-    `SELECT nconst,
-            primary_name    AS "primaryName",
-            birth_year      AS "birthYear",
-            death_year      AS "deathYear",
-            avg_name_rating::float8 AS "avgNameRating"
-    FROM persons
-    ORDER BY primary_name, nconst
-    LIMIT $1 
-    OFFSET $2`,
-    [limit, offset]
-  );
-
-  const { rows: countRows } = await pool.query(`
-    SELECT count(*)::int as total
-    FROM persons`);
-
-  return { items, total: countRows[0].total};
+// Filter for GET /api/persons. Without a name every person is listed; with a
+// name the list is narrowed by name_search, or by actor_search when actorsOnly
+// is set. actorsOnly is only allowed together with a name (see validation).
+export interface PersonFilter {
+  name?:      string;
+  actorsOnly: boolean;
 }
 
-/**
- * Gets a single person by their unique identifier
- * @param nconst 
- * @returns The matching person (undefined if none found)
- */
-export async function getOnePerson(nconst: string): Promise<OnePerson | undefined> {
-  const result  = await pool.query<OnePerson>(`
-    select 
-      p.nconst,
-      p.primary_name as "primaryName", 
-      p.avg_name_rating::float8 as "avgNameRating", 
-      array (
-        select pr.profession_name
-        from person_professions pp
-        join professions pr on pr.pconst = pp.pconst
-        where pp.nconst = p.nconst
-        order by pr.profession_name
-      ) as professions, 
+export const PERSON_SORT_FIELDS = ['name', 'rating'] as const;
+export type PersonSortField = typeof PERSON_SORT_FIELDS[number];
+
+// The column behind each sort field. Only these strings ever reach ORDER BY.
+const PERSON_SORT_COLUMN: Record<PersonSortField, string> = {
+  name:   'p.primary_name',
+  rating: 'p.avg_name_rating',
+};
+
+// GET /api/persons: the filter and the chosen sort.
+export interface PersonBrowse extends PersonFilter, Sort<PersonSortField> {}
+
+// Persons are aliased p. The columns of a Person, shared by `getPersons` and `getPersonDetail`.
+const PERSON_COLUMNS = `
+  p.nconst,
+  p.primary_name            AS "primaryName",
+  p.birth_year              AS "birthYear",
+  p.death_year              AS "deathYear",
+  p.avg_name_rating::float8 AS "avgNameRating",
+  ARRAY(SELECT pr.profession_name
+        FROM person_professions pp
+        JOIN professions pr ON pr.pconst = pp.pconst
+        WHERE pp.nconst = p.nconst
+        ORDER BY pr.profession_name) AS professions`;
+
+
+// The FROM clause shared by the page query and the count query, so total always
+// matches the filter. With a name, name_search or actor_search (when actorsOnly
+// is set) decides which persons match; without a name every person is included.
+function personSource(filter: PersonFilter): { from: string; params: string[] } {
+  if (filter.name === undefined) {
+    return { from: 'persons p', params: [] };
+  }
+  const search = filter.actorsOnly ? 'actor_search' : 'name_search';
+  return {
+    from: `${search}($1) s JOIN persons p ON p.nconst = s.nconst`,
+    params: [filter.name],
+  };
+}
+
+
+// A page of persons sorted by the chosen field and direction, plus the total number of matches.
+// name_search and actor_search do not log, so both queries can call them independently.
+//TODO: implement logging
+export async function getPersons(browse: PersonBrowse, limit: number, offset: number): 
+Promise<{ items: Person[]; total: number }> {
+  const { from, params } = personSource(browse);
+  const n = params.length; // limit and offset come after the filter parameters
+
+  // The two queries are independent, so they run in parallel.
+  const [page, count] = await Promise.all([
+    pool.query<Person>(
+      `SELECT ${PERSON_COLUMNS}
+        FROM ${from}
+        ${orderBy(PERSON_SORT_COLUMN[browse.sort], browse.order, 'p.primary_name, p.nconst')}
+        LIMIT $${n + 1} OFFSET $${n + 2}`, //the parameter number is adjusted with n
+      [...params, limit, offset]),
+    pool.query<{ total: number }>(
+      `SELECT count(*)::int AS total
+        FROM ${from}`,
+      params),
+  ]);
+
+  return { items: page.rows, total: count.rows[0].total };
+}
+
+
+// A single person with roles and known-for titles, or undefined when no such person exists.
+export async function getPersonDetail(nconst: string): Promise<PersonDetail | undefined> {
+  const { rows } = await pool.query<PersonDetail>(
+    `SELECT ${PERSON_COLUMNS},
+      ARRAY(SELECT DISTINCT tp.category
+            FROM title_persons tp
+            WHERE tp.nconst = p.nconst
+            ORDER BY tp.category) AS roles,
       COALESCE(
         (SELECT json_agg(
-                    json_build_object('tconst', t.tconst, 'primaryTitle', t.primary_title)
-                    order by t.primary_title, t.tconst
-                )
+          json_build_object('tconst', t.tconst,
+                            'primaryTitle', t.primary_title)
+                            ORDER BY t.primary_title, t.tconst)
         FROM person_known_for pkf
-        JOIN titles t USING (tconst)
+        JOIN titles t ON t.tconst = pkf.tconst
         WHERE pkf.nconst = p.nconst),
         '[]') AS "knownFor"
-    from persons as p
-    WHERE p.nconst = $1`,
+      FROM persons p
+      WHERE p.nconst = $1`,
     [nconst]);
-
-    return result.rows[0]; 
+  return rows[0];
 }
