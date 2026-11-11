@@ -234,23 +234,34 @@ export function validateWords(value: unknown): string[] {
   return words;
 }
 
-const ROLES_MAX = 5;
-const ROLE = /^[a-z_]{1,50}$/;
+const PERSONS_PARAMS = ['name', 'actorsOnly', 'limit', 'offset'];
+const PERSON_NAME_MAX = 100;
 
-// Query of GET /api/persons: role is optional, a comma separated list of 1-5
-// credit categories (?role=actor,actress,writer).
+// Query of GET /api/persons: name (1-100 characters after trimming) and
+// actorsOnly (true or false, default false), both optional. actorsOnly needs a
+// name, since actor_search only narrows a name search. Unknown parameters give
+// 400, as on GET /api/titles, so a typo is not silently ignored.
 export function validatePersonFilter(query: Record<string, unknown>): PersonFilter {
-  const value = query.professions;
-  if (value === undefined) return { professions: [] };
-  if (typeof value !== 'string') throw new BadRequest('role must be one comma separated list');
+  const unknown = Object.keys(query).filter(param => !PERSONS_PARAMS.includes(param));
+  if (unknown.length > 0) throw new BadRequest(`unknown query parameter '${unknown.join(', ')}'`);
 
-  const professions = [...new Set(
-    value.split(',').map(professions => professions.trim().toLowerCase()).filter(professions => professions !== '')
-  )];
-  if (professions.length === 0) throw new BadRequest('role must not be empty');
-  if (professions.length > ROLES_MAX) throw new BadRequest(`role can have at most ${ROLES_MAX} values`);
-  if (professions.some(professions => !ROLE.test(professions))) {
-    throw new BadRequest('each role must be 1-50 characters: lower case letters and _');
+  const errors: string[] = [];
+
+  let name: string | undefined;
+  if (query.name !== undefined) {
+    const value = query.name;
+    if (typeof value !== 'string' || value.trim() === '' || value.trim().length > PERSON_NAME_MAX) {
+      errors.push(`name must be 1-${PERSON_NAME_MAX} characters`);
+    } else {
+      name = value.trim();
+    }
   }
-  return { professions };
+
+  const flag = query.actorsOnly ?? 'false';
+  if (flag !== 'true' && flag !== 'false') errors.push('actorsOnly must be true or false');
+  const actorsOnly = flag === 'true';
+  if (actorsOnly && query.name === undefined) errors.push('actorsOnly requires name');
+
+  if (errors.length > 0) throw new BadRequest(errors.join('; '));
+  return { name, actorsOnly };
 }

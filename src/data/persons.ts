@@ -1,3 +1,12 @@
+/**
+ * Data-access layer for the `persons` table.
+ *
+ * Query functions:
+ * - `getPersons(filter, limit, offset)` — paged slice of persons matching the filter,
+ *   ordered alphabetically by primary name, plus the total number of matches.
+ * - `getPersonDetail(nconst)` — one person with roles and known-for titles,
+ *   or undefined when no such person exists.
+ */
 import { pool } from '../db.js';
 
 export interface Person {
@@ -19,9 +28,12 @@ export interface PersonDetail extends Person {
   knownFor: KnownFor[];
 }
 
-// Filter for GET /api/persons
+// Filter for GET /api/persons. Without a name every person is listed; with a
+// name the list is narrowed by name_search, or by actor_search when actorsOnly
+// is set. actorsOnly is only allowed together with a name (see validation).
 export interface PersonFilter {
-  professions: string[];
+  name?:      string;
+  actorsOnly: boolean;
 }
 
 
@@ -39,37 +51,40 @@ const PERSON_COLUMNS = `
         ORDER BY pr.profession_name) AS professions`;
 
 
-// Shared by the page query and the count query, so total always matches the filter.
-// $1 is the list of professions; an empty list matches every person.
-const PERSON_FILTER = `
-  WHERE cardinality($1::text[]) = 0
-    OR EXISTS (
-      SELECT 1
-      FROM person_professions pp
-      JOIN professions pr ON pr.pconst = pp.pconst
-      WHERE pp.nconst = p.nconst
-        AND pr.profession_name = ANY($1::text[])
-    )`;
+// The FROM clause of the page query and the count query, so total always
+// matches the filter. With a name, the database function decides which persons
+// match, and $1 is the name. The function name is chosen from a boolean.
+function personSource(filter: PersonFilter): { from: string; params: string[] } {
+  if (filter.name === undefined) {
+    return { from: 'persons p', params: [] };
+  }
+  const search = filter.actorsOnly ? 'actor_search' : 'name_search';
+  return {
+    from: `${search}($1) s JOIN persons p ON p.nconst = s.nconst`,
+    params: [filter.name],
+  };
+}
 
 
 // A page of persons, ordered alphabetically by primary name, plus the total number of matching persons.
-export async function getPersons(
-  filter: PersonFilter, limit: number, offset: number,
+// name_search and actor_search do not log, so the functions can be called twice.
+export async function getPersons(filter: PersonFilter, limit: number, offset: number,
 ): Promise<{ items: Person[]; total: number }> {
+  const { from, params } = personSource(filter);
+  const n = params.length; // limit and offset come after the filter parameters
+
   // The two queries are independent, so they run in parallel.
   const [page, count] = await Promise.all([
     pool.query<Person>(
       `SELECT ${PERSON_COLUMNS}
-        FROM persons p
-        ${PERSON_FILTER}
+        FROM ${from}
         ORDER BY p.primary_name, p.nconst
-        LIMIT $2 OFFSET $3`,
-      [filter.professions, limit, offset]),
+        LIMIT $${n + 1} OFFSET $${n + 2}`,
+      [...params, limit, offset]),
     pool.query<{ total: number }>(
       `SELECT count(*)::int AS total
-        FROM persons p
-        ${PERSON_FILTER}`,
-      [filter.professions]),
+        FROM ${from}`,
+      params),
   ]);
 
   return { items: page.rows, total: count.rows[0].total };
