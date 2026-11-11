@@ -240,17 +240,17 @@ const ROLE = /^[a-z_]{1,50}$/;
 // Query of GET /api/persons: role is optional, a comma separated list of 1-5
 // credit categories (?role=actor,actress,writer).
 export function validatePersonFilter(query: Record<string, unknown>): PersonFilter {
-  const value = query.role;
-  if (value === undefined) return { roles: [] };
+  const value = query.professions;
+  if (value === undefined) return { professions: [] };
   if (typeof value !== 'string') throw new BadRequest('role must be one comma separated list');
 
-  const roles = [...new Set(
-    value.split(',').map(role => role.trim().toLowerCase()).filter(role => role !== '')
+  const professions = [...new Set(
+    value.split(',').map(professions => professions.trim().toLowerCase()).filter(professions => professions !== '')
   )];
-  if (roles.length === 0) throw new BadRequest('role must not be empty');
-  if (roles.length > ROLES_MAX) throw new BadRequest(`role can have at most ${ROLES_MAX} values`);
-  if (roles.some(role => !ROLE.test(role))) {
+  if (professions.length === 0) throw new BadRequest('role must not be empty');
+  if (professions.length > ROLES_MAX) throw new BadRequest(`role can have at most ${ROLES_MAX} values`);
+  if (professions.some(professions => !ROLE.test(professions))) {
     throw new BadRequest('each role must be 1-50 characters: lower case letters and _');
   }
-  return { roles };
+  return { professions };
 }

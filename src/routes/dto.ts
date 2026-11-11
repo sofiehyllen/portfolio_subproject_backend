@@ -196,7 +196,7 @@ export interface PersonDto {
   birthYear: number     | null;
   deathYear: number     | null;
   avgNameRating: number | null;
-  roles: string[];
+  professions: string[];
 }
 
 export function toPersonDto(item: Person): PersonDto {
@@ -206,19 +206,19 @@ export function toPersonDto(item: Person): PersonDto {
     birthYear: item.birthYear,
     deathYear: item.deathYear,
     avgNameRating: item.avgNameRating,
-    roles: item.roles
+    professions: item.professions
   };
 }
 
 export interface PersonDetailsDto extends PersonDto {
-  professions: string[],
+  roles: string[],
   knownFor: {url: string, primaryTitle: string}[]
 }
 
 export function toPersonDetailsDto(item: PersonDetails): PersonDetailsDto {
   return {
     ...toPersonDto(item),
-    professions:    item.professions,
+    roles:    item.roles,
     knownFor:       item.knownFor.map(i => ({
       url:          uri.title(i.tconst),
       primaryTitle: i.primaryTitle

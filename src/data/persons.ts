@@ -6,7 +6,7 @@ export interface Person {
   birthYear:      number | null;
   deathYear:      number | null;
   avgNameRating:  number | null;
-  roles:          string[];
+  professions:    string[];
 }
 
 export interface KnownFor {
@@ -15,24 +15,26 @@ export interface KnownFor {
 }
 
 export interface PersonDetails extends Person {
-  professions:    string[];
+  roles:    string[];
   knownFor:       KnownFor[];
 }
 
 // Filter for GET /api/persons: roles keeps only persons with at least one
 // credit in title_persons in one of the given categories (e.g. actor, writer).
 export interface PersonFilter {
-  roles: string[];
+  professions: string[];
 }
 
 // Shared by the page query and the count query, so total always matches the filter.
 const PERSON_FILTER = `
-  WHERE cardinality($1::text[]) = 0 OR EXISTS (
-    SELECT 1
-    FROM title_persons tp
-    WHERE tp.nconst = p.nconst
-      AND tp.category = ANY($1::text[])
-  )`;
+  WHERE cardinality($1::text[]) = 0
+    OR EXISTS (
+      SELECT 1
+      FROM person_professions pp
+      JOIN professions pr ON pr.pconst = pp.pconst
+      WHERE pp.nconst = p.nconst
+        AND pr.profession_name = ANY($1::text[])
+    )`;
 
 /**
  * Gets a paginated list of persons, ordered alphabetically by primary name.
@@ -47,18 +49,19 @@ export async function getPersons(filter: PersonFilter, limit: number, offset: nu
             p.birth_year      AS "birthYear",
             p.death_year      AS "deathYear",
             p.avg_name_rating::float8 AS "avgNameRating",
-            array(
-              SELECT DISTINCT tp.category
-              FROM title_persons tp
-              WHERE tp.nconst = p.nconst
-              ORDER BY tp.category
-            ) AS roles
+            array (
+              select pr.profession_name
+              from person_professions pp
+              join professions pr on pr.pconst = pp.pconst
+              where pp.nconst = p.nconst
+              order by pr.profession_name
+            ) as professions
     FROM persons p
     ${PERSON_FILTER}
     ORDER BY p.primary_name, p.nconst
     LIMIT $2
     OFFSET $3`,
-    [filter.roles, limit, offset]
+    [filter.professions, limit, offset]
   );
 
 
@@ -66,7 +69,7 @@ export async function getPersons(filter: PersonFilter, limit: number, offset: nu
     `SELECT count(*)::int AS total
     FROM persons p
     ${PERSON_FILTER}`,
-    [filter.roles]
+    [filter.professions]
   );
 
   return { items, total: countRows[0].total};
