@@ -24,7 +24,23 @@ export interface PersonFilter {
   professions: string[];
 }
 
+
+// Persons are aliased p. The columns of a Person, shared by `getPersons` and `getPersonDetail`.
+const PERSON_COLUMNS = `
+  p.nconst,
+  p.primary_name            AS "primaryName",
+  p.birth_year              AS "birthYear",
+  p.death_year              AS "deathYear",
+  p.avg_name_rating::float8 AS "avgNameRating",
+  ARRAY(SELECT pr.profession_name
+        FROM person_professions pp
+        JOIN professions pr ON pr.pconst = pp.pconst
+        WHERE pp.nconst = p.nconst
+        ORDER BY pr.profession_name) AS professions`;
+
+
 // Shared by the page query and the count query, so total always matches the filter.
+// $1 is the list of professions; an empty list matches every person.
 const PERSON_FILTER = `
   WHERE cardinality($1::text[]) = 0
     OR EXISTS (
@@ -35,74 +51,50 @@ const PERSON_FILTER = `
         AND pr.profession_name = ANY($1::text[])
     )`;
 
-// Gets a paginated list of persons, ordered alphabetically by primary name, plus the total number of matching persons.
-export async function getPersons(filter: PersonFilter, limit: number, offset: number) {
-  const { rows: items } = await pool.query<Person>(
-    `SELECT p.nconst,
-            p.primary_name    AS "primaryName",
-            p.birth_year      AS "birthYear",
-            p.death_year      AS "deathYear",
-            p.avg_name_rating::float8 AS "avgNameRating",
-            array (
-              select pr.profession_name
-              from person_professions pp
-              join professions pr on pr.pconst = pp.pconst
-              where pp.nconst = p.nconst
-              order by pr.profession_name
-            ) as professions
-    FROM persons p
-    ${PERSON_FILTER}
-    ORDER BY p.primary_name, p.nconst
-    LIMIT $2
-    OFFSET $3`,
-    [filter.professions, limit, offset]
-  );
 
+// A page of persons, ordered alphabetically by primary name, plus the total number of matching persons.
+export async function getPersons(
+  filter: PersonFilter, limit: number, offset: number,
+): Promise<{ items: Person[]; total: number }> {
+  // The two queries are independent, so they run in parallel.
+  const [page, count] = await Promise.all([
+    pool.query<Person>(
+      `SELECT ${PERSON_COLUMNS}
+        FROM persons p
+        ${PERSON_FILTER}
+        ORDER BY p.primary_name, p.nconst
+        LIMIT $2 OFFSET $3`,
+      [filter.professions, limit, offset]),
+    pool.query<{ total: number }>(
+      `SELECT count(*)::int AS total
+        FROM persons p
+        ${PERSON_FILTER}`,
+      [filter.professions]),
+  ]);
 
-  const { rows: countRows } = await pool.query(
-    `SELECT count(*)::int AS total
-    FROM persons p
-    ${PERSON_FILTER}`,
-    [filter.professions]
-  );
-
-  return { items, total: countRows[0].total};
+  return { items: page.rows, total: count.rows[0].total };
 }
 
-// Gets a single person, or undefined when no such person exists.
+
+// A single person with roles and known-for titles, or undefined when no such person exists.
 export async function getPersonDetail(nconst: string): Promise<PersonDetail | undefined> {
-  const result  = await pool.query<PersonDetail>(`
-    select 
-      p.nconst,
-      p.primary_name as "primaryName",
-      p.birth_year as "birthYear",
-      p.death_year as "deathYear",
-      p.avg_name_rating::float8 as "avgNameRating",
-      array (
-        select pr.profession_name
-        from person_professions pp
-        join professions pr on pr.pconst = pp.pconst
-        where pp.nconst = p.nconst
-        order by pr.profession_name
-      ) as professions,
-      array (
-        select distinct tp.category
-        from title_persons tp
-        where tp.nconst = p.nconst
-        order by tp.category
-      ) as roles,
+  const { rows } = await pool.query<PersonDetail>(
+    `SELECT ${PERSON_COLUMNS},
+      ARRAY(SELECT DISTINCT tp.category
+            FROM title_persons tp
+            WHERE tp.nconst = p.nconst
+            ORDER BY tp.category) AS roles,
       COALESCE(
         (SELECT json_agg(
-                    json_build_object('tconst', t.tconst, 'primaryTitle', t.primary_title)
-                    order by t.primary_title, t.tconst
-                )
+          json_build_object('tconst', t.tconst,
+                            'primaryTitle', t.primary_title)
+                            ORDER BY t.primary_title, t.tconst)
         FROM person_known_for pkf
         JOIN titles t USING (tconst)
         WHERE pkf.nconst = p.nconst),
         '[]') AS "knownFor"
-    from persons as p
-    WHERE p.nconst = $1`,
+      FROM persons p
+      WHERE p.nconst = $1`,
     [nconst]);
-
-    return result.rows[0]; 
+  return rows[0];
 }
