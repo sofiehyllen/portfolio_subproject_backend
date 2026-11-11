@@ -2,9 +2,9 @@
 // BadRequest (400) listing every field that is missing or invalid.
 
 import { BadRequest } from './middleware/errors.js';
-import { SORT_FIELDS, SortField, SortOrder, TitleBrowse } from './data/titles.js';
+import { SORT_FIELDS, SortField, TitleBrowse } from './data/titles.js';
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
-import { Sort } from "./data/sorting.js";
+import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
 
 export interface NewUserInput {
   firstName: string;
@@ -172,7 +172,9 @@ query: Record<string, unknown>, fields: readonly F[], defaultField: F, errors: s
   }
 
   const order = query.order ?? 'asc';
-  if (order !== 'asc' && order !== 'desc') errors.push('order must be asc or desc');
+  if (typeof order !== 'string' || !(SORT_ORDERS as readonly string[]).includes(order)) {
+    errors.push(`order must be one of ${SORT_ORDERS.join(', ')}`);
+  }
 
   return { sort: sort as F, order: order as SortOrder };
 }
@@ -255,34 +257,36 @@ export function validateWords(value: unknown): string[] {
 const PERSONS_PARAMS = ['name', 'actorsOnly', 'sort', 'order', 'limit', 'offset'];
 const PERSON_NAME_MAX = 100;
 
-// Query of GET /api/persons: name (1-100 characters after trimming), actorsOnly
-// (true or false, default false), sort (name or rating, default name) and order
-// (asc or desc, default asc), all optional. actorsOnly needs a name, since
-// actor_search only narrows a name search. Sorting is allowed with or without a
-// name. Unknown parameters give 400, as on GET /api/titles.
+// Query of GET /api/persons: 
+//    name (1-100 characters after trimming)
+//    actorsOnly (true or false, default false)
+//    sort (name or rating, default name)
+//    order (asc or desc, default asc)
+// All parameters are optional. 
+// Unknown parameters give 400, as on GET /api/titles.
 export function validatePersonBrowse(query: Record<string, unknown>): PersonBrowse {
-  const unknown = Object.keys(query).filter(param => !PERSONS_PARAMS.includes(param));
-  if (unknown.length > 0) throw new BadRequest(`unknown query parameter '${unknown.join(', ')}'`);
+  const unknown = Object.keys(query).filter(param => !PERSONS_PARAMS.includes(param)); // collect params not in the allowed list
+  if (unknown.length > 0) throw new BadRequest(`unknown query parameter '${unknown.join(', ')}'`); // reject immediately — typo or wrong endpoint
 
-  const errors: string[] = [];
+  const errors: string[] = []; // collect all field errors before throwing, so the client sees them all at once
 
   let name: string | undefined;
-  if (query.name !== undefined) {
+  if (query.name !== undefined) { // name is optional; skip the whole block when the client did not send it
     const value = query.name;
-    if (typeof value !== 'string' || value.trim() === '' || value.trim().length > PERSON_NAME_MAX) {
-      errors.push(`name must be 1-${PERSON_NAME_MAX} characters`);
+    if (typeof value !== 'string' || value.trim() === '' || value.trim().length > PERSON_NAME_MAX) { // blank strings and over-long names are invalid
+      errors.push(`name must be 1-${PERSON_NAME_MAX} characters`); // add to errors
     } else {
-      name = value.trim();
+      name = value.trim(); // trim leading/trailing whitespace
     }
   }
 
-  const flag = query.actorsOnly ?? 'false';
+  const flag = query.actorsOnly ?? 'false'; // default to 'false' when not sent
   if (flag !== 'true' && flag !== 'false') errors.push('actorsOnly must be true or false');
-  const actorsOnly = flag === 'true';
+  const actorsOnly = flag === 'true'; // convert the string to a boolean
   if (actorsOnly && query.name === undefined) errors.push('actorsOnly requires name');
 
-  const sort = parseSort(query, PERSON_SORT_FIELDS, 'name', errors);
+  const sort = parseSort(query, PERSON_SORT_FIELDS, 'name', errors); // validate sort and order; errors are added to the shared array
 
-  if (errors.length > 0) throw new BadRequest(errors.join('; '));
-  return { name, actorsOnly, ...sort };
+  if (errors.length > 0) throw new BadRequest(errors.join('; ')); // throw once with all collected errors
+  return { name, actorsOnly, ...sort }; // spread sort to include both the sort field and direction
 }
