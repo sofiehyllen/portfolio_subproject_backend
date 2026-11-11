@@ -4,6 +4,7 @@
 import { RatingHistoryEntry, UserRating } from "../data/ratings.js";
 import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
+import { BookmarkTitle, BookmarkPerson } from '../data/bookmarks.js';
 import { UserSearchHistory } from "../data/search_history.js";
 import { PersonDetail, Person } from "../data/persons.js";
 const API_BASE = '/api';
@@ -11,6 +12,8 @@ const API_BASE = '/api';
 export const uri = {
   title: (tconst: string) => `${API_BASE}/titles/${tconst}`,
   person: (nconst: string) => `${API_BASE}/persons/${nconst}`,
+  bookmarkTitle: (uconst: number, tconst: string) => `${API_BASE}/users/${uconst}/bookmarks/titles/${tconst}`,
+  bookmarkPerson: (uconst: number, nconst: string) => `${API_BASE}/users/${uconst}/bookmarks/persons/${nconst}`,
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
   rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
   searchEntry: (uconst: string | number, sconst: string | number) => `${API_BASE}/users/${uconst}/search-history/${sconst}`,
@@ -124,6 +127,37 @@ export function toTitleSummaryDto(title: TitleSummary): TitleSummaryDto {
   };
 }
 
+export interface UserBookmarkTitleDto {
+  url: string;
+  title: string;
+  primaryTitle: string;
+  createdAt: Date;
+}
+
+export function toUserBookmarkTitleDto(uconst: number, bookmark: BookmarkTitle): UserBookmarkTitleDto {
+  return {
+    url: uri.bookmarkTitle(uconst, bookmark.tconst),
+    title: uri.title(bookmark.tconst),
+    primaryTitle: bookmark.title,
+    createdAt: bookmark.createdAt,
+  };
+}
+
+export interface UserBookmarkPersonDto {
+  url: string;
+  person: string;
+  primaryName: string,
+  createdAt: Date;
+}
+
+export function toUserBookmarkPersonDto(uconst: number, bookmark: BookmarkPerson): UserBookmarkPersonDto {
+  return {
+    url: uri.bookmarkPerson(uconst, bookmark.nconst),
+    person: uri.person(bookmark.nconst),
+    primaryName: bookmark.person,
+    createdAt: bookmark.createdAt,
+  };
+}
 export interface SimilarMovieDto {
   url: string;
   primaryTitle: string;

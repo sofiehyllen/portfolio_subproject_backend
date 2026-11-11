@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
+import * as bookmark from '../data/bookmarks.js';
 import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate } from '../validation.js';
-import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto } from './dto.js';
+import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
 import { checkPassword, hashPassword } from '../utils/passwords.js';
@@ -9,28 +10,6 @@ import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
 
 export const router = Router();
-
-// POST /api/users: registers a user. Public. Returns 201 with the new
-// profile and a Location header pointing at it.
-router.post('/', async (req, res, next) => {
-  try {
-    const input = validateNewUser(req.body); // 400 on missing or invalid fields
-    const uconst = await users.createUser({
-      firstName: input.firstName,
-      lastName: input.lastName,
-      username: input.username,
-      email: input.email,
-      passwordHash: await hashPassword(input.password), // the plain password is never stored
-    }); // 409 on duplicate username or email
-
-    const user = await users.getUser(uconst);
-    if (!user) throw new Error(`user ${uconst} missing right after create`);
-
-    res.status(201).location(uri.user(uconst)).json(toUserDto(user));
-  } catch (err) {
-    next(err);
-  }
-});
 
 // uconst is a SERIAL column, so only positive integers can identify a user.
 function parseUconst(value: string): number | undefined {
@@ -57,7 +36,6 @@ router.param('uconst', async (_req, res, next, value: string) => {
   } catch(err) {
     next(err);
   }
-  
 });
 
 router.param('sconst', (_req, res, next, value: string) => {
@@ -69,6 +47,30 @@ router.param('sconst', (_req, res, next, value: string) => {
   next();
 });
 
+
+// ── User profile ─────────────────────────────────────────────────────────────
+
+// POST /api/users: registers a user. Public. Returns 201 with the new
+// profile and a Location header pointing at it.
+router.post('/', async (req, res, next) => {
+  try {
+    const input = validateNewUser(req.body); // 400 on missing or invalid fields
+    const uconst = await users.createUser({
+      firstName: input.firstName,
+      lastName: input.lastName,
+      username: input.username,
+      email: input.email,
+      passwordHash: await hashPassword(input.password), // the plain password is never stored
+    }); // 409 on duplicate username or email
+
+    const user = await users.getUser(uconst);
+    if (!user) throw new Error(`user ${uconst} missing right after create`);
+
+    res.status(201).location(uri.user(uconst)).json(toUserDto(user));
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/users/{uconst}: the user's profile (never the password hash).
 // TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
@@ -112,13 +114,75 @@ router.delete('/:uconst', async (_req, res, next) => {
   }
 });
 
+// PUT /api/users/{uconst}/password: replaces the user's password
+router.put('/:uconst/password', async (req, res, next) => {
+  // TODO: require a token and check it belongs to {uconst} once auth exists
+  try {
+    const {currentPassword, newPassword} = validatePasswordUpdate(req.body);
+    const uconst: number = res.locals.uconst;
+
+    const user = await users.getUser(uconst);
+    if (!user) throw new NotFound('User not found');
+
+    const isPasswordValid = await checkPassword(currentPassword, user.passwordHash);
+    if (!isPasswordValid) throw new Forbidden('Current password is invalid');
+
+    const errors = validatePassword(newPassword, {
+      username: user.username,
+      currPassword: currentPassword
+    });
+    if (errors.length > 0) throw new BadRequest(errors.join('; '));
+
+    const newHash = await hashPassword(newPassword);
+    await users.updateUserHashPassword(uconst, newHash);
+
+    return res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+// ── Ratings ───────────────────────────────────────────────────────────────────
+
+// GET /api/users/{uconst}/ratings: paged rating history, newest change first.
+// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
+router.get('/:uconst/ratings', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const page = pageOf(req.query as Record<string, unknown>);
+
+    const items = await ratings.ratingHistory(uconst, page.limit, page.offset);
+    const total = await ratings.countRatings(uconst);
+
+    res.json(paged(req, page, total, items.map((item) => toRatingHistoryDto(uconst, item))));
+  } catch (err) {
+    next(err)
+  }
+});
+
+// GET /api/users/{uconst}/ratings/{tconst}: the user's active rating of one title.
+// 404 when the user has never rated the title, or the rating has been removed.
+// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
+router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const rating = await ratings.getRating(uconst, req.params.tconst);
+    if (!rating) throw new NotFound('Rating not found');
+
+    res.json(toUserRatingDto(rating));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PUT /api/users/{uconst}/ratings/{tconst}: creates or changes the user's rating of a title.
 router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const tconst = req.params.tconst;
     const rating = req.body?.rating;
-    
+
     // Check the input before asking the database
     if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
       throw new BadRequest('rating must be an integer between 1 and 10');
@@ -150,62 +214,107 @@ router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
   }
 });
 
-// GET /api/users/{uconst}/ratings: paged rating history, newest change first.
-router.get('/:uconst/ratings', async (req, res, next) => {
+
+// ── Bookmarks ─────────────────────────────────────────────────────────────────
+
+// GET /api/users/{uconst}/bookmarks/titles
+router.get('/:uconst/bookmarks/titles', async (req, res, next) => {
+  try {
+    const page = pageOf(req.query as Record <string, unknown>);
+    const uconst: number = res.locals.uconst;
+
+    const items = await bookmark.getTitleBookmarks(uconst, page.limit, page.offset);
+    const total = await bookmark.countTitleBookmarks(uconst);
+
+    res.json(paged(req, page, total, items.map((item) => toUserBookmarkTitleDto(uconst, item))));
+
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/users/{uconst}/bookmarks/titles/{tconst}
+router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const page = pageOf(req.query as Record<string, unknown>);
+    const tconst = req.params.tconst;
+    const added = await bookmark.addTitleBookmark(uconst, tconst);
+    if (!added) throw new NotFound('Title not found');
 
-    const items = await ratings.ratingHistory(uconst, page.limit, page.offset);
-    const total = await ratings.countRatings(uconst);
+    res.status(204).end();
 
-    res.json(paged(req, page, total, items.map((item) => toRatingHistoryDto(uconst, item))));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/users/{uconst}/bookmarks/titles/{tconst}
+router.delete('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const tconst = req.params.tconst;
+    const deleted = await bookmark.removeTitleBookmark(uconst, tconst);
+    if (!deleted) {
+      throw new NotFound('Bookmarked title not found');
+    }
+
+    res.status(204).end();
+
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/users/{uconst}/bookmarks/persons
+router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
+  try {
+    const page = pageOf(req.query as Record <string, unknown>);
+
+    const uconst: number = res.locals.uconst;
+
+    const items = await bookmark.getPersonBookmarks(uconst, page.limit, page.offset);
+    const total = await bookmark.countPersonBookmarks(uconst);
+
+    res.json(paged(req, page, total, items.map((item) => toUserBookmarkPersonDto(uconst, item))));
+
   } catch (err) {
     next(err)
   }
-})
+});
 
-// GET /api/users/{uconst}/ratings/{tconst}: the user's active rating of one title.
-// 404 when the user has never rated the title, or the rating has been removed.
-router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
+// PUT /api/users/{uconst}/bookmarks/persons/{nconst}
+router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const rating = await ratings.getRating(uconst, req.params.tconst);
-    if (!rating) throw new NotFound('Rating not found');
+    const nconst = req.params.nconst;
+    const added = await bookmark.addPersonBookmark(uconst, nconst);
+    if (!added) throw new NotFound('Person not found');
+    
+    res.status(204).end();
 
-    res.json(toUserRatingDto(rating));
   } catch (err) {
     next(err);
   }
 });
 
-// PUT /api/users/{uconst}/password: replaces the user's password
-router.put('/:uconst/password', async (req, res, next) => {
-  // TODO: require a token and check it belongs to {uconst} once auth exists
+// DELETE /api/users/{uconst}/bookmarks/persons/{nconst}
+router.delete('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
-    const {currentPassword, newPassword} = validatePasswordUpdate(req.body);
     const uconst: number = res.locals.uconst;
-    
-    const user = await users.getUser(uconst);
-    if (!user) throw new NotFound('User not found'); 
+    const nconst = req.params.nconst;
+    const deleted = await bookmark.removePersonBookmark(uconst, nconst);
+    if (!deleted) {
+      throw new NotFound('Bookmarked person not found');
+    }
 
-    const isPasswordValid = await checkPassword(currentPassword, user.passwordHash);
-    if (!isPasswordValid) throw new Forbidden('Current password is invalid');
-    
-    const errors = validatePassword(newPassword, {
-      username: user.username,
-      currPassword: currentPassword
-    });
-    if (errors.length > 0) throw new BadRequest(errors.join('; '));
-
-    const newHash = await hashPassword(newPassword);
-    await users.updateUserHashPassword(uconst, newHash);
-    
-    return res.status(204).end();
-  }catch (err) {
+    res.status(204).end();
+  } catch (err) {
     next(err);
   }
 });
+
+
+// ── Search history ────────────────────────────────────────────────────────────
 
 // GET /api/users/{uconst}/search-history: a user's list of search history
 // TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
@@ -221,7 +330,6 @@ router.get('/:uconst/search-history', async (req, res, next) => {
   } catch (err){
     next (err);
   }
-
 });
 
 // DELETE /api/users/{uconst}/search-history/{sconst}: delete a specific search-history entry
