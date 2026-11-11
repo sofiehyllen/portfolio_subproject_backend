@@ -8,6 +8,7 @@
  *   or undefined when no such person exists.
  */
 import { pool } from '../db.js';
+import { orderBy, Sort } from './sorting.js';
 
 export interface Person {
   nconst:         string;
@@ -36,6 +37,17 @@ export interface PersonFilter {
   actorsOnly: boolean;
 }
 
+export const PERSON_SORT_FIELDS = ['name', 'rating'] as const;
+export type PersonSortField = typeof PERSON_SORT_FIELDS[number];
+
+// The column behind each sort field. Only these strings ever reach ORDER BY.
+const PERSON_SORT_COLUMN: Record<PersonSortField, string> = {
+  name:   'p.primary_name',
+  rating: 'p.avg_name_rating',
+};
+
+// GET /api/persons: the filter and the chosen sort.
+export interface PersonBrowse extends PersonFilter, Sort<PersonSortField> {}
 
 // Persons are aliased p. The columns of a Person, shared by `getPersons` and `getPersonDetail`.
 const PERSON_COLUMNS = `
@@ -68,9 +80,9 @@ function personSource(filter: PersonFilter): { from: string; params: string[] } 
 
 // A page of persons, ordered alphabetically by primary name, plus the total number of matching persons.
 // name_search and actor_search do not log, so the functions can be called twice.
-export async function getPersons(filter: PersonFilter, limit: number, offset: number,
-): Promise<{ items: Person[]; total: number }> {
-  const { from, params } = personSource(filter);
+export async function getPersons(browse: PersonBrowse, limit: number, offset: number): 
+Promise<{ items: Person[]; total: number }> {
+  const { from, params } = personSource(browse);
   const n = params.length; // limit and offset come after the filter parameters
 
   // The two queries are independent, so they run in parallel.
@@ -78,8 +90,8 @@ export async function getPersons(filter: PersonFilter, limit: number, offset: nu
     pool.query<Person>(
       `SELECT ${PERSON_COLUMNS}
         FROM ${from}
-        ORDER BY p.primary_name, p.nconst
-        LIMIT $${n + 1} OFFSET $${n + 2}`,
+        ${orderBy(PERSON_SORT_COLUMN[browse.sort], browse.order, 'p.primary_name, p.nconst')}
+        LIMIT $${n + 1} OFFSET $${n + 2}`, //the parameter number is adjusted with n
       [...params, limit, offset]),
     pool.query<{ total: number }>(
       `SELECT count(*)::int AS total
@@ -105,7 +117,7 @@ export async function getPersonDetail(nconst: string): Promise<PersonDetail | un
                             'primaryTitle', t.primary_title)
                             ORDER BY t.primary_title, t.tconst)
         FROM person_known_for pkf
-        JOIN titles t USING (tconst)
+        JOIN titles t ON t.tconst = pkf.tconst
         WHERE pkf.nconst = p.nconst),
         '[]') AS "knownFor"
       FROM persons p

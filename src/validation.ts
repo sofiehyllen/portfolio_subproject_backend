@@ -2,8 +2,9 @@
 // BadRequest (400) listing every field that is missing or invalid.
 
 import { BadRequest } from './middleware/errors.js';
-import { SORT_FIELDS, SortField, TitleBrowse } from './data/titles.js';
-import { PersonFilter } from "./data/persons.js";
+import { SORT_FIELDS, SortField, SortOrder, TitleBrowse } from './data/titles.js';
+import { PERSON_SORT_FIELDS, PersonBrowse, PersonFilter } from "./data/persons.js";
+import { Sort } from "./data/sorting.js";
 
 export interface NewUserInput {
   firstName: string;
@@ -159,6 +160,23 @@ export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
   };
 }
 
+// sort and order of a list the client may sort: sort must be one of the list's
+// fields (default defaultField), order asc or desc (default asc). Errors are
+// added to errors, so they are reported together with the list's other errors.
+export function parseSort<F extends string>(
+query: Record<string, unknown>, fields: readonly F[], defaultField: F, errors: string[],
+): Sort<F> {
+  const sort = query.sort ?? defaultField;
+  if (typeof sort !== 'string' || !(fields as readonly string[]).includes(sort)) {
+    errors.push(`sort must be one of ${fields.join(', ')}`);
+  }
+
+  const order = query.order ?? 'asc';
+  if (order !== 'asc' && order !== 'desc') errors.push('order must be asc or desc');
+
+  return { sort: sort as F, order: order as SortOrder };
+}
+
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
 const TITLES_PARAMS = ['text', ...BROWSE_PARAMS, 'limit', 'offset'];
 const FILTER_MAX = 100;
@@ -234,14 +252,15 @@ export function validateWords(value: unknown): string[] {
   return words;
 }
 
-const PERSONS_PARAMS = ['name', 'actorsOnly', 'limit', 'offset'];
+const PERSONS_PARAMS = ['name', 'actorsOnly', 'sort', 'order', 'limit', 'offset'];
 const PERSON_NAME_MAX = 100;
 
-// Query of GET /api/persons: name (1-100 characters after trimming) and
-// actorsOnly (true or false, default false), both optional. actorsOnly needs a
-// name, since actor_search only narrows a name search. Unknown parameters give
-// 400, as on GET /api/titles, so a typo is not silently ignored.
-export function validatePersonFilter(query: Record<string, unknown>): PersonFilter {
+// Query of GET /api/persons: name (1-100 characters after trimming), actorsOnly
+// (true or false, default false), sort (name or rating, default name) and order
+// (asc or desc, default asc), all optional. actorsOnly needs a name, since
+// actor_search only narrows a name search. Sorting is allowed with or without a
+// name. Unknown parameters give 400, as on GET /api/titles.
+export function validatePersonBrowse(query: Record<string, unknown>): PersonBrowse {
   const unknown = Object.keys(query).filter(param => !PERSONS_PARAMS.includes(param));
   if (unknown.length > 0) throw new BadRequest(`unknown query parameter '${unknown.join(', ')}'`);
 
@@ -262,6 +281,8 @@ export function validatePersonFilter(query: Record<string, unknown>): PersonFilt
   const actorsOnly = flag === 'true';
   if (actorsOnly && query.name === undefined) errors.push('actorsOnly requires name');
 
+  const sort = parseSort(query, PERSON_SORT_FIELDS, 'name', errors);
+
   if (errors.length > 0) throw new BadRequest(errors.join('; '));
-  return { name, actorsOnly };
+  return { name, actorsOnly, ...sort };
 }
