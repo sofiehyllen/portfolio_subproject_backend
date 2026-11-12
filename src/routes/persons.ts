@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged, searchLogUser} from '../routes/pagination.js'
-import { toPersonDto, toPersonDetailDto } from './dto.js';
+import { toPersonDto, toPersonDetailDto, toOnePersonTitleDto } from './dto.js';
 import { validatePersonBrowse } from "../validation.js";
 
 export const router = Router();
@@ -59,14 +59,17 @@ router.get('/:nconst', async (_req, res, next) => {
 router.get('/:nconst/titles', async (req, res, next) => {
     try {
         const nconst: string = res.locals.nconst;
-        const person = await persons.getOnePerson(nconst);
-        if (person === undefined) throw new error.NotFound('Person not found');
+        const person = await persons.checkPersonExists(nconst);
+        if (!person) {
+            throw new error.NotFound('Person not found');
+        }
 
         const page = pageOf(req.query);
-        const {items, total} =  await persons.getPersonTitles(nconst, page.limit, page.offset);
+        const {items, total} =  await persons.getOnePersonTitles(nconst, page.limit, page.offset);
 
         res.json(paged(req, page, total, items.map(toOnePersonTitleDto)));
     } catch (error) {
+        console.error(error)
         next(error);  
     }
 });
