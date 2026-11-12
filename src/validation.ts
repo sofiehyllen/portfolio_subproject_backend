@@ -252,7 +252,7 @@ export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse
  * @throws {BadRequest} If browse parameters are mixed in, or if `text` is blank or too long.
  */
 export function validateTitleSearch(query: Record<string, unknown>): string {
-  const mixed = BROWSE_PARAMS.filter(param => query[param] !== undefined);
+  const mixed = [...BROWSE_PARAMS, ...STRUCTURED_PARAMS].filter(param => query[param] !== undefined);
   if (mixed.length > 0) throw new BadRequest(`${mixed.join(', ')} cannot be combined with text`);
 
   const value = query.text;
@@ -281,7 +281,7 @@ export function isStructuredSearch(query: Record<string, unknown>): boolean {
  * @throws {BadRequest} If browse/text parameters are mixed in, any field is invalid, or all fields are blank.
  */
 export function validateStructuredSearch(query: Record<string, unknown>): StructuredSearch {
-  const mixed = [...BROWSE_PARAMS, ...STRUCTURED_PARAMS].filter(param => query[param] !== undefined);
+  const mixed = [...BROWSE_PARAMS, 'text'].filter(param => query[param] !== undefined);
   if (mixed.length > 0) {
     throw new BadRequest(`${mixed.join(', ')} cannot be combined with ${STRUCTURED_PARAMS.join(', ')}`);
   }
