@@ -362,3 +362,13 @@ export function validatePersonBrowse(query: Record<string, unknown>): PersonBrow
   if (errors.length > 0) throw new BadRequest(errors.join('; ')); // throw once with all collected errors
   return { name, actorsOnly, ...sort }; // spread sort to include both the sort field and direction
 }
+
+/**
+ * Validates an IMDB title identifier (tconst)
+ * @param tconst - raw value to validate
+ * @returns the same string if it is `tt` followed by 7-8 digits, otherwise `undefined`
+ */
+export function validateTconst(tconst: string): string | undefined {
+  return /^tt\d{7,8}$/.test(tconst) ? tconst : undefined;
+}
+
