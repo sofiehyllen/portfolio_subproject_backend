@@ -372,3 +372,12 @@ export function validateTconst(tconst: string): string | undefined {
   return /^tt\d{7,8}$/.test(tconst) ? tconst : undefined;
 }
 
+/**
+ * Validates an IMDB person identifier (nconst)
+ * @param nconst - raw value to validate
+ * @returns the same string if it is `nm` followed by 7-8 digits, otherwise `undefined`
+ */
+export function validateNconst(nconst: string): string | undefined {
+  return /^nm\d{7,8}$/.test(nconst) ? nconst : undefined;
+}
+
