@@ -8,15 +8,9 @@ import * as ratings from '../data/ratings.js';
 import { checkPassword, hashPassword } from '../utils/passwords.js';
 import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
-
+import { validateSerial } from '../validation.js'
 export const router = Router();
 
-// uconst is a SERIAL column, so only positive integers can identify a user.
-function parseUconst(value: string): number | undefined {
-  if (!/^[1-9]\d*$/.test(value)) return undefined;
-  const id = Number(value);
-  return id <= 2147483647 ? id : undefined; // fits a Postgres integer
-}
 
 // Runs before every route in this router whose path contains :uconst, so
 // the checks are written once. An invalid uconst gets a 400, an unknown
@@ -24,7 +18,7 @@ function parseUconst(value: string): number | undefined {
 // res.locals.uconst and the user in res.locals.user.
 router.param('uconst', async (_req, res, next, value: string) => {
   try {
-    const uconst = parseUconst(value);
+    const uconst = validateSerial(value);
     if (uconst === undefined) { throw new BadRequest('uconst must be a positive integer'); }
 
     const user = await users.getUser(uconst);
@@ -39,7 +33,7 @@ router.param('uconst', async (_req, res, next, value: string) => {
 });
 
 router.param('sconst', (_req, res, next, value: string) => {
-  const sconst = parseUconst(value);
+  const sconst = validateSerial(value);
   if (sconst === undefined){
     throw new BadRequest('sconst must be a positive integer');
   }
