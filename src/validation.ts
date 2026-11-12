@@ -3,7 +3,7 @@
 // Exception: validatePassword returns string[] and parseSort adds to a caller-supplied errors array.
 
 import { BadRequest } from './middleware/errors.js';
-import { SORT_FIELDS, SortField, TitleBrowse } from './data/titles.js';
+import { TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
 import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
 
@@ -231,15 +231,7 @@ export function rejectUnknownTitleParams(query: Record<string, unknown>): void {
 export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse {
   const errors: string[] = [];
 
-  const sort = query.sort ?? 'title';
-  if (typeof sort !== 'string' || !(SORT_FIELDS as readonly string[]).includes(sort)) {
-    errors.push(`sort must be one of ${SORT_FIELDS.join(', ')}`);
-  }
-
-  const order = query.order ?? 'asc';
-  if (order !== 'asc' && order !== 'desc') errors.push('order must be asc or desc');
-
-  const browse: TitleBrowse = { sort: sort as SortField, order: order as 'asc' | 'desc' };
+  const browse: TitleBrowse = parseSort(query, TITLE_SORT_FIELDS, 'title', errors); // validate sort and order; errors are added to the shared array
   for (const field of ['genre', 'titleType'] as const) {
     const value = query[field];
     if (value === undefined) continue;
