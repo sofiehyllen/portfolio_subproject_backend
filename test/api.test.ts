@@ -98,7 +98,7 @@ describe('GET /api/titles (sorting and filtering)', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.message).toContain('sort must be one of');
-    expect(res.body.message).toContain('order must be asc or desc');
+    expect(res.body.message).toContain('order must be one of asc, desc');
   });
 
   it('gives 400 when sorting or filtering is mixed with a text search', async () => {
