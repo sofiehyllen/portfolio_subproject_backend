@@ -4,13 +4,16 @@
 import { RatingHistoryEntry, UserRating } from "../data/ratings.js";
 import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/titles.js';
 import { User } from '../data/users.js';
+import { BookmarkTitle, BookmarkPerson } from '../data/bookmarks.js';
 import { UserSearchHistory } from "../data/search_history.js";
-import { OnePerson, Person, PersonTitle } from "../data/persons.js";
+import { PersonDetail, Person } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
   title: (tconst: string) => `${API_BASE}/titles/${tconst}`,
-  person: (nconst: string) => `${API_BASE}/person/${nconst}`,
+  person: (nconst: string) => `${API_BASE}/persons/${nconst}`,
+  bookmarkTitle: (uconst: number, tconst: string) => `${API_BASE}/users/${uconst}/bookmarks/titles/${tconst}`,
+  bookmarkPerson: (uconst: number, nconst: string) => `${API_BASE}/users/${uconst}/bookmarks/persons/${nconst}`,
   user: (uconst: string | number) => `${API_BASE}/users/${uconst}`,
   rating: (uconst: string | number, tconst: string) => `${API_BASE}/users/${uconst}/ratings/${tconst}`,
   searchEntry: (uconst: string | number, sconst: string | number) => `${API_BASE}/users/${uconst}/search-history/${sconst}`,
@@ -77,12 +80,6 @@ export interface CreditDto {
   characters: string[];
 }
 
-// One title in full: the list fields plus genres and credits.
-export interface TitleDetailDto extends TitleDto {
-  genres: string[];
-  credits: CreditDto[];
-}
-
 export interface ActorDto {
   url: string;
   name: string;
@@ -97,6 +94,12 @@ export function toActorDto(actor: Actor): ActorDto {
   };
 }
 
+// One title in full: the list fields plus genres and credits.
+export interface TitleDetailDto extends TitleDto {
+  genres: string[];
+  credits: CreditDto[];
+}
+
 export function toTitleDetailDto(title: TitleDetail): TitleDetailDto {
   return {
     ...toTitleDto(title),
@@ -109,6 +112,7 @@ export function toTitleDetailDto(title: TitleDetail): TitleDetailDto {
     })),
   };
 }
+
 export interface TitleSummaryDto {
   url: string;
   primaryTitle: string;
@@ -123,6 +127,37 @@ export function toTitleSummaryDto(title: TitleSummary): TitleSummaryDto {
   };
 }
 
+export interface UserBookmarkTitleDto {
+  url: string;
+  title: string;
+  primaryTitle: string;
+  createdAt: Date;
+}
+
+export function toUserBookmarkTitleDto(uconst: number, bookmark: BookmarkTitle): UserBookmarkTitleDto {
+  return {
+    url: uri.bookmarkTitle(uconst, bookmark.tconst),
+    title: uri.title(bookmark.tconst),
+    primaryTitle: bookmark.title,
+    createdAt: bookmark.createdAt,
+  };
+}
+
+export interface UserBookmarkPersonDto {
+  url: string;
+  person: string;
+  primaryName: string,
+  createdAt: Date;
+}
+
+export function toUserBookmarkPersonDto(uconst: number, bookmark: BookmarkPerson): UserBookmarkPersonDto {
+  return {
+    url: uri.bookmarkPerson(uconst, bookmark.nconst),
+    person: uri.person(bookmark.nconst),
+    primaryName: bookmark.person,
+    createdAt: bookmark.createdAt,
+  };
+}
 export interface SimilarMovieDto {
   url: string;
   primaryTitle: string;
@@ -195,34 +230,29 @@ export interface PersonDto {
   birthYear: number     | null;
   deathYear: number     | null;
   avgNameRating: number | null;
+  professions: string[];
 }
-
-
 
 export function toPersonDto(item: Person): PersonDto {
   return {
-    url:            uri.person(item.nconst),
-    primaryName:    item.primaryName,
-    birthYear:      item.birthYear,
-    deathYear:      item.deathYear,
-    avgNameRating:  item.avgNameRating
+    url: uri.person(item.nconst),
+    primaryName: item.primaryName,
+    birthYear: item.birthYear,
+    deathYear: item.deathYear,
+    avgNameRating: item.avgNameRating,
+    professions: item.professions
   };
 }
 
-export interface OnePersonDto {
-  url: string;
-  primaryName: string,
-  avgNameRating: number | null,
-  professions: string[],
+export interface PersonDetailDto extends PersonDto {
+  roles: string[],
   knownFor: {url: string, primaryTitle: string}[]
 }
 
-export function toOnePersonDto(item: OnePerson): OnePersonDto {
+export function toPersonDetailDto(item: PersonDetail): PersonDetailDto {
   return {
-    url:            uri.person(item.nconst),
-    primaryName:    item.primaryName,
-    avgNameRating:  item.avgNameRating,
-    professions:    item.professions,
+    ...toPersonDto(item),
+    roles:    item.roles,
     knownFor:       item.knownFor.map(i => ({
       url:          uri.title(i.tconst),
       primaryTitle: i.primaryTitle

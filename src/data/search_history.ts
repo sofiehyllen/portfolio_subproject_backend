@@ -7,7 +7,7 @@ export interface UserSearchHistory {
   createdAt: Date;
 }
 
-export async function getUserSearchHistory(uconst: number, limit: number, offset: number) {
+export async function getUserSearchHistory(uconst: number, limit: number, offset: number): Promise<{items: UserSearchHistory[], total: number}> {
     const { rows: items } = await pool.query<UserSearchHistory>(`
         SELECT  sconst, 
                 search_string as "searchString", 
@@ -26,14 +26,15 @@ export async function getUserSearchHistory(uconst: number, limit: number, offset
 
 }
 
-export async function deleteUserSearchHistory(uconst: number) {
-    await pool.query(`
-        SELECT *
-        FROM clear_search_history($1)`,
+export async function deleteUserSearchHistory(uconst: number): Promise<boolean>{
+    const { rows } = await pool.query(`
+        SELECT clear_search_history($1) as deleted`,
     [uconst]);
+
+    return rows[0].deleted
 }
 
-export async function deleteUserSearchHistoryEntry(uconst: number, sconst: number) {
+export async function deleteUserSearchHistoryEntry(uconst: number, sconst: number): Promise<boolean> {
     const { rows } = await pool.query(`
         SELECT clear_search_history_entry($1, $2) as deleted`,
     [uconst, sconst]);
