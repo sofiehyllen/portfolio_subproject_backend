@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged, searchLogUser} from '../routes/pagination.js'
-import { toPersonDto, toPersonDetailDto } from './dto.js';
+import { toPersonDto, toPersonDetailDto, toOnePersonTitleDto, toCoPlayerDto } from './dto.js';
 import { validatePersonBrowse } from "../validation.js";
 
 export const router = Router();
@@ -54,3 +54,40 @@ router.get('/:nconst', async (_req, res, next) => {
     }
 });
 
+// GET /api/persons/{nconst}/titles
+// Paged titles the person has been credited on, each with their role (category, job, characters)
+router.get('/:nconst/titles', async (req, res, next) => {
+    try {
+        const nconst: string = res.locals.nconst;
+        const person = await persons.checkPersonExists(nconst);
+        if (!person) {
+            throw new error.NotFound('Person not found');
+        }
+
+        const page = pageOf(req.query);
+        const {items, total} =  await persons.getOnePersonTitles(nconst, page.limit, page.offset);
+
+        res.json(paged(req, page, total, items.map(toOnePersonTitleDto)));
+    } catch (error) {
+        console.error(error)
+        next(error);  
+    }
+});
+
+
+router.get('/:nconst/co-players', async (req, res, next) => {
+    try {
+        const nconst: string = res.locals.nconst;
+        const person = await persons.checkPersonExists(nconst);
+        if (!person) {
+            throw new error.NotFound('Person not found');
+        }
+
+        const page = pageOf(req.query);
+        const {items, total} =  await persons.getCoPlayers(nconst, page.limit, page.offset);
+        res.json(paged(req, page, total, items.map(toCoPlayerDto)));
+
+    } catch (error) {
+        next(error);
+    }
+});
