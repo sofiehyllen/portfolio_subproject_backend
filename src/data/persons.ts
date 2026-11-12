@@ -35,6 +35,15 @@ export interface PersonDetail extends Person {
   knownFor: KnownFor[];
 }
 
+export interface PersonTitle {
+  tconst:       string;
+  nconst:       string;
+  primaryTitle: string;
+  category:     string;
+  job:          string | null;
+  characters:   string[];
+}
+
 // Filter for GET /api/persons. Without a name every person is listed; with a
 // name the list is narrowed by name_search, or by actor_search when actorsOnly
 // is set. actorsOnly is only allowed together with a name (see validation).
@@ -137,4 +146,41 @@ export async function getPersonDetail(nconst: string): Promise<PersonDetail | un
       WHERE p.nconst = $1`,
     [nconst]);
   return rows[0];
+}
+
+export async function checkPersonExists(nconst: string): Promise<boolean> {
+  const { rowCount } = await pool.query(`
+    SELECT 1
+    FROM persons 
+    WHERE nconst = $1`,
+    [nconst]);
+  
+    return (rowCount ?? 0) > 0;
+  
+}
+
+export async function getOnePersonTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
+  const { rows: items} = await pool.query<PersonTitle>(`
+    SELECT  t.tconst,
+            tp.nconst,
+            t.primary_title as "primaryTitle",
+            tp.category,
+            tp.job,
+            ARRAY(SELECT c.character_name
+                  FROM title_person_characters c
+                  WHERE c.tconst = tp.tconst and c.ordering = tp.ordering
+                  ORDER BY c.character_name) as characters
+    FROM title_persons tp
+    JOIN titles t ON t.tconst = tp.tconst
+    WHERE tp.nconst = $1
+    ORDER BY t.start_year DESC NULLS LAST, t.tconst, tp.ordering
+    LIMIT $2 
+    OFFSET $3`,
+    [nconst, limit, offset]);
+
+  const { rows: countRows } = await pool.query(`
+    SELECT count(*)::int as total from title_persons where nconst = $1`,
+    [nconst]);
+  
+  return { items, total: countRows[0].total };
 }
