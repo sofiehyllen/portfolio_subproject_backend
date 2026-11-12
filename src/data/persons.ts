@@ -44,6 +44,18 @@ export interface PersonTitle {
   characters:   string[];
 }
 
+export interface CoPlayerMovie {
+  tconst:         string;
+  primaryTitle:   string;
+}
+
+export interface CoPlayer {
+  nconst:         string;
+  primaryName:    string;
+  frequency:      number;
+  movies:         CoPlayerMovie[];
+}
+
 // Filter for GET /api/persons. Without a name every person is listed; with a
 // name the list is narrowed by name_search, or by actor_search when actorsOnly
 // is set. actorsOnly is only allowed together with a name (see validation).
@@ -183,4 +195,41 @@ export async function getOnePersonTitles(nconst: string, limit: number, offset: 
     [nconst]);
   
   return { items, total: countRows[0].total };
+}
+
+export async function getCoPlayers(nconst: string, limit: number, offset: number): Promise<{ items: CoPlayer[], total: number}> {
+  const { rows: nameRows } = await pool.query<{primaryName: string}>(`
+    SELECT primary_name as "primaryName"
+    FROM persons
+    WHERE nconst = $1`,
+  [nconst]);
+
+  const name = nameRows[0].primaryName;
+
+  const { rows: items } = await pool.query<CoPlayer>(`
+    SELECT  cp.nconst,
+            cp.primary_name as "primaryName",
+            cp.frequency::int as frequency,
+            COALESCE(
+              (SELECT json_agg(json_build_object('tconst', m.tconst,
+                                                 'primaryTitle', m.primary_title)
+                               ORDER BY m.primary_title, m.tconst)
+               FROM (SELECT DISTINCT b.tconst, b.primary_title
+                     FROM actor_title_credits a
+                     JOIN actor_title_credits b ON a.tconst = b.tconst
+                     WHERE a.nconst = $2 AND b.nconst = cp.nconst) m),
+              '[]') as movies
+    FROM co_players($1) cp
+    ORDER BY cp.frequency DESC, cp.primary_name, cp.nconst
+    LIMIT $3
+    OFFSET $4`,
+    [name, nconst, limit, offset]);
+
+  
+  const { rows: countRows } = await pool.query(`
+    SELECT count(*)::int as total from co_players($1)`,
+  [name]);
+
+  return { items, total: countRows[0].total};
+  
 }
