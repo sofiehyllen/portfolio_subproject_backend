@@ -1,11 +1,13 @@
 /**
  * Route handlers for the `/api/titles` collection.
  *
- * Exposes one endpoint with two modes:
+ * Exposes one endpoint with three modes:
  * - `GET /?text=...` — paged substring search (text 1-100 characters, trimmed);
  *   results ordered by tconst. The search
  *   is logged in the user's history on the first page only (offset 0).
  *   Sorting and filtering parameters are rejected with 400 in this mode.
+ * - `GET /?keywords=a,b&match=all|any|weighted` — paged keyword search (1-10 keywords,
+ *   match defaults to weighted), ranked by the match mode. Logged and restricted like text.
  * - `GET /` — paged list of all titles. Optional `sort` (title, year, rating, votes,
  *   runtime; default title), `order` (asc, desc; default asc), `genre` and `titleType`.
  */
@@ -13,7 +15,7 @@ import { Router } from 'express';
 import * as titles from '../data/titles.js';
 import { NotFound } from '../middleware/errors.js';
 import { toActorDto, toSimilarMovieDto, toTitleDetailDto, toTitleDto, toTitleSummaryDto } from './dto.js';
-import { rejectUnknownTitleParams, validateTitleBrowse, validateTitleSearch } from '../validation.js';
+import { rejectUnknownTitleParams, validateKeywordSearch, validateTitleBrowse, validateTitleSearch } from '../validation.js';
 import { pageOf, searchLogUser } from "./pagination.js";
 import { paged } from "./pagination.js";
 
@@ -30,6 +32,16 @@ router.get('/', async (req, res, next) => {
       const text = validateTitleSearch(query);
       const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
       const { items, total } = await titles.searchText(logAs, text, page.limit, page.offset);
+      res.json(paged(req, page, total, items.map(toTitleSummaryDto)));
+      return;
+    }
+
+    // Keyword search: ?keywords=a,b&match=all|any|weighted
+    // (match alone also selects this mode, so it is reported as missing keywords)
+    if (query.keywords !== undefined || query.match !== undefined) {
+      const { keywords, match } = validateKeywordSearch(query);
+      const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
+      const { items, total } = await titles.searchKeywords(logAs, keywords, match, page.limit, page.offset);
       res.json(paged(req, page, total, items.map(toTitleSummaryDto)));
       return;
     }
