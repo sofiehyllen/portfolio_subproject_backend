@@ -17,6 +17,10 @@ const PASSWORD_MAX = 128;
 const USERNAME = /^[A-Za-z0-9_.-]{3,50}$/;
 const EMAIL    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Narrows `body` to a plain object.
+ * @throws {BadRequest} If `body` is not a plain JSON object.
+ */
 function asObject(body: unknown): Record<string, unknown> {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     throw new BadRequest('Body must be a JSON object');
@@ -24,7 +28,11 @@ function asObject(body: unknown): Record<string, unknown> {
   return body as Record<string, unknown>;
 }
 
-// A required, non-blank text field, trimmed. Problems are added to errors.
+/**
+ * Validates and trims a required string field.
+ * @param errors Accumulated error list; failures are pushed here rather than thrown.
+ * @returns The trimmed value, or an empty string when validation fails.
+ */
 function text(value: unknown, field: string, max: number | undefined, errors: string[]): string {
   if (typeof value !== 'string' || value.trim() === '') {
     errors.push(`${field} is required`);
@@ -34,16 +42,24 @@ function text(value: unknown, field: string, max: number | undefined, errors: st
   return value.trim();
 }
 
-// Lowercased, so the UNIQUE constraint also catches Foo@x.dk vs foo@x.dk.
+/**
+ * Validates, trims and lowercases an email field.
+ * Lowercased so the UNIQUE constraint also catches `Foo@x.dk` vs `foo@x.dk`.
+ * @param errors Accumulated error list; failures are pushed here rather than thrown.
+ * @returns The trimmed, lowercased value, or an empty string when validation fails.
+ */
 function email(value: unknown, errors: string[]): string {
   const result = text(value, 'email', EMAIL_MAX, errors).toLowerCase();
   if (result && !EMAIL.test(result)) errors.push('email is not a valid');
   return result;
 }
 
-// sort and order of a list the client may sort: sort must be one of the list's
-// fields (default defaultField), order asc or desc (default asc). Errors are
-// added to errors, so they are reported together with the list's other errors.
+/**
+ * Parses `sort` and `order` query parameters against `fields`.
+ * Falls back to `defaultField` / `'asc'` when not supplied.
+ * @template F The union of valid sort field names.
+ * @param errors Accumulated error list; invalid values are pushed here rather than thrown.
+ */
 export function parseSort<F extends string>(
   query: Record<string, unknown>, fields: readonly F[], defaultField: F, errors: string[],
 ): Sort<F> {
@@ -62,6 +78,7 @@ export function parseSort<F extends string>(
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 
+// The cleaned body returned by validateNewUser(); passed to the data layer to create a user.
 export interface NewUserInput {
   firstName: string;
   lastName: string;
@@ -70,32 +87,36 @@ export interface NewUserInput {
   password: string;
 }
 
-// Only the fields that were sent; at least one is always present.
+// The cleaned body returned by validateUserUpdate(); only the fields the client sent (at least one).
 export interface UserUpdateInput {
   firstName?: string;
   lastName?: string;
   email?: string;
 }
 
+// The cleaned body returned by validatePasswordUpdate(); passed to the password-change route handler.
 export interface PasswordUpdateInput {
   currentPassword: string;
   newPassword: string;
 }
 
-// Body of POST /api/users.
+/**
+ * Parses and validates the body of `POST /api/users`.
+ * @throws {BadRequest} Listing every invalid field.
+ */
 export function validateNewUser(body: unknown): NewUserInput {
   const b = asObject(body);
   const errors: string[] = [];
 
   const firstName = text(b.firstName, 'firstName', NAME_MAX, errors);
-  const lastName = text(b.lastName, 'lastName', NAME_MAX, errors);
+  const lastName  = text(b.lastName,  'lastName',  NAME_MAX, errors);
 
   const username = text(b.username, 'username', undefined, errors).toLowerCase();
   if (username && !USERNAME.test(username)) {
     errors.push('username must be 3-50 characters: letters, digits, _ . -');
   }
 
-  const mail = email(b.email, errors);
+  const mail     = email(b.email, errors);
   const password = b.password; // not trimmed: spaces are allowed in passwords
   errors.push(...validatePassword(password, { username }));
 
@@ -103,15 +124,18 @@ export function validateNewUser(body: unknown): NewUserInput {
   return { firstName, lastName, username, email: mail, password: password as string };
 }
 
-// Body of PATCH /api/users/{uconst}. Every field is optional, but a field
-// that is sent must be valid, and at least one must be sent. The username
-// cannot be changed, and the password has its own endpoint.
+/**
+ * Parses and validates the body of `PATCH /api/users/{uconst}`.
+ * Every sent field must be valid; at least one must be present.
+ * Username and password cannot be changed here.
+ * @throws {BadRequest} Listing every invalid field, or if no field was sent.
+ */
 export function validateUserUpdate(body: unknown): UserUpdateInput {
   const b = asObject(body);
   const errors: string[] = [];
 
   for (const field of Object.keys(b)) {
-    if (field === 'username') errors.push('username cannot be changed');
+    if (field === 'username')    errors.push('username cannot be changed');
     else if (field === 'password') errors.push('password is changed with PUT /api/users/{uconst}/password');
     else if (!['firstName', 'lastName', 'email'].includes(field)) errors.push(`Unknown field ${field}`);
   }
@@ -129,17 +153,21 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
   return update;
 }
 
-// Returns a list of errors rather than throwing; called by validateNewUser and
-// the password-change route, which collect errors and throw themselves.
+/**
+ * Checks password rules: length, upper/lower case, digit, special character,
+ * and optionally that it differs from the username and the current password.
+ * @param optional Pass `username` and/or `currPassword` to enforce uniqueness rules.
+ * @returns A list of error messages; empty when the password is valid. Does not throw.
+ */
 export function validatePassword(password: unknown, optional: { username?: string; currPassword?: string } = {}): string[] {
   if (typeof password !== 'string' || password === '') return ['password is required'];
 
   const errors: string[] = [];
   if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX)
     errors.push(`password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters`);
-  if (!/[a-z]/.test(password))          errors.push('password must contain a lower case letter');
-  if (!/[A-Z]/.test(password))          errors.push('password must contain an upper case letter');
-  if (!/[0-9]/.test(password))          errors.push('password must contain a number');
+  if (!/[a-z]/.test(password))           errors.push('password must contain a lower case letter');
+  if (!/[A-Z]/.test(password))           errors.push('password must contain an upper case letter');
+  if (!/[0-9]/.test(password))           errors.push('password must contain a number');
   if (!/[^A-Za-z0-9\s]/.test(password)) errors.push('password must contain a special character');
 
   if (optional.username && password.toLocaleLowerCase() === optional.username.toLocaleLowerCase())
@@ -150,7 +178,10 @@ export function validatePassword(password: unknown, optional: { username?: strin
   return errors;
 }
 
-// Body of PUT /api/users/{uconst}/password.
+/**
+ * Parses the body of `PUT /api/users/{uconst}/password`.
+ * @throws {BadRequest} If `currentPassword` or `newPassword` is missing or blank.
+ */
 export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
   const b = asObject(body);
   const { currentPassword, newPassword } = b;
@@ -172,17 +203,22 @@ const SEARCH_MAX    = 100;
 const WORDS_MAX     = 10;
 const WORD_MAX      = 50;
 
-// Query of GET /api/titles, checked once before choosing search or browse:
-// only its own parameters are accepted, so anything else (?keywords=..., a
-// typo like ?sortt=year) gives 400 instead of being silently ignored.
+/**
+ * Rejects query parameters not accepted by `GET /api/titles`.
+ * Called once before choosing between search and browse mode.
+ * @throws {BadRequest} If any unknown parameter is present.
+ */
 export function rejectUnknownTitleParams(query: Record<string, unknown>): void {
   const unknown = Object.keys(query).filter(param => !TITLES_PARAMS.includes(param));
   if (unknown.length > 0) throw new BadRequest(`unknown query parameter '${unknown.join(', ')}'`);
 }
 
-// Query of GET /api/titles without a search: sort, order, genre and titleType,
-// all optional. The default is alphabetical by title. A parameter that is sent
-// twice (?sort=a&sort=b) arrives as an array and is rejected.
+/**
+ * Parses and validates the query of `GET /api/titles` (browse mode):
+ * `sort`, `order`, `genre` and `titleType`, all optional.
+ * Defaults to alphabetical by title. A parameter sent twice is rejected.
+ * @throws {BadRequest} Listing every invalid field.
+ */
 export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse {
   const errors: string[] = [];
 
@@ -209,9 +245,11 @@ export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse
   return browse;
 }
 
-// Query of GET /api/titles?text=...: the search text, 1-100 characters after
-// trimming, sent once. Sorting and filtering apply to browsing only, not to a
-// search (one mode per request). Returns the trimmed text.
+/**
+ * Parses and validates the `text` parameter of `GET /api/titles?text=...`.
+ * @returns The trimmed search text.
+ * @throws {BadRequest} If browse parameters are mixed in, or if `text` is blank or too long.
+ */
 export function validateTitleSearch(query: Record<string, unknown>): string {
   const mixed = BROWSE_PARAMS.filter(param => query[param] !== undefined);
   if (mixed.length > 0) throw new BadRequest(`${mixed.join(', ')} cannot be combined with text`);
@@ -223,8 +261,11 @@ export function validateTitleSearch(query: Record<string, unknown>): string {
   return value.trim();
 }
 
-// The words query parameter: comma separated, 1-10 words, each 1-50 characters.
-// A parameter that is sent twice (?words=a&words=b) arrives as an array and is rejected.
+/**
+ * Parses a comma-separated `words` query parameter: 1–10 words, each 1–50 characters.
+ * A parameter sent twice (`?words=a&words=b`) arrives as an array and is rejected.
+ * @throws {BadRequest} If `words` is missing, not a string, empty, or violates the count/length limits.
+ */
 export function validateWords(value: unknown): string[] {
   if (value === undefined) throw new BadRequest('words is required');
   if (typeof value !== 'string') throw new BadRequest('words must be one comma separated list');
@@ -241,10 +282,12 @@ export function validateWords(value: unknown): string[] {
 const PERSONS_PARAMS  = ['name', 'actorsOnly', 'sort', 'order', 'limit', 'offset'];
 const PERSON_NAME_MAX = 100;
 
-// Query of GET /api/persons: name (1-100 characters after trimming), actorsOnly
-// (true or false, default false), sort (name or rating, default name) and order
-// (asc or desc, default asc), all optional. actorsOnly needs a name, since
-// actor_search only narrows a name search. Unknown parameters give 400.
+/**
+ * Parses and validates the query of `GET /api/persons`:
+ * `name` (1–100 chars), `actorsOnly` (true/false), `sort` (name/rating), `order` (asc/desc).
+ * All parameters are optional, but `actorsOnly` requires `name`.
+ * @throws {BadRequest} If any parameter is invalid or unknown.
+ */
 export function validatePersonBrowse(query: Record<string, unknown>): PersonBrowse {
   const unknown = Object.keys(query).filter(param => !PERSONS_PARAMS.includes(param)); // collect params not in the allowed list
   if (unknown.length > 0) throw new BadRequest(`unknown query parameter '${unknown.join(', ')}'`); // reject immediately — typo or wrong endpoint
