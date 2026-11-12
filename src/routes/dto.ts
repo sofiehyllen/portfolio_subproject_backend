@@ -6,7 +6,7 @@ import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/t
 import { User } from '../data/users.js';
 import { BookmarkTitle, BookmarkPerson } from '../data/bookmarks.js';
 import { UserSearchHistory } from "../data/search_history.js";
-import { PersonDetail, Person, PersonTitle } from "../data/persons.js";
+import { PersonDetail, Person, PersonTitle, CoPlayer } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -281,3 +281,28 @@ export function toOnePersonTitleDto(item: PersonTitle): onePersonTitleDto {
   };
 }
 
+interface CoPlayerMovieDto {
+  url:           string;
+  primaryTitle: string;
+}
+export interface CoPlayerDto {
+  url:          string;
+  primaryName:  string;
+  frequency:    number;
+  titles:       CoPlayerMovieDto[];
+}
+
+export function toCoPlayerDto(item: CoPlayer): CoPlayerDto {
+  const movies: CoPlayerMovieDto[] = item.movies.map(i => ({
+    url:            uri.title(i.tconst),
+    primaryTitle:  i.primaryTitle
+  }));
+
+  return {
+    url:            uri.person(item.nconst),
+    primaryName:    item.primaryName,
+    frequency:      item.frequency,
+    titles:         movies
+  };
+  
+}
