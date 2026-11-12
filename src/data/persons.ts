@@ -56,6 +56,11 @@ export interface CoPlayer {
   movies:         CoPlayerMovie[];
 }
 
+export interface PersonWord {
+  word:       string;
+  frequency:  number;
+}
+
 // Filter for GET /api/persons. Without a name every person is listed; with a
 // name the list is narrowed by name_search, or by actor_search when actorsOnly
 // is set. actorsOnly is only allowed together with a name (see validation).
@@ -232,4 +237,31 @@ export async function getCoPlayers(nconst: string, limit: number, offset: number
 
   return { items, total: countRows[0].total};
   
+}
+
+
+export async function getPersonWords(nconst: string, limit: number, offset: number): Promise<{ items: PersonWord[]; total: number}> {
+  const { rows: nameRows } = await pool.query<{primaryName: string}>(`
+    SELECT primary_name as "primaryName"
+    FROM persons
+    WHERE nconst = $1`,
+  [nconst]);
+
+  const name = nameRows[0].primaryName;
+  
+  const { rows: items } = await pool.query<PersonWord>(`
+    SELECT word, frequency::int as frequency
+    FROM person_words($1, $2)
+    ORDER BY frequency DESC, word
+    LIMIT $3
+    OFFSET $4`,
+  [name, limit + offset, limit, offset]);
+
+  const { rows: countRows } = await pool.query(`
+    SELECT count(*)::int as total
+    from person_words($1, 2147483647)`,
+  [name]);
+
+  return { items, total: countRows[0].total };
+
 }
