@@ -50,7 +50,7 @@ function text(value: unknown, field: string, max: number | undefined, errors: st
  */
 function email(value: unknown, errors: string[]): string {
   const result = text(value, 'email', EMAIL_MAX, errors).toLowerCase();
-  if (result && !EMAIL.test(result)) errors.push('email is not a valid');
+  if (result && !EMAIL.test(result)) errors.push('email is not valid');
   return result;
 }
 
@@ -197,11 +197,20 @@ export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
 // ── Titles ────────────────────────────────────────────────────────────────────
 
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
-const TITLES_PARAMS = ['text', ...BROWSE_PARAMS, 'limit', 'offset'];
+const STRUCTURED_PARAMS = ['title', 'plot', 'character', 'person'] as const;
+const TITLES_PARAMS = ['text', ...BROWSE_PARAMS, ...STRUCTURED_PARAMS, 'limit', 'offset'];
 const FILTER_MAX    = 100;
 const SEARCH_MAX    = 100;
 const WORDS_MAX     = 10;
 const WORD_MAX      = 50;
+
+// The cleaned query returned by validateStructuredSearch();
+export interface StructuredSearch {
+  title: string;
+  plot: string;
+  character: string;
+  person: string;
+}
 
 /**
  * Rejects query parameters not accepted by `GET /api/titles`.
@@ -259,6 +268,53 @@ export function validateTitleSearch(query: Record<string, unknown>): string {
     throw new BadRequest(`text must be 1-${SEARCH_MAX} characters`);
   }
   return value.trim();
+}
+
+/**
+ * Checks whether a search is a regular string search or a structured string search.
+ * @param query The raw Express `req.query` object.
+ * @returns `true` when the query contains at least one of the structured search parameters
+ * (`title`, `plot`, `character`, `person`).
+ */
+export function isStructuredSearch(query: Record<string, unknown>): boolean {
+  return STRUCTURED_PARAMS.some(param => query[param] !== undefined);
+}
+
+/**
+ * Parses and validates the structured search parameters of `GET /api/titles`:
+ * `title`, `plot`, `character` and `person`, each at most 100 characters when sent.
+ * Unsent fields default to `''`, which `structured_string_search` treats as "no filter".
+ * At least one field must have text.
+ * @returns The validated search with trimmed field values; unsent fields are `''`.
+ * @throws {BadRequest} If browse/text parameters are mixed in, any field is invalid, or all fields are blank.
+ */
+export function validateStructuredSearch(query: Record<string, unknown>): StructuredSearch {
+  const mixed = [...BROWSE_PARAMS, 'text'].filter(param => query[param] !== undefined);
+  if (mixed.length > 0) {
+    throw new BadRequest(`${mixed.join(', ')} cannot be combined with ${STRUCTURED_PARAMS.join(', ')}`);
+  }
+
+  const errors: string[] = [];
+  const search: StructuredSearch = { title: '', plot: '', character: '', person: '' };
+  for (const field of STRUCTURED_PARAMS) {
+    const value = query[field];
+    if (value === undefined) continue;
+    // Sent twice (?plot=a&plot=b) arrives as an array
+    if (typeof value !== 'string') {
+      errors.push(`${field} must be sent once`);
+    } else if (value.trim().length > SEARCH_MAX) {
+      errors.push(`${field} must be at most ${SEARCH_MAX} characters`);
+    } else {
+      search[field] = value.trim(); // blank stays '' and is ignored
+    }
+  }
+
+  if (errors.length === 0 && Object.values(search).every(value => value === '')) {
+    errors.push(`at least one of ${STRUCTURED_PARAMS.join(', ')} must have text`);
+  }
+
+  if (errors.length > 0) throw new BadRequest(errors.join('; '));
+  return search;
 }
 
 /**
