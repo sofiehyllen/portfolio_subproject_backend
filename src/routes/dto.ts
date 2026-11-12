@@ -6,7 +6,7 @@ import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/t
 import { User } from '../data/users.js';
 import { BookmarkTitle, BookmarkPerson } from '../data/bookmarks.js';
 import { UserSearchHistory } from "../data/search_history.js";
-import { PersonDetail, Person } from "../data/persons.js";
+import { PersonDetail, Person, PersonTitle } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -263,21 +263,21 @@ export function toPersonDetailDto(item: PersonDetail): PersonDetailDto {
 
 export interface onePersonTitleDto {
   urlTitle:       string;
-  urlPerson:      string,
+  urlPerson:      string;
+  primaryTitle:   string;
   category:       string;
   job:            string | null;
-  primaryTitle:   string;
-  characterName:  string | null;
+  characters:     string[];
 }
 
 export function toOnePersonTitleDto(item: PersonTitle): onePersonTitleDto {
   return {
     urlTitle:       uri.title(item.tconst),
     urlPerson:      uri.person(item.nconst),
+    primaryTitle:   item.primaryTitle,
     category:       item.category,
     job:            item.job,
-    primaryTitle:   item.primaryTitle,
-    characterName:  item.characterName
+    characters:     item.characters
   };
 }
 
