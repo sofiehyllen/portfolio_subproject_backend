@@ -3,18 +3,16 @@ import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged, searchLogUser} from '../routes/pagination.js'
 import { toPersonDto, toPersonDetailDto } from './dto.js';
-import { validatePersonBrowse } from "../validation.js";
+import { validatePersonBrowse, validateNconst } from "../validation.js";
 
 export const router = Router();
 
 // nconst is an IMDb-style string (e.g. "nm0000042"): nm followed by at least 7 digits.
-function parseNconst(value: string): string | undefined {
-  return /^nm\d{7,}$/.test(value) ? value : undefined;
-}
+
 
 // validates the :nconst route param and stores the value in res.locals
 router.param('nconst', (_req, res, next, value: string) => {
-    const nconst = parseNconst(value);
+    const nconst = validateNconst(value);
     if (nconst === undefined) {
         return next(new error.BadRequest('nconst must be a string starting with nm and have at least 7 digits'));
     }
