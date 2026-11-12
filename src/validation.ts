@@ -381,3 +381,17 @@ export function validateNconst(nconst: string): string | undefined {
   return /^nm\d{7,8}$/.test(nconst) ? nconst : undefined;
 }
 
+/**
+ * Validates a `SERIAL` key (gconst, pconst, uconst, sconst) and converts it to a number
+ * @param value - raw value to validate
+ * @returns the value as a number if it is a positive integer without a sign
+ * or leading zeros and fits a Postgres `INT`, otherwise `undefined`
+ */
+export function validateSerial(value: string): number | undefined {
+  if (!/^[1-9]\d*$/.test(value)) {
+    return undefined;
+  }
+
+  const number = Number(value);
+  return number <= 2147483647 ? number : undefined; // fits a Postgres integer
+}
