@@ -14,6 +14,9 @@
  * - `searchText(logAs, text, limit, offset)` — paged substring search via `string_search`,
  *   ordered by tconst, with the total number of matches. Logs the search under `logAs`
  *   (a user id), or skips logging if null; the route passes null after the first page.
+ * - `searchKeywords(logAs, keywords, match, limit, offset)` — paged keyword search via
+ *   `exact_match_search` (all), `best_match_querying` (any) or `weighted_search` (weighted),
+ *   ranked by the function's score, then tconst. Logs like `searchText`.
  *
  * Types: `Title` (row shape of `list`, extended by `TitleDetail` with genres and `Credit`s),
  * `TitleSummary` (tconst, primaryTitle, startYear; returned by `searchText`), `Actor`,
@@ -247,6 +250,48 @@ export async function searchText(
       ORDER BY t.tconst
       LIMIT $3 OFFSET $4`,
     [logAs, text, limit, offset]);
+  const total = rows.length > 0 ? rows[0].total : 0;
+  return { items: rows.map(({ total: _, ...title }) => title), total };
+}
+
+export const KEYWORD_MATCHES = ['all', 'any', 'weighted'] as const;
+export type KeywordMatch = typeof KEYWORD_MATCHES[number];
+
+// The database function behind each match mode, and how its rows are ranked.
+// A function's own ORDER BY is lost once its rows are joined and paged here, so
+// each rank repeats the function's ORDER BY (the final tconst is added in the query).
+// Only these strings ever reach the SQL.
+const KEYWORD_SEARCH: Record<KeywordMatch, { dbFunction: string; rank: string }> = {
+  // every keyword; the function has no rank
+  all: { dbFunction: 'exact_match_search', rank: '' },
+  // most keywords matched first
+  any: { dbFunction: 'best_match_querying', rank: 's.word_count DESC,' },
+  // most keywords matched, then highest summed weight, then most votes
+  weighted: {
+    dbFunction: 'weighted_search',
+    rank: 's.matched_keywords DESC, s.score DESC, r.num_votes DESC NULLS LAST,',
+  },
+};
+
+// A page of titles matching the keywords, and the total number of matches. The
+// keywords are matched against words from each title's title, plot, character names
+// and credited person names (word_index). Logs the search under `logAs`, or skips
+// logging if null; the function is called once per request, so it logs at most once.
+export async function searchKeywords(
+  logAs: number | null, keywords: string[], match: KeywordMatch, limit: number, offset: number,
+): Promise<{ items: TitleSummary[]; total: number }> {
+  const { dbFunction, rank } = KEYWORD_SEARCH[match];
+  const { rows } = await pool.query<TitleSummary & { total: number }>(
+    `SELECT t.tconst,
+            t.primary_title AS "primaryTitle",
+            t.start_year    AS "startYear",
+            count(*) OVER()::int AS total
+      FROM ${dbFunction}($1, VARIADIC $2::text[]) s
+      JOIN titles t ON t.tconst = s.tconst
+      LEFT JOIN ratings r ON r.tconst = t.tconst
+      ORDER BY ${rank} t.tconst
+      LIMIT $3 OFFSET $4`,
+    [logAs, keywords, limit, offset]);
   const total = rows.length > 0 ? rows[0].total : 0;
   return { items: rows.map(({ total: _, ...title }) => title), total };
 }
