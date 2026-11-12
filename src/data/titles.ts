@@ -3,7 +3,7 @@
  *
  * Query functions:
  * - `list(browse, limit, offset)` — paged slice of titles, filtered by genre and title type
- *   and sorted by the chosen field (`SORT_FIELDS`: title, year, rating, votes or runtime)
+ *   and sorted by the chosen field (`TITLE_SORT_FIELDS`: title, year, rating, votes or runtime)
  *   and direction; titles without a value for the sort field come last.
  * - `count(filter)` — number of titles matching the filter, used for the total of `list`.
  * - `get(tconst)` — one title with genres, rating and credits, or undefined if not found.
@@ -17,9 +17,10 @@
  *
  * Types: `Title` (row shape of `list`, extended by `TitleDetail` with genres and `Credit`s),
  * `TitleSummary` (tconst, primaryTitle, startYear; returned by `searchText`), `Actor`,
- * `SimilarMovie`, and `TitleFilter` / `TitleBrowse` / `SortField` / `SortOrder` for `list`.
+ * `SimilarMovie`, and `TitleFilter` / `TitleBrowse` / `TitleSortField` for `list`.
  */
 import { pool } from '../db.js';
+import { orderBy, Sort } from './sorting.js';
 
 export interface Title {
   tconst: string;
@@ -63,12 +64,11 @@ const SELECT = `
   FROM titles t
   LEFT JOIN ratings r ON r.tconst = t.tconst`;
 
-export const SORT_FIELDS = ['title', 'year', 'rating', 'votes', 'runtime'] as const;
-export type SortField = typeof SORT_FIELDS[number];
-export type SortOrder = 'asc' | 'desc';
+export const TITLE_SORT_FIELDS = ['title', 'year', 'rating', 'votes', 'runtime'] as const;
+export type TitleSortField = typeof TITLE_SORT_FIELDS[number];
 
 // The column behind each sort field. Only these strings ever reach ORDER BY.
-const SORT_COLUMN: Record<SortField, string> = {
+const TITLE_SORT_COLUMN: Record<TitleSortField, string> = {
   title: 't.primary_title',
   year: 't.start_year',
   rating: 'r.average_rating',
@@ -81,10 +81,8 @@ export interface TitleFilter {
   titleType?: string;
 }
 
-export interface TitleBrowse extends TitleFilter {
-  sort: SortField;
-  order: SortOrder;
-}
+// GET /api/titles without a search: the filter and the chosen sort.
+export interface TitleBrowse extends TitleFilter, Sort<TitleSortField> {}
 
 // The WHERE clause for a filter, numbering its parameters after the ones already used.
 function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params: string[] } {
@@ -107,10 +105,9 @@ function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params
 // sort field come last in both directions; tconst settles ties, so paging stays stable.
 export async function list(browse: TitleBrowse, limit: number, offset: number): Promise<Title[]> {
   const where = whereOf(browse, 3);
-  const direction = browse.order === 'desc' ? 'DESC' : 'ASC';
   const { rows } = await pool.query<Title>(
     `${SELECT} ${where.sql}
-     ORDER BY ${SORT_COLUMN[browse.sort]} ${direction} NULLS LAST, t.tconst
+     ${orderBy(TITLE_SORT_COLUMN[browse.sort], browse.order, 't.tconst')}
      LIMIT $1 OFFSET $2`,
     [limit, offset, ...where.params]);
   return rows;
