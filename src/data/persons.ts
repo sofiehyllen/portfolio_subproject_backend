@@ -44,16 +44,10 @@ export interface PersonTitle {
   characters:   string[];
 }
 
-export interface CoPlayerMovie {
-  tconst:         string;
-  primaryTitle:   string;
-}
-
 export interface CoPlayer {
   nconst:         string;
   primaryName:    string;
   frequency:      number;
-  movies:         CoPlayerMovie[];
 }
 
 export interface PersonWord {
@@ -176,7 +170,7 @@ export async function checkPersonExists(nconst: string): Promise<boolean> {
   
 }
 
-export async function getOnePersonTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
+export async function getPersonTitle(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
   const { rows: items} = await pool.query<PersonTitle>(`
     SELECT  t.tconst,
             tp.nconst,
@@ -212,23 +206,14 @@ export async function getCoPlayers(nconst: string, limit: number, offset: number
   const name = nameRows[0].primaryName;
 
   const { rows: items } = await pool.query<CoPlayer>(`
-    SELECT  cp.nconst,
-            cp.primary_name as "primaryName",
-            cp.frequency::int as frequency,
-            COALESCE(
-              (SELECT json_agg(json_build_object('tconst', m.tconst,
-                                                 'primaryTitle', m.primary_title)
-                               ORDER BY m.primary_title, m.tconst)
-               FROM (SELECT DISTINCT b.tconst, b.primary_title
-                     FROM actor_title_credits a
-                     JOIN actor_title_credits b ON a.tconst = b.tconst
-                     WHERE a.nconst = $2 AND b.nconst = cp.nconst) m),
-              '[]') as movies
-    FROM co_players($1) cp
-    ORDER BY cp.frequency DESC, cp.primary_name, cp.nconst
-    LIMIT $3
-    OFFSET $4`,
-    [name, nconst, limit, offset]);
+    SELECT  nconst,
+            primary_name as "primaryName",
+            frequency::int as frequency,
+    FROM co_players($1) 
+    ORDER BY frequency DESC, primary_name, nconst
+    LIMIT $2
+    OFFSET $3`,
+    [name, limit, offset]);
 
   
   const { rows: countRows } = await pool.query(`
