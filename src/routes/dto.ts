@@ -261,7 +261,7 @@ export function toPersonDetailDto(item: PersonDetail): PersonDetailDto {
 }
 
 
-export interface onePersonTitleDto {
+export interface PersonTitleDto {
   urlTitle:       string;
   urlPerson:      string;
   primaryTitle:   string;
@@ -270,7 +270,7 @@ export interface onePersonTitleDto {
   characters:     string[];
 }
 
-export function toOnePersonTitleDto(item: PersonTitle): onePersonTitleDto {
+export function toPersonTitleDto(item: PersonTitle): PersonTitleDto {
   return {
     urlTitle:       uri.title(item.tconst),
     urlPerson:      uri.person(item.nconst),
