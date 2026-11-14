@@ -262,8 +262,8 @@ export function toPersonDetailDto(item: PersonDetail): PersonDetailDto {
 
 
 export interface PersonTitleDto {
-  urlTitle:       string;
-  urlPerson:      string;
+  url:            string;
+  person:         string;
   primaryTitle:   string;
   category:       string;
   job:            string | null;
@@ -272,8 +272,8 @@ export interface PersonTitleDto {
 
 export function toPersonTitleDto(item: PersonTitle): PersonTitleDto {
   return {
-    urlTitle:       uri.title(item.tconst),
-    urlPerson:      uri.person(item.nconst),
+    url:            uri.title(item.tconst),
+    person:         uri.person(item.nconst),
     primaryTitle:   item.primaryTitle,
     category:       item.category,
     job:            item.job,
