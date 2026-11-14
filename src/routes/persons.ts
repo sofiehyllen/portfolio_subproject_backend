@@ -69,7 +69,6 @@ router.get('/:nconst/titles', async (req, res, next) => {
 
         res.json(paged(req, page, total, items.map(toPersonTitleDto)));
     } catch (error) {
-        console.error(error)
         next(error);  
     }
 });
