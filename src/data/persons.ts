@@ -224,6 +224,7 @@ export async function getCoPlayers(nconst: string, limit: number, offset: number
   
 }
 
+const PERSON_WORDS_LEN = 10;
 
 export async function getPersonWords(nconst: string, limit: number, offset: number): Promise<{ items: PersonWord[]; total: number}> {
   const { rows: nameRows } = await pool.query<{primaryName: string}>(`
@@ -240,12 +241,12 @@ export async function getPersonWords(nconst: string, limit: number, offset: numb
     ORDER BY frequency DESC, word
     LIMIT $3
     OFFSET $4`,
-  [name, limit + offset, limit, offset]);
+  [name, PERSON_WORDS_LEN, limit, offset]);
 
   const { rows: countRows } = await pool.query(`
     SELECT count(*)::int as total
-    from person_words($1, 2147483647)`,
-  [name]);
+    from person_words($1, $2)`,
+  [name, PERSON_WORDS_LEN]);
 
   return { items, total: countRows[0].total };
 
