@@ -261,19 +261,19 @@ export function toPersonDetailDto(item: PersonDetail): PersonDetailDto {
 }
 
 
-export interface onePersonTitleDto {
-  urlTitle:       string;
-  urlPerson:      string;
+export interface PersonTitleDto {
+  url:            string;
+  person:         string;
   primaryTitle:   string;
   category:       string;
   job:            string | null;
   characters:     string[];
 }
 
-export function toOnePersonTitleDto(item: PersonTitle): onePersonTitleDto {
+export function toPersonTitleDto(item: PersonTitle): PersonTitleDto {
   return {
-    urlTitle:       uri.title(item.tconst),
-    urlPerson:      uri.person(item.nconst),
+    url:            uri.title(item.tconst),
+    person:         uri.person(item.nconst),
     primaryTitle:   item.primaryTitle,
     category:       item.category,
     job:            item.job,

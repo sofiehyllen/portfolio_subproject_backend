@@ -171,7 +171,7 @@ export async function checkPersonExists(nconst: string): Promise<boolean> {
   
 }
 
-export async function getOnePersonTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
+export async function getPersonTitle(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
   const { rows: items} = await pool.query<PersonTitle>(`
     SELECT  t.tconst,
             tp.nconst,
