@@ -281,28 +281,18 @@ export function toPersonTitleDto(item: PersonTitle): PersonTitleDto {
   };
 }
 
-interface CoPlayerMovieDto {
-  url:           string;
-  primaryTitle: string;
-}
+
 export interface CoPlayerDto {
   url:          string;
   primaryName:  string;
   frequency:    number;
-  titles:       CoPlayerMovieDto[];
 }
 
 export function toCoPlayerDto(item: CoPlayer): CoPlayerDto {
-  const movies: CoPlayerMovieDto[] = item.movies.map(i => ({
-    url:            uri.title(i.tconst),
-    primaryTitle:  i.primaryTitle
-  }));
-
   return {
     url:            uri.person(item.nconst),
     primaryName:    item.primaryName,
     frequency:      item.frequency,
-    titles:         movies
   };
   
 }
