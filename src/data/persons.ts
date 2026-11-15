@@ -87,8 +87,14 @@ function personSource(filter: PersonFilter): { from: string; params: string[] } 
 // A page of persons sorted by the chosen field and direction, plus the total number of matches.
 // name_search and actor_search do not log, so both queries can call them independently.
 //TODO: implement logging
-export async function getPersons(browse: PersonBrowse, limit: number, offset: number): 
+export async function getPersons(logAs: number | null, browse: PersonBrowse, limit: number, offset: number): 
 Promise<{ items: Person[]; total: number }> {
+  // Only a name search is logged; browsing all persons is not a search
+  // TODO: should we move this to the db functions like the other search functions?
+  if (logAs !== null && browse.name !== undefined) {
+    await pool.query('SELECT log_search($1, $2)', [logAs, browse.name]);
+  }
+
   const { from, params } = personSource(browse);
   const n = params.length; // limit and offset come after the filter parameters
 

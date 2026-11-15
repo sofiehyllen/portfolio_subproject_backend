@@ -15,7 +15,7 @@ import { Router } from 'express';
 import * as titles from '../data/titles.js';
 import { NotFound } from '../middleware/errors.js';
 import { toActorDto, toSimilarMovieDto, toTitleDetailDto, toTitleDto, toTitleSummaryDto } from './dto.js';
-import { rejectUnknownTitleParams, validateKeywordSearch, validateTitleBrowse, validateTitleSearch } from '../validation.js';
+import { isStructuredSearch, rejectUnknownTitleParams, validateStructuredSearch, validateKeywordSearch, validateTitleBrowse, validateTitleSearch } from '../validation.js';
 import { pageOf, searchLogUser } from "./pagination.js";
 import { paged } from "./pagination.js";
 
@@ -42,6 +42,14 @@ router.get('/', async (req, res, next) => {
       const { keywords, match } = validateKeywordSearch(query);
       const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
       const { items, total } = await titles.searchKeywords(logAs, keywords, match, page.limit, page.offset);
+      res.json(paged(req, page, total, items.map(toTitleSummaryDto)));
+      return;
+    }
+    // Structured search: ?title=...&plot=...&character=...&person=...
+    if (isStructuredSearch(query)) {
+      const search = validateStructuredSearch(query);
+      const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
+      const { items, total } = await titles.searchStructured(logAs, search, page.limit, page.offset);
       res.json(paged(req, page, total, items.map(toTitleSummaryDto)));
       return;
     }

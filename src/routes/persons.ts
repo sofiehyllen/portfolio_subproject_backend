@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
-import { pageOf, paged} from '../routes/pagination.js'
+import { pageOf, paged, searchLogUser} from '../routes/pagination.js'
 import { toPersonDto, toPersonDetailDto } from './dto.js';
 import { validatePersonBrowse } from "../validation.js";
 
@@ -29,7 +29,9 @@ router.get('/', async (req, res, next) => {
   try {
     const browse = validatePersonBrowse(req.query);
     const page = pageOf(req.query);
-    const { items, total } = await persons.getPersons(browse, page.limit, page.offset);
+
+    const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
+    const { items, total } = await persons.getPersons(logAs, browse, page.limit, page.offset);
 
     res.json(paged(req, page, total, items.map(toPersonDto)));
   } catch (error) {

@@ -17,12 +17,16 @@
  * - `searchKeywords(logAs, keywords, match, limit, offset)` — paged keyword search via
  *   `exact_match_search` (all), `best_match_querying` (any) or `weighted_search` (weighted),
  *   ranked by the function's score, then tconst. Logs like `searchText`.
+ * - `searchStructured(logAs, search, limit, offset)` — paged search via `structured_string_search`
+ *   across title, plot, character and person fields; empty fields are ignored. Same logging
+ *   behaviour as `searchText`.
  *
  * Types: `Title` (row shape of `list`, extended by `TitleDetail` with genres and `Credit`s),
  * `TitleSummary` (tconst, primaryTitle, startYear; returned by `searchText`), `Actor`,
  * `SimilarMovie`, and `TitleFilter` / `TitleBrowse` / `TitleSortField` for `list`.
  */
 import { pool } from '../db.js';
+import type { StructuredSearch } from "../validation.js";
 import { orderBy, Sort } from './sorting.js';
 
 export interface Title {
@@ -282,7 +286,7 @@ export async function searchKeywords(
 ): Promise<{ items: TitleSummary[]; total: number }> {
   const { dbFunction, rank } = KEYWORD_SEARCH[match];
   const { rows } = await pool.query<TitleSummary & { total: number }>(
-    `SELECT t.tconst,
+     `SELECT t.tconst,
             t.primary_title AS "primaryTitle",
             t.start_year    AS "startYear",
             count(*) OVER()::int AS total
@@ -292,6 +296,25 @@ export async function searchKeywords(
       ORDER BY ${rank} t.tconst
       LIMIT $3 OFFSET $4`,
     [logAs, keywords, limit, offset]);
+  const total = rows.length > 0 ? rows[0].total : 0;
+  return { items: rows.map(({ total: _, ...title }) => title), total };
+}
+
+// A page of titles matching a structured search across title, plot, character and person fields,
+// plus the total number of matches. Empty fields are ignored by structured_string_search.
+export async function searchStructured(
+  logAs: number | null, search: StructuredSearch, limit: number, offset: number,
+): Promise<{ items: TitleSummary[]; total: number }> {
+  const { rows } = await pool.query<TitleSummary & { total: number }>(
+    `SELECT t.tconst,
+            t.primary_title AS "primaryTitle",
+            t.start_year    AS "startYear",
+            count(*) OVER()::int AS total
+      FROM structured_string_search($1, $2, $3, $4, $5) s
+      JOIN titles t ON t.tconst = s.tconst
+      ORDER BY t.tconst
+      LIMIT $6 OFFSET $7`,
+    [logAs, search.title, search.plot, search.character, search.person, limit, offset]);
   const total = rows.length > 0 ? rows[0].total : 0;
   return { items: rows.map(({ total: _, ...title }) => title), total };
 }
