@@ -487,5 +487,18 @@ describe('GET /api/persons (paged listing)', () => {
     expect(res.body.links.next).toBe("/api/persons?limit=10&offset=510");
   });
 
+  it('returns empty list but correct total past last page', async () => {
+    const first = await request(app).get('/api/persons?limit=1');
+    const total = first.body.total;
+
+    const res = await request(app).get(`/api/persons?offset=${total}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 536498, offset: total, limit: 20 });
+    expect(res.body.items.length).toBeLessThanOrEqual(0);
+    expect(res.body.links.prev).toBe(`/api/persons?offset=${total - 20}&limit=20`);
+    expect(res.body.links.next).toBeNull();
+
+  }, 30000);
 
 });
