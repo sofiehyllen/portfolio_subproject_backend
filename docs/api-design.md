@@ -78,6 +78,11 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 | Method and path | Does what | Success | Failure |
 |---|---|---|---|
 | `GET /api/titles` | Paged list of titles, either browsed (sorted and filtered by genre and title type) or narrowed by one search mode | 200 | 400 invalid search, sort or filter parameter, unknown query parameter, or modes mixed; 401 invalid token |
+| `GET /api/titles?text=…` | Substring search (`string_search`): title, original title or plot contains the text, ordered by id | 200 | 400 invalid `text` or mixed with another mode; 401 invalid token |
+| `GET /api/titles?keywords=…&match=all` | Titles matching every keyword (`exact_match_search`), ordered by id | 200 | 400 invalid `keywords` or `match`, or mixed with another mode; 401 invalid token |
+| `GET /api/titles?keywords=…&match=any` | Titles matching at least one keyword (`best_match_querying`), most keywords matched first | 200 | 400 invalid `keywords` or `match`, or mixed with another mode; 401 invalid token |
+| `GET /api/titles?keywords=…&match=weighted` | Titles ranked by relevance (`weighted_search`), most relevant first. The default when `match` is left out | 200 | 400 invalid `keywords` or `match`, or mixed with another mode; 401 invalid token |
+| `GET /api/titles?title=…&plot=…&character=…&person=…` | Titles where every given field matches (`structured_string_search`) | 200 | 400 no field given, a field invalid, or mixed with another mode; 401 invalid token |
 | `GET /api/titles/{tconst}` | One title with genres, rating and credits | 200 | 404 unknown title |
 | `GET /api/titles/{tconst}/actors` | Paged actors of the title, highest name rating first | 200 | 404 unknown title |
 | `GET /api/titles/{tconst}/similar` | Paged movies sharing genres with the title. A title that is not a movie or tvMovie gives an empty list | 200 | 404 unknown title |
@@ -148,7 +153,7 @@ GET /api/titles?text=love&sortt=year
 400 Bad Request
 Content-Type: application/json
 
-{ "status": 400, "error": "Bad Request", "message": "unknown query parameter sortt" }
+{ "status": 400, "error": "Bad Request", "message": "unknown query parameter 'sortt'" }
 ```
 
 **Filtering persons.** `GET /api/persons` accepts `name` (substring, case-insensitive, 1-100 characters) and `actorsOnly=true`.
