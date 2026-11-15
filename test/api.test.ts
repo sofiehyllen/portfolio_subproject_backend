@@ -438,3 +438,16 @@ describe('GET /api/related-words', () => {
     expect(res.status).toBe(400);
   });
 });
+
+
+// PERSONS.TS API TESTS 
+describe('GET /api/persons (paged listing)', () => {
+  it('returns 200 with a paged response', async () => {
+    const res = await request(app).get('/api/persons');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ limit: 20, offset: 0 });
+    expect(res.body.items.length).toBeLessThanOrEqual(20);
+    expect(res.body.links.prev).toBeNull();
+  });
+});
