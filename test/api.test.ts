@@ -450,4 +450,29 @@ describe('GET /api/persons (paged listing)', () => {
     expect(res.body.items.length).toBeLessThanOrEqual(20);
     expect(res.body.links.prev).toBeNull();
   });
+
+    it('returns items in the person DTO shape', async () => {
+    const res = await request(app).get('/api/persons');
+    expect(res.body.items).toHaveLength(20);
+    
+    res.body.items.forEach((element: any) => {
+      expect(element).toHaveProperty('url');
+      expect(typeof element.url).toBe('string');
+
+      expect(element).toHaveProperty('primaryName');
+      expect(typeof element.primaryName).toBe('string');
+
+      expect(element).toHaveProperty('birthYear');
+      expect(element.birthYear === null || typeof element.birthYear === 'number');
+
+      expect(element).toHaveProperty('deathYear');
+      expect(element.deathYear === null || typeof element.deathYear === 'number');
+
+      expect(element).toHaveProperty('avgNameRating');
+      expect(element.avgNameRating === null || typeof element.avgNameRating === 'number');
+
+      expect(element).toHaveProperty('professions');
+      expect(Array.isArray(element.professions)).toBe(true);
+    });
+  });
 });
