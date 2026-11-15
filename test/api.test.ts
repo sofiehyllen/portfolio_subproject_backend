@@ -451,28 +451,41 @@ describe('GET /api/persons (paged listing)', () => {
     expect(res.body.links.prev).toBeNull();
   });
 
-    it('returns items in the person DTO shape', async () => {
+  it('returns items in the person DTO shape', async () => {
     const res = await request(app).get('/api/persons');
     expect(res.body.items).toHaveLength(20);
     
-    res.body.items.forEach((element: any) => {
-      expect(element).toHaveProperty('url');
-      expect(typeof element.url).toBe('string');
+    res.body.items
+      .forEach((element: any) => {
+        expect(element).toHaveProperty('url');
+        expect(typeof element.url).toBe('string');
 
-      expect(element).toHaveProperty('primaryName');
-      expect(typeof element.primaryName).toBe('string');
+        expect(element).toHaveProperty('primaryName');
+        expect(typeof element.primaryName).toBe('string');
 
-      expect(element).toHaveProperty('birthYear');
-      expect(element.birthYear === null || typeof element.birthYear === 'number');
+        expect(element).toHaveProperty('birthYear');
+        expect(element.birthYear === null || typeof element.birthYear === 'number');
 
-      expect(element).toHaveProperty('deathYear');
-      expect(element.deathYear === null || typeof element.deathYear === 'number');
+        expect(element).toHaveProperty('deathYear');
+        expect(element.deathYear === null || typeof element.deathYear === 'number');
 
-      expect(element).toHaveProperty('avgNameRating');
-      expect(element.avgNameRating === null || typeof element.avgNameRating === 'number');
+        expect(element).toHaveProperty('avgNameRating');
+        expect(element.avgNameRating === null || typeof element.avgNameRating === 'number');
 
-      expect(element).toHaveProperty('professions');
-      expect(Array.isArray(element.professions)).toBe(true);
-    });
+        expect(element).toHaveProperty('professions');
+        expect(Array.isArray(element.professions)).toBe(true);
+      });
   });
+
+  it('respects limits and offsets', async () => {
+    const res = await request(app).get('/api/persons?limit=10&offset=500');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ limit: 10, offset: 500 });
+    expect(res.body.items.length).toBeLessThanOrEqual(20);
+    expect(res.body.links.prev).toBe("/api/persons?limit=10&offset=490");
+    expect(res.body.links.next).toBe("/api/persons?limit=10&offset=510");
+  });
+
+
 });
