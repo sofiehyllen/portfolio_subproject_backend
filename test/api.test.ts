@@ -498,7 +498,13 @@ describe('GET /api/persons (paged listing)', () => {
     expect(res.body.items.length).toBeLessThanOrEqual(0);
     expect(res.body.links.prev).toBe(`/api/persons?offset=${total - 20}&limit=20`);
     expect(res.body.links.next).toBeNull();
-
   }, 30000);
 
+  it('caps limit over 20', async () => {
+    const res = await request(app).get('/api/persons?limit=1000000');
+  
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({limit: 20 });
+
+  });
 });
