@@ -8,6 +8,9 @@
  * - `PersonFilter` — optional name search and actorsOnly flag for `getPersons`.
  * - `PersonBrowse` — extends `PersonFilter` with sort field and direction.
  * - `PERSON_SORT_FIELDS` / `PersonSortField` — the allowed sort fields: name, rating.
+ * - `getPersons(logAs, browse, limit, offset)` — paged slice of persons matching the filter,
+ *   sorted by the chosen field and direction, plus the total number of matches. A name
+ *   search is logged by name_search/actor_search under `logAs`, or not at all if null.
  * - `getPersons(browse, limit, offset)` — paged slice of persons matching the filter,
  *   sorted by the chosen field and direction, plus the total number of matches.
  * - `getPersonDetail(nconst)` — one person with roles and known-for titles,
@@ -72,44 +75,40 @@ const PERSON_COLUMNS = `
 // The FROM clause shared by the page query and the count query, so total always
 // matches the filter. With a name, name_search or actor_search (when actorsOnly
 // is set) decides which persons match; without a name every person is included.
-function personSource(filter: PersonFilter): { from: string; params: string[] } {
+// The search function logs the search under logAs, or skips logging if null.
+function personSource(filter: PersonFilter, logAs: number | null): { from: string; params: (string | number | null)[] } {
   if (filter.name === undefined) {
     return { from: 'persons p', params: [] };
   }
   const search = filter.actorsOnly ? 'actor_search' : 'name_search';
   return {
-    from: `${search}($1) s JOIN persons p ON p.nconst = s.nconst`,
-    params: [filter.name],
+    from: `${search}($1, $2) s JOIN persons p ON p.nconst = s.nconst`,
+    params: [logAs, filter.name],
   };
 }
 
 
 // A page of persons sorted by the chosen field and direction, plus the total number of matches.
-// name_search and actor_search do not log, so both queries can call them independently.
-//TODO: implement logging
+// Both queries call the search function, and each call logs. Only the page query passes
+// logAs; the count query passes null, so a search is logged at most once per request.
 export async function getPersons(logAs: number | null, browse: PersonBrowse, limit: number, offset: number): 
 Promise<{ items: Person[]; total: number }> {
-  // Only a name search is logged; browsing all persons is not a search
-  // TODO: should we move this to the db functions like the other search functions?
-  if (logAs !== null && browse.name !== undefined) {
-    await pool.query('SELECT log_search($1, $2)', [logAs, browse.name]);
-  }
-
-  const { from, params } = personSource(browse);
-  const n = params.length; // limit and offset come after the filter parameters
-
+  const pageSource  = personSource(browse, logAs);
+  const countSource = personSource(browse, null);
+  const n = pageSource.params.length; // limit and offset come after the filter parameters
+ 
   // The two queries are independent, so they run in parallel.
   const [page, count] = await Promise.all([
     pool.query<Person>(
       `SELECT ${PERSON_COLUMNS}
-        FROM ${from}
+        FROM ${pageSource.from}
         ${orderBy(PERSON_SORT_COLUMN[browse.sort], browse.order, 'p.primary_name, p.nconst')}
         LIMIT $${n + 1} OFFSET $${n + 2}`, //the parameter number is adjusted with n
-      [...params, limit, offset]),
+      [...pageSource.params, limit, offset]),
     pool.query<{ total: number }>(
       `SELECT count(*)::int AS total
-        FROM ${from}`,
-      params),
+        FROM ${countSource.from}`,
+      countSource.params),
   ]);
 
   return { items: page.rows, total: count.rows[0].total };
