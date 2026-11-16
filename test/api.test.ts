@@ -563,3 +563,27 @@ describe('GET /api/persons/{nconst}/titles', () => {
       "message": "nconst must be a string starting with nm and have at least 7 digits"});
   });
 });
+
+describe('GET /:nconst/co-players', () => {
+  it('returns only matching co-players for a valid search', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/co-players?limit=1');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      "total": 51,
+      "limit": 1,
+      "offset": 0,
+      "items": [
+        {
+          "url": "/api/persons/nm0101710",
+          "primaryName": "Billy Boyd",
+          "frequency": 2
+        }
+      ],
+      "links": {
+        "prev": null,
+        "next": "/api/persons/nm0000949/co-players?limit=1&offset=1"
+      }});
+  }, 30000);
+
+});
