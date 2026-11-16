@@ -607,3 +607,24 @@ describe('GET /:nconst/co-players', () => {
       "message":"nconst must be a string starting with nm and have at least 7 digits"});
   });
 });
+
+describe('GET /api/persons/{nconst}/words', () => {
+  it('returns a page of associated words, most frequent first', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/words?limit=5');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ limit: 5, offset: 0 });
+    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(res.body.items.length).toBeLessThanOrEqual(5);
+    expect(res.body.links.prev).toBeNull();
+
+    for (const item of res.body.items) {
+      expect(Object.keys(item).sort()).toEqual(['frequency', 'word']);
+    }
+
+    const frequencies = res.body.items.map((item: { frequency: number }) => item.frequency);
+    expect(frequencies).toEqual([...frequencies].sort((a, b) => b - a));
+  });
+
+
+});
