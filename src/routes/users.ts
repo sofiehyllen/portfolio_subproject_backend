@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import * as bookmark from '../data/bookmarks.js';
-import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate, validateNconst, validateSerial, validateTconst  } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
@@ -11,12 +11,6 @@ import { pageOf, paged } from './pagination.js';
 
 export const router = Router();
 
-// uconst is a SERIAL column, so only positive integers can identify a user.
-function parseUconst(value: string): number | undefined {
-  if (!/^[1-9]\d*$/.test(value)) return undefined;
-  const id = Number(value);
-  return id <= 2147483647 ? id : undefined; // fits a Postgres integer
-}
 
 // Runs before every route in this router whose path contains :uconst, so
 // the checks are written once. An invalid uconst gets a 400, an unknown
@@ -24,11 +18,13 @@ function parseUconst(value: string): number | undefined {
 // res.locals.uconst and the user in res.locals.user.
 router.param('uconst', async (_req, res, next, value: string) => {
   try {
-    const uconst = parseUconst(value);
+    const uconst = validateSerial(value);
     if (uconst === undefined) { throw new BadRequest('uconst must be a positive integer'); }
 
     const user = await users.getUser(uconst);
-      if (!user) throw new NotFound('User not found');
+    if (!user) {
+      return next(new NotFound('User not found'));
+    }
 
     res.locals.uconst = uconst;
     res.locals.user = user;
@@ -39,14 +35,33 @@ router.param('uconst', async (_req, res, next, value: string) => {
 });
 
 router.param('sconst', (_req, res, next, value: string) => {
-  const sconst = parseUconst(value);
+  const sconst = validateSerial(value);
   if (sconst === undefined){
-    throw new BadRequest('sconst must be a positive integer');
+    return next( new BadRequest('sconst must be a positive integer'));
   }
   res.locals.sconst = sconst;
   next();
 });
 
+router.param('tconst', (_req, res, next, value: string) => {
+  const tconst = validateTconst(value);
+
+  if (tconst === undefined) {
+    return next( new BadRequest('tconst must start with tt followed by 7-8 digits'));
+  }
+  res.locals.tconst = tconst;
+  next();
+});
+
+router.param('nconst', (_req, res, next, value: string) => {
+  const nconst = validateNconst(value);
+
+  if (nconst === undefined) {
+    return next( new BadRequest('nconst must start with nm followed by 7-8 digits'));
+  }
+  res.locals.nconst = nconst;
+  next();
+});
 
 // ── User profile ─────────────────────────────────────────────────────────────
 
@@ -168,7 +183,7 @@ router.get('/:uconst/ratings', async (req, res, next) => {
 router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const rating = await ratings.getRating(uconst, req.params.tconst);
+    const rating = await ratings.getRating(uconst, res.locals.tconst);
     if (!rating) throw new NotFound('Rating not found');
 
     res.json(toUserRatingDto(rating));
@@ -181,7 +196,7 @@ router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
 router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const tconst = req.params.tconst;
+    const tconst = res.locals.tconst;
     const rating = req.body?.rating;
 
     // Check the input before asking the database
@@ -204,7 +219,7 @@ router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
 router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const tconst = req.params.tconst;
+    const tconst = res.locals.tconst;
 
     const deleted = await ratings.deleteRating(uconst, tconst);   // true if a rating was removed
     if (!deleted) throw new NotFound('Rating not found');
@@ -238,7 +253,7 @@ router.get('/:uconst/bookmarks/titles', async (req, res, next) => {
 router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const tconst = req.params.tconst;
+    const tconst = res.locals.tconst;
     const added = await bookmark.addTitleBookmark(uconst, tconst);
     if (!added) throw new NotFound('Title not found');
 
@@ -253,7 +268,7 @@ router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
 router.delete('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const tconst = req.params.tconst;
+    const tconst = res.locals.tconst;
     const deleted = await bookmark.removeTitleBookmark(uconst, tconst);
     if (!deleted) {
       throw new NotFound('Bookmarked title not found');
@@ -287,7 +302,7 @@ router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
 router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const nconst = req.params.nconst;
+    const nconst = res.locals.nconst;
     const added = await bookmark.addPersonBookmark(uconst, nconst);
     if (!added) throw new NotFound('Person not found');
     
@@ -302,7 +317,7 @@ router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
 router.delete('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const nconst = req.params.nconst;
+    const nconst = res.locals.nconst;
     const deleted = await bookmark.removePersonBookmark(uconst, nconst);
     if (!deleted) {
       throw new NotFound('Bookmarked person not found');

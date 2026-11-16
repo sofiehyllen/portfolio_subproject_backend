@@ -13,13 +13,24 @@
  */
 import { Router } from 'express';
 import * as titles from '../data/titles.js';
-import { NotFound } from '../middleware/errors.js';
+import { NotFound, BadRequest } from '../middleware/errors.js';
 import { toActorDto, toSimilarMovieDto, toTitleDetailDto, toTitleDto, toTitleSummaryDto } from './dto.js';
-import { isStructuredSearch, rejectUnknownTitleParams, validateStructuredSearch, validateKeywordSearch, validateTitleBrowse, validateTitleSearch } from '../validation.js';
+import { isStructuredSearch, rejectUnknownTitleParams, validateStructuredSearch, validateTitleBrowse, validateTitleSearch, validateTconst, validateTitleSearch } from '../validation.js';
 import { pageOf, searchLogUser } from "./pagination.js";
 import { paged } from "./pagination.js";
 
 export const router = Router();
+
+router.param('tconst', (_req, res, next, value: string) => {
+  const tconst = validateTconst(value);
+
+  if (tconst === undefined) {
+    return next( new BadRequest('tconst must start with tt followed by 7-8 digits'));
+  }
+  res.locals.tconst = tconst;
+  next();
+});
+
 
 router.get('/', async (req, res, next) => {
   try {
@@ -67,7 +78,7 @@ router.get('/', async (req, res, next) => {
 // GET /api/titles/{tconst}: one title with genres, rating and credits.
 router.get('/:tconst', async (req, res, next) => {
   try {
-    const title = await titles.get(req.params.tconst);
+    const title = await titles.get(res.locals.tconst);
     if (!title) throw new NotFound('Title not found');
 
     res.json(toTitleDetailDto(title));
@@ -80,7 +91,7 @@ router.get('/:tconst', async (req, res, next) => {
 router.get('/:tconst/actors', async (req, res, next) => {
   try {
     const page = pageOf(req.query as Record<string, unknown>);
-    const result = await titles.actors(req.params.tconst, page.limit, page.offset);
+    const result = await titles.actors(res.locals.tconst, page.limit, page.offset);
     if (!result) throw new NotFound('Title not found');
 
     res.json(paged(req, page, result.total, result.items.map(toActorDto)));
@@ -93,7 +104,7 @@ router.get('/:tconst/actors', async (req, res, next) => {
 router.get('/:tconst/similar', async (req, res, next) => {
   try {
     const page = pageOf(req.query as Record<string, unknown>);
-    const result = await titles.similar(req.params.tconst, page.limit, page.offset);
+    const result = await titles.similar(res.locals.tconst, page.limit, page.offset);
     if (!result) throw new NotFound('Title not found');
 
     res.json(paged(req, page, result.total, result.items.map(toSimilarMovieDto)));
