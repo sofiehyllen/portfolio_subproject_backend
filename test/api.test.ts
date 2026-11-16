@@ -626,5 +626,16 @@ describe('GET /api/persons/{nconst}/words', () => {
     expect(frequencies).toEqual([...frequencies].sort((a, b) => b - a));
   });
 
+  it('matches the words and frequencies from person_words', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/words');
+    const { rows } = await pool.query<{ word: string; frequency: number }>(
+      `SELECT word, frequency::int AS frequency FROM person_words('Cate Blanchett', 10)`
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(rows.length);
+    expect(res.body.items).toEqual(rows);
+  });
+
 
 });
