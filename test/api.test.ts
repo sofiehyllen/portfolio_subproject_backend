@@ -1,4 +1,5 @@
 // Tests of the API over HTTP.
+// Sorted by route file: persons.ts, titles.ts, users.ts, words.ts
 
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import request from 'supertest';
@@ -6,6 +7,243 @@ import { app } from '../src/app.js';
 import { pool } from '../src/db.js';
 
 afterAll(() => pool.end());
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PERSONS.TS
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('GET /api/persons (paged listing)', () => {
+  it('returns 200 with a paged response', async () => {
+    const res = await request(app).get('/api/persons');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ limit: 20, offset: 0 });
+    expect(res.body.items.length).toBeLessThanOrEqual(20);
+    expect(res.body.links.prev).toBeNull();
+  });
+
+  it('returns items in the person DTO shape', async () => {
+    const res = await request(app).get('/api/persons');
+    expect(res.body.items).toHaveLength(20);
+    
+    res.body.items
+      .forEach((element: any) => {
+        expect(element).toHaveProperty('url');
+        expect(typeof element.url).toBe('string');
+
+        expect(element).toHaveProperty('primaryName');
+        expect(typeof element.primaryName).toBe('string');
+
+        expect(element).toHaveProperty('birthYear');
+        expect(element.birthYear === null || typeof element.birthYear === 'number');
+
+        expect(element).toHaveProperty('deathYear');
+        expect(element.deathYear === null || typeof element.deathYear === 'number');
+
+        expect(element).toHaveProperty('avgNameRating');
+        expect(element.avgNameRating === null || typeof element.avgNameRating === 'number');
+
+        expect(element).toHaveProperty('professions');
+        expect(Array.isArray(element.professions)).toBe(true);
+      });
+  });
+
+  it('respects limits and offsets', async () => {
+    const res = await request(app).get('/api/persons?limit=10&offset=500');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ limit: 10, offset: 500 });
+    expect(res.body.items.length).toBeLessThanOrEqual(20);
+    expect(res.body.links.prev).toBe("/api/persons?limit=10&offset=490");
+    expect(res.body.links.next).toBe("/api/persons?limit=10&offset=510");
+  });
+
+  it('returns empty list but correct total past last page', async () => {
+    const first = await request(app).get('/api/persons?limit=1');
+    const total = first.body.total;
+
+    const res = await request(app).get(`/api/persons?offset=${total}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 536498, offset: total, limit: 20 });
+    expect(res.body.items.length).toBeLessThanOrEqual(0);
+    expect(res.body.links.prev).toBe(`/api/persons?offset=${total - 20}&limit=20`);
+    expect(res.body.links.next).toBeNull();
+  }, 30000);
+
+  it('caps limit over 20', async () => {
+    const res = await request(app).get('/api/persons?limit=1000000');
+  
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({limit: 20 });
+
+  });
+});
+
+describe('GET /api/persons/{nconst}/titles', () => {
+  it('returns only matching titles for a valid search', async () => {
+    const res = await request(app).get('/api/persons/nm0000054/titles');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      "total": 2,
+      "limit": 20,
+      "offset": 0,
+      "items": [
+        {
+          "url": "/api/titles/tt13734340",
+          "person": "/api/persons/nm0000054",
+          "primaryTitle": "Marilyn Monroe: Photobiography",
+          "category": "archive_footage",
+          "job": null,
+          "characters": ["Self"]
+        },
+        {
+          "url": "/api/titles/tt3483980",
+          "person": "/api/persons/nm0000054",
+          "primaryTitle": "From Gold to Containers, from Salt to Empires",
+          "category": "archive_footage",
+          "job": null,
+          "characters": ["Self"]
+        }
+      ],
+      "links": {
+        "prev": null,
+        "next": null
+      }
+    });
+  });
+
+  it('returns 404 when person is not found', async () => {
+    const res = await request(app).get('/api/persons/nm9999999/titles');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({
+      "status": 404,
+      "error": "Not Found",
+      "message": "Person not found"});
+  });
+
+  it('returns 400 for an invalid search paramenter', async () => {
+    const res = await request(app).get('/api/persons/tm9999999/titles');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      "status": 400,
+      "error": "Bad Request",
+      "message": "nconst must be a string starting with nm and have at least 7 digits"});
+  });
+});
+
+describe('GET /:nconst/co-players', () => {
+  it('returns only matching co-players for a valid search', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/co-players?limit=1');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      "total": 51,
+      "limit": 1,
+      "offset": 0,
+      "items": [
+        {
+          "url": "/api/persons/nm0101710",
+          "primaryName": "Billy Boyd",
+          "frequency": 2
+        }
+      ],
+      "links": {
+        "prev": null,
+        "next": "/api/persons/nm0000949/co-players?limit=1&offset=1"
+      }});
+  }, 30000);
+
+  it('returns 404 when person is not found', async () => {
+    const res = await request(app).get('/api/persons/nm9999999/co-players');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({
+      "status":404,
+      "error":"Not Found",
+      "message":"Person not found"});
+
+  });
+
+  it('returns 400 for an invalid search paramenter', async () => {
+    const res = await request(app).get('/api/persons/tm9999999/co-players');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      "status":400,
+      "error":"Bad Request",
+      "message":"nconst must be a string starting with nm and have at least 7 digits"});
+  });
+});
+
+describe('GET /api/persons/{nconst}/words', () => {
+  it('returns a page of associated words, most frequent first', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/words?limit=5');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ limit: 5, offset: 0 });
+    expect(res.body.items.length).toBeGreaterThan(0);
+    expect(res.body.items.length).toBeLessThanOrEqual(5);
+    expect(res.body.links.prev).toBeNull();
+
+    for (const item of res.body.items) {
+      expect(Object.keys(item).sort()).toEqual(['frequency', 'word']);
+    }
+
+    const frequencies = res.body.items.map((item: { frequency: number }) => item.frequency);
+    expect(frequencies).toEqual([...frequencies].sort((a, b) => b - a));
+  });
+
+  it('matches the words and frequencies from person_words', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/words');
+    const { rows } = await pool.query<{ word: string; frequency: number }>(
+      `SELECT word, frequency::int AS frequency FROM person_words('Cate Blanchett', 10)`
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(rows.length);
+    expect(res.body.items).toEqual(rows);
+  });
+
+  it('keeps the path in the paging links', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/words?limit=3');
+
+    expect(res.body.links.next).toBe('/api/persons/nm0000949/words?limit=3&offset=3');
+
+    const second = await request(app).get(res.body.links.next);
+    expect(second.status).toBe(200);
+    expect(second.body.offset).toBe(3);
+    expect(second.body.links.prev).toBe('/api/persons/nm0000949/words?limit=3&offset=0');
+  });
+
+
+  it('gives 404 for an unknown person', async () => {
+    const res = await request(app).get('/api/persons/nm9999999/words');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ status: 404, error: 'Not Found', message: 'Person not found' });
+  });
+
+  it('gives 400 for an invalid nconst', async () => {
+    const res = await request(app).get('/api/persons/tm9999999/words');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      status: 400,
+      error: 'Bad Request',
+      message: 'nconst must be a string starting with nm and have at least 7 digits',
+    });
+  });
+});
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TITLES.TS
+// ═════════════════════════════════════════════════════════════════════════════
 
 describe('GET /api/titles (paged listing)', () => {
   it('returns the first page with the default page size', async () => {
@@ -313,6 +551,11 @@ describe('GET /api/titles/{tconst}/similar', () => {
   });
 });
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+// USERS.TS
+// ═════════════════════════════════════════════════════════════════════════════
+
 describe('PUT /api/users/{uid}/password', () => {
   let userId: number;
 
@@ -387,6 +630,11 @@ describe('PUT /api/users/{uid}/password', () => {
   });
 });
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+// WORDS.TS
+// ═════════════════════════════════════════════════════════════════════════════
+
 describe('GET /api/related-words', () => {
   it('returns the most associated words, most frequent first, without the given words', async () => {
     const res = await request(app).get('/api/related-words?words=space,war');
@@ -436,234 +684,5 @@ describe('GET /api/related-words', () => {
     const res = await request(app).get(url);
 
     expect(res.status).toBe(400);
-  });
-});
-
-
-// PERSONS.TS API TESTS 
-describe('GET /api/persons (paged listing)', () => {
-  it('returns 200 with a paged response', async () => {
-    const res = await request(app).get('/api/persons');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ limit: 20, offset: 0 });
-    expect(res.body.items.length).toBeLessThanOrEqual(20);
-    expect(res.body.links.prev).toBeNull();
-  });
-
-  it('returns items in the person DTO shape', async () => {
-    const res = await request(app).get('/api/persons');
-    expect(res.body.items).toHaveLength(20);
-    
-    res.body.items
-      .forEach((element: any) => {
-        expect(element).toHaveProperty('url');
-        expect(typeof element.url).toBe('string');
-
-        expect(element).toHaveProperty('primaryName');
-        expect(typeof element.primaryName).toBe('string');
-
-        expect(element).toHaveProperty('birthYear');
-        expect(element.birthYear === null || typeof element.birthYear === 'number');
-
-        expect(element).toHaveProperty('deathYear');
-        expect(element.deathYear === null || typeof element.deathYear === 'number');
-
-        expect(element).toHaveProperty('avgNameRating');
-        expect(element.avgNameRating === null || typeof element.avgNameRating === 'number');
-
-        expect(element).toHaveProperty('professions');
-        expect(Array.isArray(element.professions)).toBe(true);
-      });
-  });
-
-  it('respects limits and offsets', async () => {
-    const res = await request(app).get('/api/persons?limit=10&offset=500');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ limit: 10, offset: 500 });
-    expect(res.body.items.length).toBeLessThanOrEqual(20);
-    expect(res.body.links.prev).toBe("/api/persons?limit=10&offset=490");
-    expect(res.body.links.next).toBe("/api/persons?limit=10&offset=510");
-  });
-
-  it('returns empty list but correct total past last page', async () => {
-    const first = await request(app).get('/api/persons?limit=1');
-    const total = first.body.total;
-
-    const res = await request(app).get(`/api/persons?offset=${total}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ total: 536498, offset: total, limit: 20 });
-    expect(res.body.items.length).toBeLessThanOrEqual(0);
-    expect(res.body.links.prev).toBe(`/api/persons?offset=${total - 20}&limit=20`);
-    expect(res.body.links.next).toBeNull();
-  }, 30000);
-
-  it('caps limit over 20', async () => {
-    const res = await request(app).get('/api/persons?limit=1000000');
-  
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({limit: 20 });
-
-  });
-});
-
-describe('GET /api/persons/{nconst}/titles', () => {
-  it('returns only matching titles for a valid search', async () => {
-    const res = await request(app).get('/api/persons/nm0000054/titles');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
-      "total": 2,
-      "limit": 20,
-      "offset": 0,
-      "items": [
-        {
-          "url": "/api/titles/tt13734340",
-          "person": "/api/persons/nm0000054",
-          "primaryTitle": "Marilyn Monroe: Photobiography",
-          "category": "archive_footage",
-          "job": null,
-          "characters": ["Self"]
-        },
-        {
-          "url": "/api/titles/tt3483980",
-          "person": "/api/persons/nm0000054",
-          "primaryTitle": "From Gold to Containers, from Salt to Empires",
-          "category": "archive_footage",
-          "job": null,
-          "characters": ["Self"]
-        }
-      ],
-      "links": {
-        "prev": null,
-        "next": null
-      }
-    });
-  });
-
-  it('returns 404 when person is not found', async () => {
-    const res = await request(app).get('/api/persons/nm9999999/titles');
-
-    expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({
-      "status": 404,
-      "error": "Not Found",
-      "message": "Person not found"});
-  });
-
-  it('returns 400 for an invalid search paramenter', async () => {
-    const res = await request(app).get('/api/persons/tm9999999/titles');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({
-      "status": 400,
-      "error": "Bad Request",
-      "message": "nconst must be a string starting with nm and have at least 7 digits"});
-  });
-});
-
-describe('GET /:nconst/co-players', () => {
-  it('returns only matching co-players for a valid search', async () => {
-    const res = await request(app).get('/api/persons/nm0000949/co-players?limit=1');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
-      "total": 51,
-      "limit": 1,
-      "offset": 0,
-      "items": [
-        {
-          "url": "/api/persons/nm0101710",
-          "primaryName": "Billy Boyd",
-          "frequency": 2
-        }
-      ],
-      "links": {
-        "prev": null,
-        "next": "/api/persons/nm0000949/co-players?limit=1&offset=1"
-      }});
-  }, 30000);
-
-  it('returns 404 when person is not found', async () => {
-    const res = await request(app).get('/api/persons/nm9999999/co-players');
-
-    expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({
-      "status":404,
-      "error":"Not Found",
-      "message":"Person not found"});
-
-  });
-
-  it('returns 400 for an invalid search paramenter', async () => {
-    const res = await request(app).get('/api/persons/tm9999999/co-players');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({
-      "status":400,
-      "error":"Bad Request",
-      "message":"nconst must be a string starting with nm and have at least 7 digits"});
-  });
-});
-
-describe('GET /api/persons/{nconst}/words', () => {
-  it('returns a page of associated words, most frequent first', async () => {
-    const res = await request(app).get('/api/persons/nm0000949/words?limit=5');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ limit: 5, offset: 0 });
-    expect(res.body.items.length).toBeGreaterThan(0);
-    expect(res.body.items.length).toBeLessThanOrEqual(5);
-    expect(res.body.links.prev).toBeNull();
-
-    for (const item of res.body.items) {
-      expect(Object.keys(item).sort()).toEqual(['frequency', 'word']);
-    }
-
-    const frequencies = res.body.items.map((item: { frequency: number }) => item.frequency);
-    expect(frequencies).toEqual([...frequencies].sort((a, b) => b - a));
-  });
-
-  it('matches the words and frequencies from person_words', async () => {
-    const res = await request(app).get('/api/persons/nm0000949/words');
-    const { rows } = await pool.query<{ word: string; frequency: number }>(
-      `SELECT word, frequency::int AS frequency FROM person_words('Cate Blanchett', 10)`
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.total).toBe(rows.length);
-    expect(res.body.items).toEqual(rows);
-  });
-
-  it('keeps the path in the paging links', async () => {
-    const res = await request(app).get('/api/persons/nm0000949/words?limit=3');
-
-    expect(res.body.links.next).toBe('/api/persons/nm0000949/words?limit=3&offset=3');
-
-    const second = await request(app).get(res.body.links.next);
-    expect(second.status).toBe(200);
-    expect(second.body.offset).toBe(3);
-    expect(second.body.links.prev).toBe('/api/persons/nm0000949/words?limit=3&offset=0');
-  });
-
-
-  it('gives 404 for an unknown person', async () => {
-    const res = await request(app).get('/api/persons/nm9999999/words');
-
-    expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ status: 404, error: 'Not Found', message: 'Person not found' });
-  });
-
-  it('gives 400 for an invalid nconst', async () => {
-    const res = await request(app).get('/api/persons/tm9999999/words');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({
-      status: 400,
-      error: 'Bad Request',
-      message: 'nconst must be a string starting with nm and have at least 7 digits',
-    });
   });
 });
