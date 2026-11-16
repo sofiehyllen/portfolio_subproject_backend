@@ -636,6 +636,17 @@ describe('GET /api/persons/{nconst}/words', () => {
     expect(res.body.total).toBe(rows.length);
     expect(res.body.items).toEqual(rows);
   });
+  
+  it('keeps the path in the paging links', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/words?limit=3');
+
+    expect(res.body.links.next).toBe('/api/persons/nm0000949/words?limit=3&offset=3');
+
+    const second = await request(app).get(res.body.links.next);
+    expect(second.status).toBe(200);
+    expect(second.body.offset).toBe(3);
+    expect(second.body.links.prev).toBe('/api/persons/nm0000949/words?limit=3&offset=0');
+  });
 
 
 });
