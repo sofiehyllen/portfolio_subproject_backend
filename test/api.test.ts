@@ -508,3 +508,14 @@ describe('GET /api/persons (paged listing)', () => {
 
   });
 });
+
+describe('GET /api/persons (search)', () => {
+
+  it('returns only matching persons for a valid search', async () => {
+    const res = await request(app).get('api/persons/nm0000054');
+
+    expect(res).toBe(200);
+    expect(res.body).toMatchObject({"url": "/api/persons/nm0000054", "birthYear": 1926, "deathYear": 1962});
+  });
+
+});
