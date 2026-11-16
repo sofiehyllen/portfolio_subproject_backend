@@ -11,13 +11,24 @@
  */
 import { Router } from 'express';
 import * as titles from '../data/titles.js';
-import { NotFound } from '../middleware/errors.js';
+import { NotFound, BadRequest } from '../middleware/errors.js';
 import { toActorDto, toSimilarMovieDto, toTitleDetailDto, toTitleDto, toTitleSummaryDto } from './dto.js';
-import { isStructuredSearch, rejectUnknownTitleParams, validateStructuredSearch, validateTitleBrowse, validateTitleSearch } from '../validation.js';
+import { isStructuredSearch, rejectUnknownTitleParams, validateStructuredSearch, validateTitleBrowse, validateTitleSearch, validateTconst } from '../validation.js';
 import { pageOf, searchLogUser } from "./pagination.js";
 import { paged } from "./pagination.js";
 
 export const router = Router();
+
+router.param('tconst', (_req, res, next, value: string) => {
+  const tconst = validateTconst(value);
+
+  if (tconst === undefined) {
+    return next( new BadRequest('tconst must start with tt followed by 7-8 digits'));
+  }
+  res.locals.tconst = tconst;
+  next();
+});
+
 
 router.get('/', async (req, res, next) => {
   try {
