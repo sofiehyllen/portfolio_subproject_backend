@@ -553,5 +553,13 @@ describe('GET /api/persons/{nconst}/titles', () => {
       "message": "Person not found"});
   });
 
+  it('returns 400 for an invalid search paramenter', async () => {
+    const res = await request(app).get('/api/persons/tm9999999/titles');
 
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      "status": 400,
+      "error": "Bad Request",
+      "message": "nconst must be a string starting with nm and have at least 7 digits"});
+  });
 });
