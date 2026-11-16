@@ -52,3 +52,21 @@ router.get('/:nconst', async (_req, res, next) => {
     }
 });
 
+// GET /api/persons/{nconst}/titles
+// Paged titles the person has been credited on, each with their role (category, job, characters)
+router.get('/:nconst/titles', async (req, res, next) => {
+    try {
+        const nconst: string = res.locals.nconst;
+        const person = await persons.checkPersonExists(nconst);
+        if (!person) {
+            throw new error.NotFound('Person not found');
+        }
+
+        const page = pageOf(req.query);
+        const {items, total} =  await persons.getPersonTitle(nconst, page.limit, page.offset);
+
+        res.json(paged(req, page, total, items.map(toPersonTitleDto)));
+    } catch (error) {
+        next(error);  
+    }
+});

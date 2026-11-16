@@ -3,7 +3,7 @@
 // Exception: validatePassword returns string[] and parseSort adds to a caller-supplied errors array.
 
 import { BadRequest } from './middleware/errors.js';
-import { TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
+import { KEYWORD_MATCHES, KeywordMatch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
 import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
 
@@ -197,8 +197,9 @@ export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
 // ── Titles ────────────────────────────────────────────────────────────────────
 
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
+const KEYWORD_PARAMS = ['keywords', 'match'];
 const STRUCTURED_PARAMS = ['title', 'plot', 'character', 'person'] as const;
-const TITLES_PARAMS = ['text', ...BROWSE_PARAMS, ...STRUCTURED_PARAMS, 'limit', 'offset'];
+const TITLES_PARAMS = ['text', ...KEYWORD_PARAMS, ...BROWSE_PARAMS, ...STRUCTURED_PARAMS, 'limit', 'offset'];
 const FILTER_MAX    = 100;
 const SEARCH_MAX    = 100;
 const WORDS_MAX     = 10;
@@ -252,7 +253,7 @@ export function validateTitleBrowse(query: Record<string, unknown>): TitleBrowse
  * @throws {BadRequest} If browse parameters are mixed in, or if `text` is blank or too long.
  */
 export function validateTitleSearch(query: Record<string, unknown>): string {
-  const mixed = [...BROWSE_PARAMS, ...STRUCTURED_PARAMS].filter(param => query[param] !== undefined);
+  const mixed = [...KEYWORD_PARAMS, ...BROWSE_PARAMS, ...STRUCTURED_PARAMS].filter(param => query[param] !== undefined);
   if (mixed.length > 0) throw new BadRequest(`${mixed.join(', ')} cannot be combined with text`);
 
   const value = query.text;
@@ -285,7 +286,7 @@ export function validateStructuredSearch(query: Record<string, unknown>): Struct
   if (mixed.length > 0) {
     throw new BadRequest(`${mixed.join(', ')} cannot be combined with ${STRUCTURED_PARAMS.join(', ')}`);
   }
-
+  
   const errors: string[] = [];
   const search: StructuredSearch = { title: '', plot: '', character: '', person: '' };
   for (const field of STRUCTURED_PARAMS) {
@@ -314,15 +315,37 @@ export function validateStructuredSearch(query: Record<string, unknown>): Struct
  * A parameter sent twice (`?words=a&words=b`) arrives as an array and is rejected.
  * @throws {BadRequest} If `words` is missing, not a string, empty, or violates the count/length limits.
  */
-export function validateWords(value: unknown): string[] {
-  if (value === undefined) throw new BadRequest('words is required');
-  if (typeof value !== 'string') throw new BadRequest('words must be one comma separated list');
+export function validateWords(value: unknown, field = 'words'): string[] {
+  if (value === undefined) throw new BadRequest(`${field} is required`);
+  if (typeof value !== 'string') throw new BadRequest(`${field} must be one comma separated list`);
 
   const words = value.split(',').map(word => word.trim()).filter(word => word !== '');
-  if (words.length === 0)                         throw new BadRequest('words is required');
-  if (words.length > WORDS_MAX)                   throw new BadRequest(`words can have at most ${WORDS_MAX} words`);
+  if (words.length === 0)                         throw new BadRequest(`${field} is required`);
+  if (words.length > WORDS_MAX)                   throw new BadRequest(`${field} can have at most ${WORDS_MAX} words`);
   if (words.some(word => word.length > WORD_MAX)) throw new BadRequest(`each word can be at most ${WORD_MAX} characters`);
   return words;
+}
+
+export interface KeywordSearch {
+  keywords: string[];
+  match: KeywordMatch;
+}
+
+/**
+ * Query of GET /api/titles?keywords=...: the keywords (as validateWords) and match
+ * (all, any or weighted; default weighted). Sorting and filtering apply to browsing
+ * only, not to a search (one mode per request).
+ */
+export function validateKeywordSearch(query: Record<string, unknown>): KeywordSearch {
+  const mixed = [...BROWSE_PARAMS, ...STRUCTURED_PARAMS].filter(param => query[param] !== undefined);
+  if (mixed.length > 0) throw new BadRequest(`${mixed.join(', ')} cannot be combined with keywords`);
+
+  const match = query.match ?? 'weighted';
+  if (typeof match !== 'string' || !(KEYWORD_MATCHES as readonly string[]).includes(match)) {
+    throw new BadRequest(`match must be one of ${KEYWORD_MATCHES.join(', ')}`);
+  }
+
+  return { keywords: validateWords(query.keywords, 'keywords'), match: match as KeywordMatch };
 }
 
 // ── Persons ───────────────────────────────────────────────────────────────────
