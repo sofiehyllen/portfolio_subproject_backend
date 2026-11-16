@@ -656,5 +656,14 @@ describe('GET /api/persons/{nconst}/words', () => {
     expect(res.body).toMatchObject({ status: 404, error: 'Not Found', message: 'Person not found' });
   });
 
+  it('gives 400 for an invalid nconst', async () => {
+    const res = await request(app).get('/api/persons/tm9999999/words');
 
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      status: 400,
+      error: 'Bad Request',
+      message: 'nconst must be a string starting with nm and have at least 7 digits',
+    });
+  });
 });
