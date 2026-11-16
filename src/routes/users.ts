@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import * as bookmark from '../data/bookmarks.js';
-import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate, validateNconst } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
 import { checkPassword, hashPassword } from '../utils/passwords.js';
 import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
-import { validateSerial } from '../validation.js'
+import { validateSerial, validateTconst } from '../validation.js'
 export const router = Router();
 
 
@@ -41,6 +41,25 @@ router.param('sconst', (_req, res, next, value: string) => {
   next();
 });
 
+router.param('tconst', (_req, res, next, value: string) => {
+  const tconst = validateTconst(value);
+
+  if (tconst === undefined) {
+    return next( new BadRequest('tconst must start with tt followed by 7-8 digits'));
+  }
+  res.locals.tconst = tconst;
+  next();
+});
+
+router.param('nconst', (_req, res, next, value: string) => {
+  const nconst = validateNconst(value);
+
+  if (nconst === undefined) {
+    return next( new BadRequest('nconst must start with tt followed by 7-8 digits'));
+  }
+  res.locals.nconst = nconst;
+  next();
+});
 
 // ── User profile ─────────────────────────────────────────────────────────────
 
@@ -161,7 +180,7 @@ router.get('/:uconst/ratings', async (req, res, next) => {
 router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const rating = await ratings.getRating(uconst, req.params.tconst);
+    const rating = await ratings.getRating(uconst, res.locals.tconst);
     if (!rating) throw new NotFound('Rating not found');
 
     res.json(toUserRatingDto(rating));
@@ -174,7 +193,7 @@ router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
 router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const tconst = req.params.tconst;
+    const tconst = res.locals.tconst;
     const rating = req.body?.rating;
 
     // Check the input before asking the database
@@ -197,7 +216,7 @@ router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
 router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const tconst = req.params.tconst;
+    const tconst = res.locals.tconst;
 
     const deleted = await ratings.deleteRating(uconst, tconst);   // true if a rating was removed
     if (!deleted) throw new NotFound('Rating not found');
@@ -231,7 +250,7 @@ router.get('/:uconst/bookmarks/titles', async (req, res, next) => {
 router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const tconst = req.params.tconst;
+    const tconst = res.locals.tconst;
     const added = await bookmark.addTitleBookmark(uconst, tconst);
     if (!added) throw new NotFound('Title not found');
 
@@ -246,7 +265,7 @@ router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
 router.delete('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const tconst = req.params.tconst;
+    const tconst = res.locals.tconst;
     const deleted = await bookmark.removeTitleBookmark(uconst, tconst);
     if (!deleted) {
       throw new NotFound('Bookmarked title not found');
@@ -280,7 +299,7 @@ router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
 router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const nconst = req.params.nconst;
+    const nconst = res.locals.nconst;
     const added = await bookmark.addPersonBookmark(uconst, nconst);
     if (!added) throw new NotFound('Person not found');
     
@@ -295,7 +314,7 @@ router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
 router.delete('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const nconst = req.params.nconst;
+    const nconst = res.locals.nconst;
     const deleted = await bookmark.removePersonBookmark(uconst, nconst);
     if (!deleted) {
       throw new NotFound('Bookmarked person not found');
