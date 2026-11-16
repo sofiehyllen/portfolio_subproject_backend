@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import * as bookmark from '../data/bookmarks.js';
-import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate, validateNconst } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate, validateNconst, validateSerial, validateTconst  } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
 import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
 import { checkPassword, hashPassword } from '../utils/passwords.js';
 import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
-import { validateSerial, validateTconst } from '../validation.js'
+
 export const router = Router();
 
 
@@ -22,7 +22,9 @@ router.param('uconst', async (_req, res, next, value: string) => {
     if (uconst === undefined) { throw new BadRequest('uconst must be a positive integer'); }
 
     const user = await users.getUser(uconst);
-      if (!user) throw new NotFound('User not found');
+    if (!user) {
+      return next(new NotFound('User not found'));
+    }
 
     res.locals.uconst = uconst;
     res.locals.user = user;
@@ -35,7 +37,7 @@ router.param('uconst', async (_req, res, next, value: string) => {
 router.param('sconst', (_req, res, next, value: string) => {
   const sconst = validateSerial(value);
   if (sconst === undefined){
-    throw new BadRequest('sconst must be a positive integer');
+    return next( new BadRequest('sconst must be a positive integer'));
   }
   res.locals.sconst = sconst;
   next();
@@ -55,7 +57,7 @@ router.param('nconst', (_req, res, next, value: string) => {
   const nconst = validateNconst(value);
 
   if (nconst === undefined) {
-    return next( new BadRequest('nconst must start with tt followed by 7-8 digits'));
+    return next( new BadRequest('nconst must start with nm followed by 7-8 digits'));
   }
   res.locals.nconst = nconst;
   next();
