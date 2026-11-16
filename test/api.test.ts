@@ -129,13 +129,94 @@ describe('GET /api/titles (sorting and filtering)', () => {
   });
 
   it.each([
-    ['browsing', 'keywords=war&sort=year', 'keywords'],
+    ['browsing', 'keyword=war&sort=year', 'keyword'],
     ['searching', 'text=love&sortt=year', 'sortt'],
   ])('gives 400 for a query parameter it does not accept when %s, instead of ignoring it', async (_mode, qs, param) => {
     const res = await request(app).get(`/api/titles?${qs}`);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: `unknown query parameter ${param}` });
+    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: `unknown query parameter '${param}'` });
+  });
+});
+
+describe('GET /api/titles (keyword search)', () => {
+  it.each(['all', 'any', 'weighted'])('gives a paged list of title summaries with match=%s', async (match) => {
+    const res = await request(app).get(`/api/titles?keywords=space,war&match=${match}&limit=5`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.limit).toBe(5);
+    expect(res.body.items.length).toBeLessThanOrEqual(5);
+    for (const item of res.body.items) {
+      expect(Object.keys(item).sort()).toEqual(['primaryTitle', 'startYear', 'url']);
+    }
+  });
+
+  it.each([
+    ['any', 'best_match_querying'],
+    ['weighted', 'weighted_search'],
+  ])('ranks match=%s in the same order as %s', async (match, dbFunction) => {
+    const res = await request(app).get(`/api/titles?keywords=space,war,love&match=${match}&limit=50`);
+    // The function's own order; called without a user, so nothing is logged
+    // (except by best_match_querying, which logs even without a user).
+    const { rows } = await pool.query<{ tconst: string }>(
+      `SELECT tconst FROM ${dbFunction}(NULL, 'space', 'war', 'love') LIMIT 50`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.items.map((item: { url: string }) => item.url.split('/').pop()))
+      .toEqual(rows.map(row => row.tconst));
+  });
+
+  it('defaults to weighted', async () => {
+    const plain = await request(app).get('/api/titles?keywords=space,war');
+    const weighted = await request(app).get('/api/titles?keywords=space,war&match=weighted');
+
+    expect(plain.status).toBe(200);
+    expect(plain.body.items).toEqual(weighted.body.items);
+  });
+
+  it('finds no more titles with all than with any', async () => {
+    const all = await request(app).get('/api/titles?keywords=space,war&match=all');
+    const any = await request(app).get('/api/titles?keywords=space,war&match=any');
+
+    expect(all.body.total).toBeLessThanOrEqual(any.body.total);
+  });
+
+  it('keeps keywords and match in the paging links', async () => {
+    const res = await request(app).get('/api/titles?keywords=love&match=any&limit=1');
+
+    expect(res.body.links.next).toContain('keywords=love');
+    expect(res.body.links.next).toContain('match=any');
+  });
+
+  it.each([
+    ['missing', 'match=all', 'keywords is required'],
+    ['empty', 'keywords=', 'keywords is required'],
+    ['only commas', 'keywords=,,', 'keywords is required'],
+    ['sent twice', 'keywords=a&keywords=b', 'keywords must be one comma separated list'],
+    ['too many', `keywords=${Array.from({ length: 11 }, (_, i) => `w${i}`).join(',')}`, 'keywords can have at most 10 words'],
+    ['too long', `keywords=${'a'.repeat(51)}`, 'each word can be at most 50 characters'],
+  ])('gives 400 for keywords that are %s', async (_case, qs, message) => {
+    const res = await request(app).get(`/api/titles?${qs}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message });
+  });
+
+  it('gives 400 for an unknown match', async () => {
+    const res = await request(app).get('/api/titles?keywords=war&match=some');
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('match must be one of all, any, weighted');
+  });
+
+  it.each([
+    ['browsing', 'keywords=war&sort=rating', 'sort cannot be combined with keywords'],
+    ['text search', 'text=love&keywords=war', 'keywords cannot be combined with text'],
+  ])('gives 400 when mixed with %s', async (_mode, qs, message) => {
+    const res = await request(app).get(`/api/titles?${qs}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe(message);
   });
 });
 
