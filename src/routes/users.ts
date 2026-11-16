@@ -99,21 +99,6 @@ router.patch('/:uconst', async (req, res, next) => {
   }
 });
 
-// DELETE /api/users/{uconst}: deletes the user and all their ratings,
-// bookmarks and search history. 204 on success, no body.
-// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
-router.delete('/:uconst', async (_req, res, next) => {
-  try {
-    const uconst: number = res.locals.uconst;
-    const deleted = await users.deleteUser(uconst);
-    if (!deleted) throw new NotFound('User not found');
-
-    res.status(204).end();
-  } catch (err) {
-    next(err);
-  }
-});
-
 // PUT /api/users/{uconst}/password: replaces the user's password
 router.put('/:uconst/password', async (req, res, next) => {
   // TODO: require a token and check it belongs to {uconst} once auth exists
@@ -141,6 +126,22 @@ router.put('/:uconst/password', async (req, res, next) => {
     next(err);
   }
 });
+
+// DELETE /api/users/{uconst}: deletes the user and all their ratings,
+// bookmarks and search history. 204 on success, no body.
+// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
+router.delete('/:uconst', async (_req, res, next) => {
+  try {
+    const uconst: number = res.locals.uconst;
+    const deleted = await users.deleteUser(uconst);
+    if (!deleted) throw new NotFound('User not found');
+
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 
 // ── Ratings ───────────────────────────────────────────────────────────────────
