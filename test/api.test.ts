@@ -509,13 +509,26 @@ describe('GET /api/persons (paged listing)', () => {
   });
 });
 
-describe('GET /api/persons (search)', () => {
+describe('GET /api/persons/{nconst} (search)', () => {
 
   it('returns only matching persons for a valid search', async () => {
     const res = await request(app).get('api/persons/nm0000054');
 
     expect(res).toBe(200);
-    expect(res.body).toMatchObject({"url": "/api/persons/nm0000054", "birthYear": 1926, "deathYear": 1962});
+    expect(res.body).toMatchObject({
+      "url": "/api/persons/nm0000054", 
+      "birthYear": 1926, 
+      "deathYear": 1962});
+  });
+
+  it('returns 200 with empty items and total 0 when nothing matches', async () => {
+    const res = await request(app).get('api/persons/nm9999999');
+
+    expect(res).toBe(200);
+    expect(res.body).toMatchObject({
+      "status": 404,
+      "error": "Not Found",
+      "message": "Person not found"});
   });
 
 });
