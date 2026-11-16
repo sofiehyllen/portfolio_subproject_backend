@@ -512,9 +512,9 @@ describe('GET /api/persons (paged listing)', () => {
 describe('GET /api/persons/{nconst} (search)', () => {
 
   it('returns only matching persons for a valid search', async () => {
-    const res = await request(app).get('api/persons/nm0000054');
+    const res = await request(app).get('/api/persons/nm0000054');
 
-    expect(res).toBe(200);
+    expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       "url": "/api/persons/nm0000054", 
       "birthYear": 1926, 
@@ -522,13 +522,23 @@ describe('GET /api/persons/{nconst} (search)', () => {
   });
 
   it('returns 200 with empty items and total 0 when nothing matches', async () => {
-    const res = await request(app).get('api/persons/nm9999999');
+    const res = await request(app).get('/api/persons/nm9999999');
 
-    expect(res).toBe(200);
+    expect(res.status).toBe(404);
     expect(res.body).toMatchObject({
       "status": 404,
       "error": "Not Found",
       "message": "Person not found"});
+  });
+
+  it('returns 400 for an invalid search paramenter', async () => {
+    const res = await request(app).get('/api/persons/tm9999999');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      "status": 400,
+      "error": "Bad Request",
+      "message": "nconst must be a string starting with nm and have at least 7 digits"});
   });
 
 });
