@@ -65,7 +65,7 @@ router.get('/:nconst/titles', async (req, res, next) => {
         }
 
         const page = pageOf(req.query);
-        const {items, total} =  await persons.getPersonTitle(nconst, page.limit, page.offset);
+        const {items, total} =  await persons.getPersonTitles(nconst, page.limit, page.offset);
 
         res.json(paged(req, page, total, items.map(toPersonTitleDto)));
     } catch (error) {

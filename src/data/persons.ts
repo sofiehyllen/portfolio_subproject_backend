@@ -170,7 +170,7 @@ export async function checkPersonExists(nconst: string): Promise<boolean> {
   
 }
 
-export async function getPersonTitle(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
+export async function getPersonTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
   const { rows: items} = await pool.query<PersonTitle>(`
     SELECT  t.tconst,
             tp.nconst,
@@ -208,7 +208,7 @@ export async function getCoPlayers(nconst: string, limit: number, offset: number
   const { rows: items } = await pool.query<CoPlayer>(`
     SELECT  nconst,
             primary_name as "primaryName",
-            frequency::int as frequency,
+            frequency::int as frequency
     FROM co_players($1) 
     ORDER BY frequency DESC, primary_name, nconst
     LIMIT $2
