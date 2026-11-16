@@ -96,32 +96,13 @@ export async function updateUser(uconst: number, changes: UserChanges): Promise<
 
 // Deletes the user with delete_user(), which also removes their ratings from
 // the title averages; bookmarks and search history go via ON DELETE CASCADE.
-// delete_user() returns VOID and says nothing when the user is unknown, so the
-// existence check runs first, in the same transaction.
-// Returns false when no such user exists.
+// Returns false (→ 404) when no such user exists.
 export async function deleteUser(uconst: number): Promise<boolean> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const { rowCount } = await client.query(
-      'SELECT 1 FROM users WHERE uconst = $1 FOR UPDATE',
-      [uconst]
-    );
-    if (!rowCount) {
-      await client.query('ROLLBACK');
-      return false;
-    }
-
-    await client.query('SELECT delete_user($1)', [uconst]);
-    await client.query('COMMIT');
-    return true;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  const { rows } = await pool.query<{ deleted: boolean }>(
+    'SELECT delete_user($1) AS deleted',
+    [uconst]
+  );
+  return rows[0].deleted;
 }
 
 // Turns a unique-constraint violation (23505) on users into a Conflict (409);
