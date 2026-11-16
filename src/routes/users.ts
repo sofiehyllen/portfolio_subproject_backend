@@ -347,14 +347,14 @@ router.delete('/:uconst/search-history/:sconst', async (req, res, next) => {
 });
 
 // DELETE /api/users/{uconst}/search-history: delete user's search history
+// Clearing an empty history is not an error, so the answer is always 204.
 // TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
-router.delete('/:uconst/search-history', async (req, res, next) => {
+router.delete('/:uconst/search-history', async (_req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const deleted = await search_history.deleteUserSearchHistory(uconst);
-    if (!deleted) throw new NotFound('Search history entries were not found');
+    await search_history.deleteUserSearchHistory(uconst);
     res.status(204).end();
   } catch (error) {
-    next(error)
+    next(error);
   }
 });
