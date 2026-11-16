@@ -586,4 +586,16 @@ describe('GET /:nconst/co-players', () => {
       }});
   }, 30000);
 
+  it('returns 404 when person is not found', async () => {
+    const res = await request(app).get('/api/persons/nm9999999/co-players');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({
+      "status":404,
+      "error":"Not Found",
+      "message":"Person not found"});
+
+  });
+
+
 });
