@@ -636,7 +636,7 @@ describe('GET /api/persons/{nconst}/words', () => {
     expect(res.body.total).toBe(rows.length);
     expect(res.body.items).toEqual(rows);
   });
-  
+
   it('keeps the path in the paging links', async () => {
     const res = await request(app).get('/api/persons/nm0000949/words?limit=3');
 
@@ -646,6 +646,14 @@ describe('GET /api/persons/{nconst}/words', () => {
     expect(second.status).toBe(200);
     expect(second.body.offset).toBe(3);
     expect(second.body.links.prev).toBe('/api/persons/nm0000949/words?limit=3&offset=0');
+  });
+
+
+  it('gives 404 for an unknown person', async () => {
+    const res = await request(app).get('/api/persons/nm9999999/words');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ status: 404, error: 'Not Found', message: 'Person not found' });
   });
 
 
