@@ -44,6 +44,17 @@ export interface PersonTitle {
   characters:   string[];
 }
 
+export interface CoPlayer {
+  nconst:         string;
+  primaryName:    string;
+  frequency:      number;
+}
+
+export interface PersonWord {
+  word:       string;
+  frequency:  number;
+}
+
 // Filter for GET /api/persons. Without a name every person is listed; with a
 // name the list is narrowed by name_search, or by actor_search when actorsOnly
 // is set. actorsOnly is only allowed together with a name (see validation).
@@ -159,7 +170,7 @@ export async function checkPersonExists(nconst: string): Promise<boolean> {
   
 }
 
-export async function getPersonTitle(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
+export async function getPersonTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
   const { rows: items} = await pool.query<PersonTitle>(`
     SELECT  t.tconst,
             tp.nconst,
@@ -183,4 +194,60 @@ export async function getPersonTitle(nconst: string, limit: number, offset: numb
     [nconst]);
   
   return { items, total: countRows[0].total };
+}
+
+export async function getCoPlayers(nconst: string, limit: number, offset: number): Promise<{ items: CoPlayer[], total: number}> {
+  const { rows: nameRows } = await pool.query<{primaryName: string}>(`
+    SELECT primary_name as "primaryName"
+    FROM persons
+    WHERE nconst = $1`,
+  [nconst]);
+
+  const name = nameRows[0].primaryName;
+
+  const { rows: items } = await pool.query<CoPlayer>(`
+    SELECT  nconst,
+            primary_name as "primaryName",
+            frequency::int as frequency
+    FROM co_players($1) 
+    ORDER BY frequency DESC, primary_name, nconst
+    LIMIT $2
+    OFFSET $3`,
+    [name, limit, offset]);
+
+  
+  const { rows: countRows } = await pool.query(`
+    SELECT count(*)::int as total from co_players($1)`,
+  [name]);
+
+  return { items, total: countRows[0].total};
+  
+}
+
+const PERSON_WORDS_LEN = 10;
+
+export async function getPersonWords(nconst: string, limit: number, offset: number): Promise<{ items: PersonWord[]; total: number}> {
+  const { rows: nameRows } = await pool.query<{primaryName: string}>(`
+    SELECT primary_name as "primaryName"
+    FROM persons
+    WHERE nconst = $1`,
+  [nconst]);
+
+  const name = nameRows[0].primaryName;
+  
+  const { rows: items } = await pool.query<PersonWord>(`
+    SELECT word, frequency::int as frequency
+    FROM person_words($1, $2)
+    ORDER BY frequency DESC, word
+    LIMIT $3
+    OFFSET $4`,
+  [name, PERSON_WORDS_LEN, limit, offset]);
+
+  const { rows: countRows } = await pool.query(`
+    SELECT count(*)::int as total
+    from person_words($1, $2)`,
+  [name, PERSON_WORDS_LEN]);
+
+  return { items, total: countRows[0].total };
+
 }

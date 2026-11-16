@@ -6,7 +6,7 @@ import { Actor, SimilarMovie, Title, TitleDetail, TitleSummary } from '../data/t
 import { User } from '../data/users.js';
 import { BookmarkTitle, BookmarkPerson } from '../data/bookmarks.js';
 import { UserSearchHistory } from "../data/search_history.js";
-import { PersonDetail, Person, PersonTitle } from "../data/persons.js";
+import { PersonDetail, Person, PersonTitle, CoPlayer, PersonWord } from "../data/persons.js";
 const API_BASE = '/api';
 
 export const uri = {
@@ -281,3 +281,32 @@ export function toPersonTitleDto(item: PersonTitle): PersonTitleDto {
   };
 }
 
+
+export interface CoPlayerDto {
+  url:          string;
+  primaryName:  string;
+  frequency:    number;
+}
+
+export function toCoPlayerDto(item: CoPlayer): CoPlayerDto {
+  return {
+    url:            uri.person(item.nconst),
+    primaryName:    item.primaryName,
+    frequency:      item.frequency,
+  };
+  
+}
+
+export interface PersonWordDto {
+  word:        string,
+  frequency:   number
+}
+
+export function toPersonWordDto(item: PersonWord): PersonWordDto {
+
+  return {
+    word:      item.word,
+    frequency: item.frequency
+  };
+
+}
