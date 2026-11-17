@@ -20,10 +20,11 @@
  * - `searchStructured(logAs, search, limit, offset)` — paged search via `structured_string_search`
  *   across title, plot, character and person fields; empty fields are ignored. Same logging
  *   behaviour as `searchText`.
+ * - `exists(tconst)` — true when a title with this tconst exists.
  *
  * Types: `Title` (row shape of `list`, extended by `TitleDetail` with genres and `Credit`s),
  * `TitleSummary` (tconst, primaryTitle, startYear; returned by `searchText`), `Actor`,
- * `SimilarMovie`, and `TitleFilter` / `TitleBrowse` / `TitleSortField` for `list`.
+ * `SimilarMovie`, `StructuredSearch`, and `TitleFilter` / `TitleBrowse` / `TitleSortField` for `list`.
  */
 import { pool } from '../db.js';
 import { orderBy, Sort } from './sorting.js';

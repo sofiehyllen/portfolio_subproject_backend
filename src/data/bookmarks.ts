@@ -9,11 +9,11 @@
  * - `countTitleBookmarks(uconst)` — total number of title bookmarks for the user.
  * - `countPersonBookmarks(uconst)` — total number of person bookmarks for the user.
  * - `getTitleBookmarks(uconst, limit, offset)` — paged title bookmarks, newest first.
- * - `addTitleBookmark(uconst, tconst)` — creates a bookmark; returns false if the title does not exist.
- * - `removeTitleBookmark(uconst, tconst)` — removes a bookmark; returns false if none was found.
+ * - `addTitleBookmark(uconst, tconst)` — creates a title bookmark.
+ * - `removeTitleBookmark(uconst, tconst)` — removes a title bookmark; returns false if none was found.
  * - `getPersonBookmarks(uconst, limit, offset)` — paged person bookmarks, newest first.
- * - `addPersonBookmark(uconst, nconst)` — creates a bookmark; returns false if the person does not exist.
- * - `removePersonBookmark(uconst, nconst)` — removes a bookmark; returns false if none was found.
+ * - `addPersonBookmark(uconst, nconst)` — creates a person bookmark.
+ * - `removePersonBookmark(uconst, nconst)` — removes a person bookmark; returns false if none was found.
  */
 import { pool } from '../db.js';
 

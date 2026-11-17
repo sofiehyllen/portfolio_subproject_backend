@@ -1,5 +1,18 @@
 /**
  * Data-access layer for user title ratings (`user_title_ratings` table).
+ *
+ * Types:
+ * - `UserRating` — a rating row as stored: uconst, tconst, rating, and created/updated/deleted timestamps.
+ * - `RatingHistoryEntry` — a user's rating joined with the title name, used in rating history responses.
+ *
+ * Query functions:
+ * - `ratingHistory(uconst, limit, offset)` — paged rating history for the user, newest change first.
+ * - `countRatings(uconst)` — total number of ratings in the user's history.
+ * - `getRating(uconst, tconst)` — the user's active rating for a title, or undefined if none exists.
+ * - `lockActiveRatingOn(client, uconst, tconst)` — locks the active rating row for update; true if one exists.
+ * - `rateOn(client, uconst, tconst, rating)` — writes the rating via rate(), which also updates averages.
+ * - `findOn(client, uconst, tconst)` — returns the stored rating row on the given client.
+ * - `deleteRating(uconst, tconst)` — soft-deletes the rating via remove_rating(); returns false if none was found.
  */
 import { PoolClient } from "pg";
 import { pool } from '../db.js';

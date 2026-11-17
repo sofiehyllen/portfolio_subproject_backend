@@ -1,3 +1,16 @@
+/**
+ * Data-access layer for user search history (`search_history` table).
+ *
+ * Types:
+ * - `UserSearchHistory` — one search history entry: sconst, search string and creation timestamp.
+ *
+ * Query functions:
+ * - `getUserSearchHistory(uconst, limit, offset)` — paged search history for the user, newest first.
+ * - `deleteUserSearchHistory(uconst)` — clears all search history for the user via clear_search_history();
+ *   returns false when the history was already empty.
+ * - `deleteUserSearchHistoryEntry(uconst, sconst)` — removes one entry via clear_search_history_entry();
+ *   returns false when the entry was not found or does not belong to the user.
+ */
 import { pool } from '../db.js';
 
 

@@ -4,6 +4,11 @@
  * Each list keeps its own whitelist of sort fields and maps every field to a
  * column. Only those column strings ever reach ORDER BY, so no client value is
  * assembled into SQL.
+ *
+ * Exports:
+ * - `SORT_ORDERS` / `SortOrder` — the allowed sort directions: 'asc' | 'desc'.
+ * - `Sort<F>` — a validated sort: one of the list's fields (F) and a direction.
+ * - `orderBy(column, order, tieBreaker)` — builds an ORDER BY clause for a whitelisted column.
  */
 
 export const SORT_ORDERS = ['asc', 'desc'] as const; // The allowed sort directions, available at runtime for validation

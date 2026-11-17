@@ -1,3 +1,21 @@
+/**
+ * Data-access layer for the `users` table.
+ *
+ * Types:
+ * - `User` — a user row as stored, including the password hash.
+ * - `NewUser` — the fields required to create a new user.
+ * - `UserChanges` — fields of a profile update; omitted fields keep their current value.
+ *
+ * Query functions:
+ * - `createUser(user)` — inserts a new user via create_user(); returns the new uconst.
+ *   A duplicate username or email propagates PostgreSQL error 23505 unchanged.
+ * - `getUser(uconst)` — one user by id, or undefined when no such user exists.
+ * - `lockOn(client, uconst)` — locks the user's row for update; true when the user exists.
+ * - `updateOn(client, uconst, changes)` — updates profile fields via update_user(); username is never changed.
+ * - `deleteUser(uconst)` — deletes the user via delete_user(), which also removes their ratings
+ *   from title averages; bookmarks and search history are removed via ON DELETE CASCADE.
+ * - `updateUserHashPassword(uconst, newHash)` — replaces the stored password hash.
+ */
 import { PoolClient } from "pg";
 import { pool } from '../db.js';
 

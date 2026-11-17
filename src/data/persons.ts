@@ -1,18 +1,29 @@
 /**
  * Data-access layer for the `persons` table.
  *
- * Exports six types and two query functions:
+ * Types:
  * - `Person` — a person row with name, birth/death year, name rating and professions.
  * - `KnownFor` — a compact title (tconst and primaryTitle) used in `PersonDetail`.
  * - `PersonDetail` — extends `Person` with `roles` (credit categories) and `knownFor` titles.
+ * - `PersonTitle` — one title credit for a person: tconst, title, category, job and characters.
+ * - `CoPlayer` — a person who has shared screen credit with another, with a co-occurrence frequency.
+ * - `PersonWord` — a word strongly associated with a person's titles, with a frequency count.
  * - `PersonFilter` — optional name search and actorsOnly flag for `getPersons`.
  * - `PersonBrowse` — extends `PersonFilter` with sort field and direction.
  * - `PERSON_SORT_FIELDS` / `PersonSortField` — the allowed sort fields: name, rating.
+ *
+ * Query functions:
  * - `getPersons(logAs, browse, limit, offset)` — paged slice of persons matching the filter,
  *   sorted by the chosen field and direction, plus the total number of matches. A name
  *   search is logged by name_search/actor_search under `logAs`, or not at all if null.
  * - `getPersonDetail(nconst)` — one person with roles and known-for titles,
  *   or undefined when no such person exists.
+ * - `checkPersonExists(nconst)` — true when a person with this nconst exists.
+ * - `getPersonTitles(nconst, limit, offset)` — paged title credits for the person, newest first.
+ * - `getCoPlayers(nconst, limit, offset)` — paged co-players ranked by frequency, plus the total;
+ *   undefined when no such person exists.
+ * - `getPersonWords(nconst, limit, offset)` — paged word associations ranked by frequency, plus
+ *   the total; undefined when no such person exists.
  */
 import { pool } from '../db.js';
 import { orderBy, Sort } from './sorting.js';
