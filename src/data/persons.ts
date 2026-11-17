@@ -11,8 +11,6 @@
  * - `getPersons(logAs, browse, limit, offset)` — paged slice of persons matching the filter,
  *   sorted by the chosen field and direction, plus the total number of matches. A name
  *   search is logged by name_search/actor_search under `logAs`, or not at all if null.
- * - `getPersons(browse, limit, offset)` — paged slice of persons matching the filter,
- *   sorted by the chosen field and direction, plus the total number of matches.
  * - `getPersonDetail(nconst)` — one person with roles and known-for titles,
  *   or undefined when no such person exists.
  */
