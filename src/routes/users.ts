@@ -9,6 +9,7 @@ import { checkPassword, hashPassword } from '../utils/passwords.js';
 import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
 import { rateTitle } from "../services/ratings.js";
+import { updateProfile } from "../services/users.js";
 
 export const router = Router();
 
@@ -103,12 +104,7 @@ router.patch('/:uconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const changes = validateUserUpdate(req.body); // 400 on invalid or forbidden fields
-    const updated = await users.updateUser(uconst, changes); // 409 when the email is taken
-    if (!updated) throw new NotFound('User not found');
-
-    const user = await users.getUser(uconst);
-    if (!user) throw new Error(`User ${uconst} missing right after update`);
-
+    const user = await updateProfile(uconst, changes); // 404, 409 from the service
     res.json(toUserDto(user));
   } catch (err) {
     next(err);

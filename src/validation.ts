@@ -6,6 +6,7 @@ import { BadRequest } from './middleware/errors.js';
 import { KEYWORD_MATCHES, KeywordMatch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
 import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
+import type { UserUpdateInput } from "./services/users.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -87,12 +88,12 @@ export interface NewUserInput {
   password: string;
 }
 
-// The cleaned body returned by validateUserUpdate(); only the fields the client sent (at least one).
-export interface UserUpdateInput {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-}
+// // The cleaned body returned by validateUserUpdate(); only the fields the client sent (at least one).
+// export interface UserUpdateInput {
+//   firstName?: string;
+//   lastName?: string;
+//   email?: string;
+// }
 
 // The cleaned body returned by validatePasswordUpdate(); passed to the password-change route handler.
 export interface PasswordUpdateInput {
