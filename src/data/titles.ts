@@ -26,7 +26,6 @@
  * `SimilarMovie`, and `TitleFilter` / `TitleBrowse` / `TitleSortField` for `list`.
  */
 import { pool } from '../db.js';
-import type { StructuredSearch } from "../validation.js";
 import { orderBy, Sort } from './sorting.js';
 
 export interface Title {
@@ -49,6 +48,14 @@ export interface TitleSummary {
   tconst: string;
   primaryTitle: string;
   startYear: number | null;
+}
+
+// The cleaned query returned by validateStructuredSearch();
+export interface StructuredSearch {
+  title: string;
+  plot: string;
+  character: string;
+  person: string;
 }
 
 // Titles are aliased t and their ratings r, so callers can filter and sort on either.

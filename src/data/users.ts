@@ -1,6 +1,5 @@
 import { PoolClient } from "pg";
 import { pool } from '../db.js';
-import { Conflict } from '../middleware/errors.js';
 
 // A user as stored, including the password hash. Routes send it to clients
 // only through toUserDto, which leaves the hash out.

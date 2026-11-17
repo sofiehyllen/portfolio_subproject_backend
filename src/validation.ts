@@ -3,10 +3,10 @@
 // Exception: validatePassword returns string[] and parseSort adds to a caller-supplied errors array.
 
 import { BadRequest } from './middleware/errors.js';
-import { KEYWORD_MATCHES, KeywordMatch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
+import { KEYWORD_MATCHES, KeywordMatch, StructuredSearch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
 import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
-import type { UserUpdateInput } from "./services/users.js";
+import type { NewUserInput, PasswordUpdateInput, UserUpdateInput } from "./services/users.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -78,28 +78,6 @@ export function parseSort<F extends string>(
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
-
-// The cleaned body returned by validateNewUser(); passed to the data layer to create a user.
-export interface NewUserInput {
-  firstName: string;
-  lastName: string;
-  username: string;
-  email: string;
-  password: string;
-}
-
-// // The cleaned body returned by validateUserUpdate(); only the fields the client sent (at least one).
-// export interface UserUpdateInput {
-//   firstName?: string;
-//   lastName?: string;
-//   email?: string;
-// }
-
-// The cleaned body returned by validatePasswordUpdate(); passed to the password-change route handler.
-export interface PasswordUpdateInput {
-  currentPassword: string;
-  newPassword: string;
-}
 
 /**
  * Parses and validates the body of `POST /api/users`.
@@ -205,14 +183,6 @@ const FILTER_MAX    = 100;
 const SEARCH_MAX    = 100;
 const WORDS_MAX     = 10;
 const WORD_MAX      = 50;
-
-// The cleaned query returned by validateStructuredSearch();
-export interface StructuredSearch {
-  title: string;
-  plot: string;
-  character: string;
-  person: string;
-}
 
 /**
  * Rejects query parameters not accepted by `GET /api/titles`.
