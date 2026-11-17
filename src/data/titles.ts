@@ -13,7 +13,7 @@
  *   first; undefined if the title does not exist.
  * - `searchText(logAs, text, limit, offset)` — paged substring search via `string_search`,
  *   ordered by tconst, with the total number of matches. Logs the search under `logAs`
- *   (a user id), or skips logging if null; the route passes null after the first page.
+ *   (a user id), or skips logging if null.
  * - `searchKeywords(logAs, keywords, match, limit, offset)` — paged keyword search via
  *   `exact_match_search` (all), `best_match_querying` (any) or `weighted_search` (weighted),
  *   ranked by the function's score, then tconst. Logs like `searchText`.
@@ -51,7 +51,7 @@ export interface TitleSummary {
   startYear: number | null;
 }
 
-// The cleaned query returned by validateStructuredSearch();
+// The fields of a structured search.
 export interface StructuredSearch {
   title: string;
   plot: string;

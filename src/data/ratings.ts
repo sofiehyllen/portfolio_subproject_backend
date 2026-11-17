@@ -104,6 +104,7 @@ export async function findOn(client: PoolClient, uconst: number, tconst: string)
 // Removes the user's active rating of a title with remove_rating(), which
 // soft-deletes it, takes the vote out of the title's average and updates
 // the name ratings, all in one call.
+// Returns false when the user has no active rating of the title.
 export async function deleteRating(uconst: number, tconst: string): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT remove_rating($1, $2) AS deleted',

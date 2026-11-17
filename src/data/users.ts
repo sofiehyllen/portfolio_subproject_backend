@@ -90,6 +90,7 @@ export async function updateOn(client: PoolClient, uconst: number, changes: User
 
 // Deletes the user with delete_user(), which also removes their ratings from
 // the title averages; bookmarks and search history go via ON DELETE CASCADE.
+// Returns false when no such user exists.
 export async function deleteUser(uconst: number): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT delete_user($1) AS deleted',

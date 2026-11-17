@@ -40,7 +40,7 @@ export async function getUserSearchHistory(uconst: number, limit: number, offset
 }
 
 // Deletes the user's entire search history with clear_search_history().
-// Returns false when the history was already empty;
+// Returns false when the history was already empty.
 export async function deleteUserSearchHistory(uconst: number): Promise<boolean> {
     const { rows } = await pool.query<{ deleted: boolean }>(
         'SELECT clear_search_history($1) AS deleted',
@@ -50,6 +50,7 @@ export async function deleteUserSearchHistory(uconst: number): Promise<boolean> 
 
 // Deletes one search with clear_search_history_entry(), only if it
 // belongs to the user.
+// Returns false when the user has no such search.
 export async function deleteUserSearchHistoryEntry(uconst: number, sconst: number): Promise<boolean> {
     const { rows } = await pool.query<{ deleted: boolean }>(
         'SELECT clear_search_history_entry($1, $2) AS deleted',
