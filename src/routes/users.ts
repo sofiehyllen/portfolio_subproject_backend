@@ -8,6 +8,7 @@ import * as ratings from '../data/ratings.js';
 import { checkPassword, hashPassword } from '../utils/passwords.js';
 import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
+import { rateTitle } from "../services/ratings.js";
 
 export const router = Router();
 
@@ -205,7 +206,7 @@ router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
     }
 
     // saves the rating and updates the averages
-    const result = await ratings.rateTitle(uconst, tconst, rating);
+    const result = await rateTitle(uconst, tconst, rating);
     if (!result) throw new NotFound('Title not found');
 
     res.status(result.created ? 201 : 200).json(toUserRatingDto(result.rating)); // new: 201, changed: 200

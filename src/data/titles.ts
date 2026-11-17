@@ -108,6 +108,12 @@ function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params
   return { sql: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '', params };
 }
 
+// True when a title with this tconst exists.
+export async function exists(tconst: string): Promise<boolean> {
+  const { rowCount } = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
+  return (rowCount ?? 0) > 0;
+}
+
 // A page of titles, filtered and sorted as asked. Titles without a value for the
 // sort field come last in both directions; tconst settles ties, so paging stays stable.
 export async function list(browse: TitleBrowse, limit: number, offset: number): Promise<Title[]> {

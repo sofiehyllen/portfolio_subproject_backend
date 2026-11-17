@@ -1,6 +1,6 @@
 // The connection pool. Created once, imported everywhere.
 
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 
 export const pool = new Pool({
   host: process.env.PGHOST,
@@ -9,3 +9,7 @@ export const pool = new Pool({
   user: process.env.PGUSER,
   password: process.env.PGPASSWORD,
 });
+
+// What a data function runs its queries on: the pool, or one client that
+// holds a transaction. Both have the same query() method.
+export type Db = Pool | PoolClient;
