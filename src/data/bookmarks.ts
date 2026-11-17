@@ -71,7 +71,6 @@ export async function addTitleBookmark(uconst: number, tconst: string): Promise<
 
 // Removes a title bookmark with remove_title_bookmark(), which returns
 // whether a bookmark was deleted.
-// Returns false (→ 404) when the user has no bookmark of the title.
 export async function removeTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT remove_title_bookmark($1, $2) AS deleted',
@@ -102,7 +101,6 @@ export async function addPersonBookmark(uconst: number, nconst: string): Promise
 
 // Removes a person bookmark with remove_person_bookmark(), which returns
 // whether a bookmark was deleted.
-// Returns false (→ 404) when the user has no bookmark of the person.
 export async function removePersonBookmark(uconst: number, nconst: string): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT remove_person_bookmark($1, $2) AS deleted',

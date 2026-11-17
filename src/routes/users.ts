@@ -1,19 +1,17 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import * as bookmark from '../data/bookmarks.js';
-import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate, validateNconst, validateSerial, validateTconst  } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate, validateNconst, validateSerial, validateTconst, validateRating  } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
-import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
+import { NotFound, BadRequest } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
-import { checkPassword, hashPassword } from '../utils/passwords.js';
 import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
 import { rateTitle } from "../services/ratings.js";
-import { register, updateProfile } from "../services/users.js";
+import { changePassword, register, updateProfile } from "../services/users.js";
 import { bookmarkPerson, bookmarkTitle } from "../services/bookmarks.js";
 
 export const router = Router();
-
 
 // Runs before every route in this router whose path contains :uconst, so
 // the checks are written once. An invalid uconst gets a 400, an unknown
@@ -103,28 +101,20 @@ router.patch('/:uconst', async (req, res, next) => {
 });
 
 // PUT /api/users/{uconst}/password: replaces the user's password
+// TODO: require a token and check it belongs to {uconst} once auth exists
 router.put('/:uconst/password', async (req, res, next) => {
-  // TODO: require a token and check it belongs to {uconst} once auth exists
   try {
-    const {currentPassword, newPassword} = validatePasswordUpdate(req.body);
-    const uconst: number = res.locals.uconst;
+    const input = validatePasswordUpdate(req.body);
+    const user: users.User = res.locals.user;
 
-    const user = await users.getUser(uconst);
-    if (!user) throw new NotFound('User not found');
-
-    const isPasswordValid = await checkPassword(currentPassword, user.passwordHash);
-    if (!isPasswordValid) throw new Forbidden('Current password is invalid');
-
-    const errors = validatePassword(newPassword, {
+    const errors = validatePassword(input.newPassword, {
       username: user.username,
-      currPassword: currentPassword
+      currPassword: input.currentPassword,
     });
     if (errors.length > 0) throw new BadRequest(errors.join('; '));
 
-    const newHash = await hashPassword(newPassword);
-    await users.updateUserHashPassword(uconst, newHash);
-
-    return res.status(204).end();
+    await changePassword(user.uconst, input); // 403, 404 from the service
+    res.status(204).end();
   } catch (err) {
     next(err);
   }
@@ -144,7 +134,6 @@ router.delete('/:uconst', async (_req, res, next) => {
     next(err);
   }
 });
-
 
 
 // ── Ratings ───────────────────────────────────────────────────────────────────
@@ -185,19 +174,11 @@ router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const tconst = res.locals.tconst;
-    const rating = req.body?.rating;
+    const rating = validateRating(req.body);
 
-    // Check the input before asking the database
-    if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
-      throw new BadRequest('rating must be an integer between 1 and 10');
-    }
-
-    // saves the rating and updates the averages
-    const result = await rateTitle(uconst, tconst, rating);
-    if (!result) throw new NotFound('Title not found');
+    const result = await rateTitle(uconst, tconst, rating); // 404 from the service
 
     res.status(result.created ? 201 : 200).json(toUserRatingDto(result.rating)); // new: 201, changed: 200
-
   } catch (err) {
     next(err)
   }

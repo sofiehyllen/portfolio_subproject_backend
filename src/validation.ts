@@ -173,6 +173,18 @@ export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
   return { currentPassword, newPassword };
 }
 
+/**
+ * Parses the body of `PUT /api/users/{uconst}/ratings/{tconst}`.
+ * @throws {BadRequest} If `rating` is not an integer between 1 and 10.
+ */
+export function validateRating(body: unknown): number {
+  const rating = asObject(body).rating;
+  if (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 10) {
+    throw new BadRequest('rating must be an integer between 1 and 10');
+  }
+  return rating;
+}
+
 // ── Titles ────────────────────────────────────────────────────────────────────
 
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
