@@ -65,12 +65,8 @@ export async function getTitleBookmarks(uconst: number, limit: number, offset: n
 }
 
 // Create title bookmark
-export async function addTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
-  const title = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
-  if (!title.rowCount) return false;
-
+export async function addTitleBookmark(uconst: number, tconst: string): Promise<void> {
   await pool.query('SELECT add_title_bookmark($1, $2)', [uconst, tconst]);
-  return true;
 }
 
 // Removes a title bookmark with remove_title_bookmark(), which returns
@@ -100,12 +96,8 @@ export async function getPersonBookmarks(uconst: number, limit: number, offset: 
 }
 
 // Create person bookmark
-export async function addPersonBookmark(uconst: number, nconst: string): Promise<boolean> {
-  const person = await pool.query('SELECT 1 FROM persons WHERE nconst = $1', [nconst]);
-  if (!person.rowCount) return false;
-
+export async function addPersonBookmark(uconst: number, nconst: string): Promise<void> {
   await pool.query('SELECT add_person_bookmark($1, $2)', [uconst, nconst]);
-  return true;
 }
 
 // Removes a person bookmark with remove_person_bookmark(), which returns

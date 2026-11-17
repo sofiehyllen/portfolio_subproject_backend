@@ -10,6 +10,7 @@ import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
 import { rateTitle } from "../services/ratings.js";
 import { updateProfile } from "../services/users.js";
+import { bookmarkPerson, bookmarkTitle } from "../services/bookmarks.js";
 
 export const router = Router();
 
@@ -251,11 +252,9 @@ router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const tconst = res.locals.tconst;
-    const added = await bookmark.addTitleBookmark(uconst, tconst);
-    if (!added) throw new NotFound('Title not found');
+    await bookmarkTitle(uconst, tconst); // 404 from the service
 
     res.status(204).end();
-
   } catch (err) {
     next(err);
   }
@@ -300,11 +299,9 @@ router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const nconst = res.locals.nconst;
-    const added = await bookmark.addPersonBookmark(uconst, nconst);
-    if (!added) throw new NotFound('Person not found');
-    
-    res.status(204).end();
+    await bookmarkPerson(uconst, nconst); // 404 from the service
 
+    res.status(204).end();
   } catch (err) {
     next(err);
   }
