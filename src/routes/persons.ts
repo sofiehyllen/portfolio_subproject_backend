@@ -68,39 +68,30 @@ router.get('/:nconst/titles', async (req, res, next) => {
     }
 });
 
-
+// GET /api/persons/{nconst}/co-players
+// Paged actors who share titles with the person, most frequent first
 router.get('/:nconst/co-players', async (req, res, next) => {
     try {
-        const nconst: string = res.locals.nconst;
-        const person = await persons.checkPersonExists(nconst);
-        if (!person) {
-            throw new error.NotFound('Person not found');
-        }
-
         const page = pageOf(req.query);
-        const {items, total} =  await persons.getCoPlayers(nconst, page.limit, page.offset);
-        res.json(paged(req, page, total, items.map(toCoPlayerDto)));
+        const result = await persons.getCoPlayers(res.locals.nconst, page.limit, page.offset);
+        if (!result) throw new error.NotFound('Person not found');
 
-    } catch (error) {
-        next(error);
+        res.json(paged(req, page, result.total, result.items.map(toCoPlayerDto)));
+    } catch (err) {
+        next(err);
     }
 });
 
-
+// GET /api/persons/{nconst}/words
+// Paged words most used in the person's titles, most frequent first
 router.get('/:nconst/words', async (req, res, next) => {
     try {
-        const nconst: string = res.locals.nconst;
-        const person = await persons.checkPersonExists(nconst);
-        if (!person) {
-            throw new error.NotFound('Person not found');
-        }
-
         const page = pageOf(req.query);
-        const { items, total } = await persons.getPersonWords(nconst, page.limit, page.offset);
+        const result = await persons.getPersonWords(res.locals.nconst, page.limit, page.offset);
+        if (!result) throw new error.NotFound('Person not found');
 
-        res.json(paged(req, page, total, items.map(toPersonWordDto)))
-
-    } catch (error) {
-        next(error);
+        res.json(paged(req, page, result.total, result.items.map(toPersonWordDto)));
+    } catch (err) {
+        next(err);
     }
 });

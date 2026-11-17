@@ -157,14 +157,17 @@ export async function getPersonDetail(nconst: string): Promise<PersonDetail | un
 }
 
 export async function checkPersonExists(nconst: string): Promise<boolean> {
-  const { rowCount } = await pool.query(`
-    SELECT 1
-    FROM persons 
-    WHERE nconst = $1`,
-    [nconst]);
-  
+  const { rowCount } = await pool.query(`SELECT 1 FROM persons WHERE nconst = $1`,[nconst]);
     return (rowCount ?? 0) > 0;
-  
+}
+
+// The primary name of a person, or undefined when no such person exists.
+// co_players() and person_words() take a name, not an nconst.
+async function nameOf(nconst: string): Promise<string | undefined> {
+  const { rows } = await pool.query<{ primaryName: string }>(
+    'SELECT primary_name AS "primaryName" FROM persons WHERE nconst = $1',
+    [nconst]);
+  return rows[0]?.primaryName;
 }
 
 export async function getPersonTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
@@ -193,58 +196,43 @@ export async function getPersonTitles(nconst: string, limit: number, offset: num
   return { items, total: countRows[0].total };
 }
 
-export async function getCoPlayers(nconst: string, limit: number, offset: number): Promise<{ items: CoPlayer[], total: number}> {
-  const { rows: nameRows } = await pool.query<{primaryName: string}>(`
-    SELECT primary_name as "primaryName"
-    FROM persons
-    WHERE nconst = $1`,
-  [nconst]);
+export async function getCoPlayers(nconst: string, limit: number, offset: number): Promise<{ items: CoPlayer[], total: number} | undefined> {
+  const name = await nameOf(nconst); // the queries below need the name, so this runs first
+  if (name === undefined) return undefined;
 
-  const name = nameRows[0].primaryName;
-
-  const { rows: items } = await pool.query<CoPlayer>(`
-    SELECT  nconst,
-            primary_name as "primaryName",
-            frequency::int as frequency
-    FROM co_players($1) 
-    ORDER BY frequency DESC, primary_name, nconst
-    LIMIT $2
-    OFFSET $3`,
-    [name, limit, offset]);
-
-  
-  const { rows: countRows } = await pool.query(`
-    SELECT count(*)::int as total from co_players($1)`,
-  [name]);
-
-  return { items, total: countRows[0].total};
-  
+  // The page and the count are independent, so they run in parallel.
+  const [page, count] = await Promise.all([
+    pool.query<CoPlayer>(
+      `SELECT nconst,
+              primary_name AS "primaryName",
+              frequency::int AS frequency
+       FROM co_players($1)
+       ORDER BY frequency DESC, primary_name, nconst
+       LIMIT $2 OFFSET $3`,
+      [name, limit, offset]),
+    pool.query<{ total: number }>(
+      'SELECT count(*)::int AS total FROM co_players($1)',
+      [name]),
+  ]);
+  return { items: page.rows, total: count.rows[0].total };
 }
 
 const PERSON_WORDS_LEN = 10;
 
-export async function getPersonWords(nconst: string, limit: number, offset: number): Promise<{ items: PersonWord[]; total: number}> {
-  const { rows: nameRows } = await pool.query<{primaryName: string}>(`
-    SELECT primary_name as "primaryName"
-    FROM persons
-    WHERE nconst = $1`,
-  [nconst]);
+export async function getPersonWords(nconst: string, limit: number, offset: number): Promise<{ items: PersonWord[]; total: number} | undefined> {
+  const name = await nameOf(nconst); // the queries below need the name, so this runs first
+  if (name === undefined) return undefined;
 
-  const name = nameRows[0].primaryName;
-  
-  const { rows: items } = await pool.query<PersonWord>(`
-    SELECT word, frequency::int as frequency
-    FROM person_words($1, $2)
-    ORDER BY frequency DESC, word
-    LIMIT $3
-    OFFSET $4`,
-  [name, PERSON_WORDS_LEN, limit, offset]);
-
-  const { rows: countRows } = await pool.query(`
-    SELECT count(*)::int as total
-    from person_words($1, $2)`,
-  [name, PERSON_WORDS_LEN]);
-
-  return { items, total: countRows[0].total };
-
+  const [page, count] = await Promise.all([
+    pool.query<PersonWord>(
+      `SELECT word, frequency::int AS frequency
+       FROM person_words($1, $2)
+       ORDER BY frequency DESC, word
+       LIMIT $3 OFFSET $4`,
+      [name, PERSON_WORDS_LEN, limit, offset]),
+    pool.query<{ total: number }>(
+      'SELECT count(*)::int AS total FROM person_words($1, $2)',
+      [name, PERSON_WORDS_LEN]),
+  ]);
+  return { items: page.rows, total: count.rows[0].total };
 }
