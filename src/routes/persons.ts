@@ -2,13 +2,10 @@ import { Router } from 'express';
 import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged, searchLogUser} from '../routes/pagination.js'
-import { toPersonDto, toPersonDetailDto toPersonTitleDto, toCoPlayerDto, toPersonWordDto } from './dto.js';
+import { toPersonDto, toPersonDetailDto, toPersonTitleDto, toCoPlayerDto, toPersonWordDto } from './dto.js';
 import { validatePersonBrowse, validateNconst } from "../validation.js";
 
 export const router = Router();
-
-// nconst is an IMDb-style string (e.g. "nm0000042"): nm followed by at least 7 digits.
-
 
 // validates the :nconst route param and stores the value in res.locals
 router.param('nconst', (_req, res, next, value: string) => {
