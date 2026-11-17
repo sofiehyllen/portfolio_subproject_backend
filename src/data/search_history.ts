@@ -26,18 +26,22 @@ export async function getUserSearchHistory(uconst: number, limit: number, offset
 
 }
 
-export async function deleteUserSearchHistory(uconst: number): Promise<boolean>{
-    const { rows } = await pool.query(`
-        SELECT clear_search_history($1) as deleted`,
-    [uconst]);
-
-    return rows[0].deleted
+// Deletes the user's entire search history with clear_search_history().
+// Returns false when the history was already empty; the route ignores
+// this and always answers 204.
+export async function deleteUserSearchHistory(uconst: number): Promise<boolean> {
+    const { rows } = await pool.query<{ deleted: boolean }>(
+        'SELECT clear_search_history($1) AS deleted',
+        [uconst]);
+    return rows[0].deleted;
 }
 
+// Deletes one search with clear_search_history_entry(), only if it
+// belongs to the user.
+// Returns false (→ 404) when the user has no such search.
 export async function deleteUserSearchHistoryEntry(uconst: number, sconst: number): Promise<boolean> {
-    const { rows } = await pool.query(`
-        SELECT clear_search_history_entry($1, $2) as deleted`,
-    [uconst, sconst]);
-
+    const { rows } = await pool.query<{ deleted: boolean }>(
+        'SELECT clear_search_history_entry($1, $2) AS deleted',
+        [uconst, sconst]);
     return rows[0].deleted;
 }
