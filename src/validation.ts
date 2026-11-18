@@ -1,6 +1,6 @@
 // Request validation — cleans and type-narrows query/body input before it reaches the data layer.
 // Most validators return the cleaned value or throw BadRequest (400) with every field error at once.
-// Exception: validatePassword returns string[] and parseSort adds to a caller-supplied errors array.
+// Exception: parseSort adds to a caller-supplied errors array.
 
 import { BadRequest } from './middleware/errors.js';
 import { KEYWORD_MATCHES, KeywordMatch, StructuredSearch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';

@@ -117,7 +117,7 @@ function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params
 }
 
 // True when a title with this tconst exists.
-export async function exists(tconst: string): Promise<boolean> {
+export async function checkTitleExists(tconst: string): Promise<boolean> {
   const { rowCount } = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
   return (rowCount ?? 0) > 0;
 }

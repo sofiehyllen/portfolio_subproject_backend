@@ -114,7 +114,7 @@ export async function deleteUser(uconst: number): Promise<boolean> {
 }
 
 // Updated the user's password hash using update_user_password().
-export async function updateUserHashPassword(uconst: number, newHash: string): Promise<void> {
+export async function updatePassword(uconst: number, newHash: string): Promise<void> {
   await pool.query(`
     SELECT update_user_password($1, $2)`,
     [uconst, newHash]
