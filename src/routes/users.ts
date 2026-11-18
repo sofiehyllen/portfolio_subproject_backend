@@ -3,13 +3,14 @@ import * as users from '../data/users.js';
 import * as bookmark from '../data/bookmarks.js';
 import { validateNewUser, validateUserUpdate, validatePasswordUpdate, validateNconst, validateSerial, validateTconst, validateRating, validatePassword  } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
-import { NotFound, BadRequest } from '../middleware/errors.js';
+import { NotFound, BadRequest, Forbidden } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
 import * as search_history from '../data/search_history.js';
 import { pageOf, paged } from './pagination.js';
 import { rateTitle } from "../services/ratings.js";
 import { changePassword, register, updateProfile } from "../services/users.js";
 import { bookmarkPerson, bookmarkTitle } from "../services/bookmarks.js";
+import { requireAuth } from "../middleware/auth.js";
 
 export const router = Router();
 
@@ -21,6 +22,8 @@ router.param('uconst', async (_req, res, next, value: string) => {
   try {
     const uconst = validateSerial(value);
     if (uconst === undefined) { throw new BadRequest('uconst must be a positive integer'); }
+
+    if (res.locals.auth?.uconst !== uconst) throw new Forbidden('Not your account');
 
     const user = await users.getUser(uconst);
     if (!user) {
@@ -69,6 +72,7 @@ router.param('nconst', (_req, res, next, value: string) => {
 // POST /api/users: registers a user. Public. Returns 201 with the new
 // profile and a Location header pointing at it.
 router.post('/', async (req, res, next) => {
+  router.use(requireAuth);
   try {
     const input = validateNewUser(req.body); // 400 on missing or invalid fields
     const user = await register(input); // 409 from the service
@@ -79,7 +83,6 @@ router.post('/', async (req, res, next) => {
 });
 
 // GET /api/users/{uconst}: the user's profile (never the password hash).
-// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
 router.get('/:uconst', (_req, res) => {
   const user: users.User = res.locals.user;
   res.json(toUserDto(user));
@@ -88,7 +91,6 @@ router.get('/:uconst', (_req, res) => {
 // PATCH /api/users/{uconst}: changes the fields sent (firstName, lastName,
 // email) and returns the updated profile. The username cannot be changed,
 // and the password has its own endpoint.
-// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
 router.patch('/:uconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -101,7 +103,6 @@ router.patch('/:uconst', async (req, res, next) => {
 });
 
 // PUT /api/users/{uconst}/password: replaces the user's password
-// TODO: require a token and check it belongs to {uconst} once auth exists
 router.put('/:uconst/password', async (req, res, next) => {
   try {
     const input = validatePasswordUpdate(req.body);
@@ -122,7 +123,6 @@ router.put('/:uconst/password', async (req, res, next) => {
 
 // DELETE /api/users/{uconst}: deletes the user and all their ratings,
 // bookmarks and search history. 204 on success, no body.
-// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
 router.delete('/:uconst', async (_req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -139,7 +139,6 @@ router.delete('/:uconst', async (_req, res, next) => {
 // ── Ratings ───────────────────────────────────────────────────────────────────
 
 // GET /api/users/{uconst}/ratings: paged rating history, newest change first.
-// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
 router.get('/:uconst/ratings', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -158,7 +157,6 @@ router.get('/:uconst/ratings', async (req, res, next) => {
 
 // GET /api/users/{uconst}/ratings/{tconst}: the user's active rating of one title.
 // 404 when the user has never rated the title, or the rating has been removed.
-// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
 router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -304,7 +302,6 @@ router.delete('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
 // ── Search history ────────────────────────────────────────────────────────────
 
 // GET /api/users/{uconst}/search-history: a user's list of search history
-// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
 router.get('/:uconst/search-history', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -335,7 +332,6 @@ router.delete('/:uconst/search-history/:sconst', async (req, res, next) => {
 
 // DELETE /api/users/{uconst}/search-history: delete user's search history
 // Clearing an empty history is not an error, so the answer is always 204.
-// TODO: require a token and check it belongs to {uconst} (401/403) once auth exists.
 router.delete('/:uconst/search-history', async (_req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;

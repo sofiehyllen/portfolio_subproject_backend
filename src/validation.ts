@@ -103,6 +103,24 @@ export function validateNewUser(body: unknown): NewUserInput {
   return { firstName, lastName, username, email: mail, password: password as string };
 }
 
+
+/**
+ * Parses and validates the body of `POST /api/auth/tokens` (login).
+ * Only presence is checked: the password rules apply when a password is set, not at login.
+ * @throws {BadRequest} Listing every missing field.
+ */
+export function validateLogin(body: unknown): LoginInput {
+  const b = asObject(body);
+  const errors: string[] = [];
+  const username = text(b.username, 'username', undefined, errors).toLowerCase(); // stored in lower case
+  const password = b.password; // not trimmed, as at registration
+  if (typeof password !== 'string' || password === '') errors.push('password is required');
+
+  if (errors.length > 0) throw new BadRequest(errors.join('; '));
+  return { username, password: password as string };
+}
+
+
 /**
  * Parses and validates the body of `PATCH /api/users/{uconst}`.
  * Every sent field must be valid; at least one must be present.

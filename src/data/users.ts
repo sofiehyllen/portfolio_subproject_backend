@@ -72,6 +72,22 @@ export async function getUser(uconst: number): Promise<User | undefined> {
   return rows[0];
 }
 
+// One user by name, or undefined when no such user exists.
+export async function getUserByUsername(username: string): Promise<User | undefined> {
+  const { rows } = await pool.query<User>(
+    `SELECT uconst,
+            first_name      AS "firstName",
+            last_name       AS "lastName",
+            username,
+            email,
+            password_hash   AS "passwordHash",
+            created_at      AS "createdAt"
+    FROM get_user_by_username($1)`,
+    [username]
+  );
+  return rows[0];
+}
+
 // True when a user already has this username.
 export async function usernameTaken(username: string): Promise<boolean> {
   const { rowCount } = await pool.query('SELECT 1 FROM users WHERE username = $1', [username]);
