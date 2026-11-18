@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import * as bookmark from '../data/bookmarks.js';
-import { validateNewUser, validateUserUpdate, validatePassword, validatePasswordUpdate, validateNconst, validateSerial, validateTconst, validateRating  } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePasswordUpdate, validateNconst, validateSerial, validateTconst, validateRating  } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
 import { NotFound, BadRequest } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
@@ -138,8 +138,10 @@ router.get('/:uconst/ratings', async (req, res, next) => {
     const uconst: number = res.locals.uconst;
     const page = pageOf(req.query as Record<string, unknown>);
 
-    const items = await ratings.ratingHistory(uconst, page.limit, page.offset);
-    const total = await ratings.countRatings(uconst);
+    const [items, total] = await Promise.all([
+      ratings.ratingHistory(uconst, page.limit, page.offset),
+      ratings.countRatings(uconst),
+    ]);
 
     res.json(paged(req, page, total, items.map((item) => toRatingHistoryDto(uconst, item))));
   } catch (err) {
@@ -201,8 +203,10 @@ router.get('/:uconst/bookmarks/titles', async (req, res, next) => {
     const page = pageOf(req.query as Record <string, unknown>);
     const uconst: number = res.locals.uconst;
 
-    const items = await bookmark.getTitleBookmarks(uconst, page.limit, page.offset);
-    const total = await bookmark.countTitleBookmarks(uconst);
+    const [items, total] = await Promise.all([
+      bookmark.getTitleBookmarks(uconst, page.limit, page.offset),
+      bookmark.countTitleBookmarks(uconst),
+    ]);
 
     res.json(paged(req, page, total, items.map((item) => toUserBookmarkTitleDto(uconst, item))));
 
@@ -248,8 +252,10 @@ router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
 
     const uconst: number = res.locals.uconst;
 
-    const items = await bookmark.getPersonBookmarks(uconst, page.limit, page.offset);
-    const total = await bookmark.countPersonBookmarks(uconst);
+    const [items, total] = await Promise.all([
+      bookmark.getPersonBookmarks(uconst, page.limit, page.offset),
+      bookmark.countPersonBookmarks(uconst),
+    ]);
 
     res.json(paged(req, page, total, items.map((item) => toUserBookmarkPersonDto(uconst, item))));
 

@@ -19,8 +19,7 @@
 import { PoolClient } from "pg";
 import { pool } from '../db.js';
 
-// A user as stored, including the password hash. Routes send it to clients
-// only through toUserDto, which leaves the hash out.
+// A user as stored, including the password hash.
 export interface User {
   uconst: number;
   firstName: string;

@@ -1,11 +1,9 @@
 import { createUser, emailTaken, getUser, lockOn, updateOn, updateUserHashPassword, User, usernameTaken } from "../data/users.js";
 import { pool } from "../db.js";
 import { BadRequest, Conflict, Forbidden, NotFound } from "../middleware/errors.js";
-import { checkPassword, hashPassword } from "../auth/crypto.js";
-import { validatePassword } from "../validation.js";
+import { checkPassword, hashPassword, validatePassword } from "../auth/crypto.js";
 
 // The input of each operation. validation.ts imports these.
-// The cleaned body returned by validateNewUser(); passed to the data layer to create a user.
 export interface NewUserInput {
   firstName: string;
   lastName: string;
@@ -14,14 +12,12 @@ export interface NewUserInput {
   password: string;
 }
 
-// The cleaned body returned by validateUserUpdate(); only the fields the client sent (at least one).
 export interface UserUpdateInput {
   firstName?: string;
   lastName?: string;
   email?: string;
 }
 
-// The cleaned body returned by validatePasswordUpdate(); passed to the password-change route handler.
 export interface PasswordUpdateInput {
   currentPassword: string;
   newPassword: string;

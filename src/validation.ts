@@ -7,14 +7,14 @@ import { KEYWORD_MATCHES, KeywordMatch, StructuredSearch, TITLE_SORT_FIELDS, Tit
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
 import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
 import type { NewUserInput, PasswordUpdateInput, UserUpdateInput } from "./services/users.js";
+import { validatePassword } from "./auth/crypto.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Maximum lengths match the columns of the users table.
 const NAME_MAX     = 50;
 const EMAIL_MAX    = 256;
-const PASSWORD_MIN = 8;
-const PASSWORD_MAX = 128;
+
 const USERNAME = /^[A-Za-z0-9_.-]{3,50}$/;
 const EMAIL    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -132,30 +132,6 @@ export function validateUserUpdate(body: unknown): UserUpdateInput {
   return update;
 }
 
-/**
- * Checks password rules: length, upper/lower case, digit, special character,
- * and optionally that it differs from the username and the current password.
- * @param optional Pass `username` and/or `currPassword` to enforce uniqueness rules.
- * @returns A list of error messages; empty when the password is valid. Does not throw.
- */
-export function validatePassword(password: unknown, optional: { username?: string; currPassword?: string } = {}): string[] {
-  if (typeof password !== 'string' || password === '') return ['password is required'];
-
-  const errors: string[] = [];
-  if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX)
-    errors.push(`password must be ${PASSWORD_MIN}-${PASSWORD_MAX} characters`);
-  if (!/[a-z]/.test(password))           errors.push('password must contain a lower case letter');
-  if (!/[A-Z]/.test(password))           errors.push('password must contain an upper case letter');
-  if (!/[0-9]/.test(password))           errors.push('password must contain a number');
-  if (!/[^A-Za-z0-9\s]/.test(password)) errors.push('password must contain a special character');
-
-  if (optional.username && password.toLocaleLowerCase() === optional.username.toLocaleLowerCase())
-    errors.push('password cannot be the same as the username');
-  if (optional.currPassword !== undefined && password === optional.currPassword)
-    errors.push('new password cannot be the same as the current password');
-
-  return errors;
-}
 
 /**
  * Parses the body of `PUT /api/users/{uconst}/password`.
