@@ -190,7 +190,7 @@ Content-Type: application/json
   "offset": 0,
   "items": [
     {
-      "url": "http://localhost:3000/api/titles/tt0068646",
+      "url": "/api/titles/tt0068646",
       "titleType": "movie",
       "primaryTitle": "The Godfather",
       "originalTitle": "The Godfather",
@@ -204,7 +204,7 @@ Content-Type: application/json
       "rating": { "average": 9.2, "votes": 2000000 }
     },
     {
-      "url": "http://localhost:3000/api/titles/tt0111161",
+      "url": "/api/titles/tt0111161",
       "titleType": "movie",
       "primaryTitle": "The Shawshank Redemption",
       "originalTitle": "The Shawshank Redemption",
@@ -220,12 +220,13 @@ Content-Type: application/json
   ],
   "links": {
     "prev": null,
-    "next": "http://localhost:3000/api/titles?limit=2&offset=2"
+    "next": "/api/titles?limit=2&offset=2"
   }
 }
 ```
 
 Every item has a `url`, so the client can follow it without building any address itself.
+`url` and the paging links are paths relative to the API host (no scheme or host).
 `prev` is `null` because this is the first page. Fields with no data in the database are `null`, and so is `rating` for a title without votes.
 
 Every error has the same shape, with no stack trace, SQL or database identifiers:
