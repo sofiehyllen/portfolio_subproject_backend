@@ -6,17 +6,17 @@
 
 | Resource | What it is | Why it earns a place in the API |
 |---|---|---|
-| Title | A film, series or episode from IMDb, with plot, genres, rating and credits. Its actors and similar titles are sub-collections. | The centre of the application that users search for and browse; most searches end at a title|
-| Person | An actor, director, writer etc., with name rating, professions and known-for titles. Their co-players and frequent words are sub-collections | Browsing people and following them to their titles; the target of person searches |
+| Title | Any IMDb title (e.g. a film, series, episode or video game), with plot, genres, rating and credits. Its actors and similar titles are sub-collections. | The centre of the application that users search for and browse; most searches end at a title |
+| Person | An actor, director, writer etc., with name rating, professions, roles and known-for titles. Their credited titles, co-players and frequent words are sub-collections. | Browsing people and following them to their titles; the target of person searches |
 | User | A registered account, which owns its title ratings, bookmarks (on titles and persons) and search history | Owner of all personal data; register, view, update, delete |
 | Token | Proof of a successful login | The API is stateless, so login creates a credential the client sends on later requests |
 
-**IMDb data** (titles, persons and everything derived from them) is read-only: no `POST`, `PUT`, `PATCH` or `DELETE`.
-**Framework data** (users, ratings, bookmarks, search history) supports CRUD (create, read, update and delete) where the operation makes sense (bookmarks and history entries have nothing to update).
+**IMDb data** (titles, persons and everything derived from them) is read-only: no `POST`, `PUT`, `PATCH` or `DELETE`. IMDb data only changes indirectly, through a user's ratings: rating a title (`rate()`), removing a rating (`remove_rating()`) or deleting a user (`delete_user()`, which removes all the user's ratings) updates the title's average rating and vote count, and recalculates the name ratings.
+**Framework data** (users, ratings, bookmarks, search history) supports CRUD (create, read, update and delete) where the operation makes sense (bookmarks and history entries have nothing to update). Search history entries are not created directly by the client, but as a side effect of a title or person search made with a token. Only the first page of a search is logged, so paging through the results does not log it again.
 
-**Not exposed:** `word_index` and `weighted_word_index`. They are the machinery
-behind keyword search. Clients get search results, never index rows, and
-exposing them would tie the contract to an implementation detail.
+**Related words** (`/api/related-words`) is not a stored resource but a computed collection: up to 10 words most associated with the titles matching all the given words.
+
+**Not exposed:** `word_index` and `weighted_word_index`. They are the machinery behind keyword search, related words and a person's frequent words. Clients get results, never index rows, and exposing them would tie the contract to an implementation detail.
 
 
 ## 2. Paths
