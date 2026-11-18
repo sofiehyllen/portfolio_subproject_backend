@@ -1,7 +1,7 @@
 import { createUser, getUser, lockOn, updateOn, updateUserHashPassword, User } from "../data/users.js";
 import { pool } from "../db.js";
 import { Conflict, Forbidden, NotFound } from "../middleware/errors.js";
-import { checkPassword, hashPassword } from "../utils/passwords.js";
+import { checkPassword, hashPassword } from "../auth/crypto.js";
 
 // The input of each operation. validation.ts imports these.
 // The cleaned body returned by validateNewUser(); passed to the data layer to create a user.
