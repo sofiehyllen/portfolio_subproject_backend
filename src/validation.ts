@@ -7,6 +7,7 @@ import { KEYWORD_MATCHES, KeywordMatch, StructuredSearch, TITLE_SORT_FIELDS, Tit
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
 import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
 import type { NewUserInput, PasswordUpdateInput, UserUpdateInput } from "./services/users.js";
+import { LoginInput } from "./services/auth.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
