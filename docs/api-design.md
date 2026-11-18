@@ -23,16 +23,16 @@
 
 | Path | What it identifies |
 |---|---|
-| `/api/titles` | The collection of titles (narrowed by search parameters) |
+| `/api/titles` | The collection of titles, narrowed by search parameters, or filtered (`genre`, `titleType`) and sorted (`sort`, `order`) when not searching |
 | `/api/titles/{tconst}` | One specific title |
 | `/api/titles/{tconst}/actors` | The actors of a title (ranked by name rating) |
-| `/api/titles/{tconst}/similar` | Movies similar to a title (based on shared genres) |
-| `/api/persons` | The collection of persons (narrowed by `name`, `actorsOnly`) |
+| `/api/titles/{tconst}/similar` | Titles of the same kind as the given title (movies, series or video games), ranked by the number of genres they share with it |
+| `/api/persons` | The collection of persons, narrowed by `name` and `actorsOnly`, and sorted (`sort`, `order`) |
 | `/api/persons/{nconst}` | One specific person |
 | `/api/persons/{nconst}/titles` | The titles a person has been credited on, each with their role |
 | `/api/persons/{nconst}/co-players` | Actors who have co-acted with this person (ranked by frequency) |
-| `/api/persons/{nconst}/words` | The most frequent words across this person's titles |
-| `/api/related-words` | Words associated with the titles that match given words |
+| `/api/persons/{nconst}/words` | The 10 most frequent words across this person's titles |
+| `/api/related-words` | The 10 words most associated with the titles that match all the given words |
 | `/api/users` | The collection of users (only `POST` is offered, to register) |
 | `/api/users/{uconst}` | One specific user (profile) |
 | `/api/users/{uconst}/password` | The user’s password (write-only: it can be replaced but never read)|
