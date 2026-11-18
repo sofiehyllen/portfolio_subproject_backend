@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import * as bookmark from '../data/bookmarks.js';
-import { validateNewUser, validateUserUpdate, validatePasswordUpdate, validateNconst, validateSerial, validateTconst, validateRating  } from '../validation.js';
+import { validateNewUser, validateUserUpdate, validatePasswordUpdate, validateNconst, validateSerial, validateTconst, validateRating, validatePassword  } from '../validation.js';
 import { toUserRatingDto, toUserDto, uri, toUserSearchHistoryDto, toRatingHistoryDto, toUserBookmarkTitleDto, toUserBookmarkPersonDto } from './dto.js';
 import { NotFound, BadRequest } from '../middleware/errors.js';
 import * as ratings from '../data/ratings.js';
@@ -106,6 +106,13 @@ router.put('/:uconst/password', async (req, res, next) => {
   try {
     const input = validatePasswordUpdate(req.body);
     const user: users.User = res.locals.user;
+
+    const errors = validatePassword(input.newPassword, {
+      username: user.username,
+      currPassword: input.currentPassword,
+    });
+    if (errors.length > 0) throw new BadRequest(errors.join('; '));
+
     await changePassword(user.uconst, input); // 403, 404 from the service
     res.status(204).end();
   } catch (err) {

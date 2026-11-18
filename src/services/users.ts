@@ -1,7 +1,8 @@
 import * as users from "../data/users.js";
 import { pool } from "../db.js";
 import { BadRequest, Conflict, Forbidden, NotFound } from "../middleware/errors.js";
-import { checkPassword, hashPassword, validatePassword } from "../auth/crypto.js";
+import { checkPassword, hashPassword } from "../auth/crypto.js";
+import { validatePassword } from "../validation.js";
 
 // The input of each operation. validation.ts imports these.
 export interface NewUserInput {
@@ -49,13 +50,15 @@ export async function register(input: NewUserInput): Promise<users.User> {
  * The lock and the update run in one transaction on one client.
  */
 export async function updateProfile(uconst: number, changes: UserUpdateInput): Promise<users.User> {
+  if (changes.email !== undefined && (await users.emailTaken(changes.email, uconst))) {
+    throw new Conflict('Email already taken');
+  }
+  // Two requests at the same moment can both pass the check above; the second
+  // update then fails on the UNIQUE constraint and the client gets 500.
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     if (!(await users.lockOn(client, uconst))) throw new NotFound('User not found');
-    if (changes.email !== undefined && (await users.emailTaken(changes.email, uconst))) {
-      throw new Conflict('Email already taken');
-    }
     await users.updateOn(client, uconst, changes);
     await client.query('COMMIT');
   } catch (err) {
@@ -79,12 +82,5 @@ export async function changePassword(uconst: number, input: PasswordUpdateInput)
   if (!(await checkPassword(input.currentPassword, user.passwordHash))) {
     throw new Forbidden('Current password is invalid');
   }
-
-  const errors = validatePassword(input.newPassword, {
-    username: user.username,
-    currPassword: input.currentPassword,
-  });
-  if (errors.length > 0) throw new BadRequest(errors.join('; '));
-
   await users.updatePassword(uconst, await hashPassword(input.newPassword));
 }
