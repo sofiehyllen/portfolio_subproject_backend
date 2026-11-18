@@ -1,8 +1,7 @@
 import * as users from "../data/users.js";
 import { pool } from "../db.js";
-import { BadRequest, Conflict, Forbidden, NotFound } from "../middleware/errors.js";
+import { Conflict, Forbidden, NotFound } from "../middleware/errors.js";
 import { checkPassword, hashPassword } from "../auth/crypto.js";
-import { validatePassword } from "../validation.js";
 
 // The input of each operation. validation.ts imports these.
 export interface NewUserInput {

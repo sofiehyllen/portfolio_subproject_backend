@@ -22,4 +22,3 @@ export async function checkPassword(password: string, stored: string): Promise<b
   const actual = await scryptAsync(password, Buffer.from(saltB64, 'base64'), expected.length);
   return timingSafeEqual(actual, expected); // constant time, so timing reveals nothing
 }
-
