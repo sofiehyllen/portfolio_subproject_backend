@@ -24,7 +24,7 @@ router.post('/login', async (req, res, next) => {
   try {
     const input = validateLogin(req.body);
     const { uconst, token } = await login(input);
-    res.status(201).json({ token, user: uri.user(uconst) });
+    res.status(200).json({ token, user: uri.user(uconst) });
   } catch (err) {
     next(err);
   }
