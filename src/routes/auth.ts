@@ -20,7 +20,7 @@ export const router = Router();
  * @throws  `400 Bad Request`   — missing or invalid fields.
  * @throws  `401 Unauthorized`  — wrong username or password.
  */
-router.post('/tokens', async (req, res, next) => {
+router.post('/login', async (req, res, next) => {
   try {
     const input = validateLogin(req.body);
     const { uconst, token } = await login(input);
