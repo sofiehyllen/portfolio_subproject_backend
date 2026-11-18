@@ -9,11 +9,11 @@
  * - `countTitleBookmarks(uconst)` — total number of title bookmarks for the user.
  * - `countPersonBookmarks(uconst)` — total number of person bookmarks for the user.
  * - `getTitleBookmarks(uconst, limit, offset)` — paged title bookmarks, newest first.
- * - `addTitleBookmark(uconst, tconst)` — creates a bookmark; returns false if the title does not exist.
- * - `removeTitleBookmark(uconst, tconst)` — removes a bookmark; returns false if none was found.
+ * - `addTitleBookmark(uconst, tconst)` — creates a title bookmark.
+ * - `removeTitleBookmark(uconst, tconst)` — removes a title bookmark; returns false if none was found.
  * - `getPersonBookmarks(uconst, limit, offset)` — paged person bookmarks, newest first.
- * - `addPersonBookmark(uconst, nconst)` — creates a bookmark; returns false if the person does not exist.
- * - `removePersonBookmark(uconst, nconst)` — removes a bookmark; returns false if none was found.
+ * - `addPersonBookmark(uconst, nconst)` — creates a person bookmark.
+ * - `removePersonBookmark(uconst, nconst)` — removes a person bookmark; returns false if none was found.
  */
 import { pool } from '../db.js';
 
@@ -65,17 +65,13 @@ export async function getTitleBookmarks(uconst: number, limit: number, offset: n
 }
 
 // Create title bookmark
-export async function addTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
-  const title = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
-  if (!title.rowCount) return false;
-
+export async function addTitleBookmark(uconst: number, tconst: string): Promise<void> {
   await pool.query('SELECT add_title_bookmark($1, $2)', [uconst, tconst]);
-  return true;
 }
 
 // Removes a title bookmark with remove_title_bookmark(), which returns
 // whether a bookmark was deleted.
-// Returns false (→ 404) when the user has no bookmark of the title.
+// Returns false when the user has no bookmark of the title.
 export async function removeTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT remove_title_bookmark($1, $2) AS deleted',
@@ -100,17 +96,13 @@ export async function getPersonBookmarks(uconst: number, limit: number, offset: 
 }
 
 // Create person bookmark
-export async function addPersonBookmark(uconst: number, nconst: string): Promise<boolean> {
-  const person = await pool.query('SELECT 1 FROM persons WHERE nconst = $1', [nconst]);
-  if (!person.rowCount) return false;
-
+export async function addPersonBookmark(uconst: number, nconst: string): Promise<void> {
   await pool.query('SELECT add_person_bookmark($1, $2)', [uconst, nconst]);
-  return true;
 }
 
 // Removes a person bookmark with remove_person_bookmark(), which returns
 // whether a bookmark was deleted.
-// Returns false (→ 404) when the user has no bookmark of the person.
+// Returns false when the user has no bookmark of the person.
 export async function removePersonBookmark(uconst: number, nconst: string): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT remove_person_bookmark($1, $2) AS deleted',

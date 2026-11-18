@@ -67,8 +67,10 @@ router.get('/', async (req, res, next) => {
 
     // No search: browse all titles, filtered and sorted as asked
     const browse = validateTitleBrowse(query);
-    const items = await titles.list(browse, page.limit, page.offset);
-    const total = await titles.count(browse);
+    const [items, total] = await Promise.all([
+      titles.list(browse, page.limit, page.offset),
+      titles.count(browse),
+    ]);
     res.json(paged(req, page, total, items.map(toTitleDto)));
   } catch (err) {
     next(err);

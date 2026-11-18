@@ -1,5 +1,12 @@
 /**
  * Data-access layer for word associations, built on the `word_index` table.
+ *
+ * Types:
+ * - `RelatedWord` — a word associated with a set of titles, with a count of how many contain it.
+ *
+ * Query functions:
+ * - `relatedWords(words)` — the words most associated with the titles that contain all the given
+ *   words, most frequent first. Returns at most 10 words via word_to_word_querying().
  */
 import { pool } from '../db.js';
 

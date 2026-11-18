@@ -1,11 +1,12 @@
 // Request validation — cleans and type-narrows query/body input before it reaches the data layer.
 // Most validators return the cleaned value or throw BadRequest (400) with every field error at once.
-// Exception: validatePassword returns string[] and parseSort adds to a caller-supplied errors array.
+// Exception: parseSort adds to a caller-supplied errors array.
 
 import { BadRequest } from './middleware/errors.js';
-import { KEYWORD_MATCHES, KeywordMatch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
+import { KEYWORD_MATCHES, KeywordMatch, StructuredSearch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
 import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
+import type { NewUserInput, PasswordUpdateInput, UserUpdateInput } from "./services/users.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -77,28 +78,6 @@ export function parseSort<F extends string>(
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
-
-// The cleaned body returned by validateNewUser(); passed to the data layer to create a user.
-export interface NewUserInput {
-  firstName: string;
-  lastName: string;
-  username: string;
-  email: string;
-  password: string;
-}
-
-// The cleaned body returned by validateUserUpdate(); only the fields the client sent (at least one).
-export interface UserUpdateInput {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-}
-
-// The cleaned body returned by validatePasswordUpdate(); passed to the password-change route handler.
-export interface PasswordUpdateInput {
-  currentPassword: string;
-  newPassword: string;
-}
 
 /**
  * Parses and validates the body of `POST /api/users`.
@@ -194,6 +173,18 @@ export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
   return { currentPassword, newPassword };
 }
 
+/**
+ * Parses the body of `PUT /api/users/{uconst}/ratings/{tconst}`.
+ * @throws {BadRequest} If `rating` is not an integer between 1 and 10.
+ */
+export function validateRating(body: unknown): number {
+  const rating = asObject(body).rating;
+  if (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 10) {
+    throw new BadRequest('rating must be an integer between 1 and 10');
+  }
+  return rating;
+}
+
 // ── Titles ────────────────────────────────────────────────────────────────────
 
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
@@ -204,14 +195,6 @@ const FILTER_MAX    = 100;
 const SEARCH_MAX    = 100;
 const WORDS_MAX     = 10;
 const WORD_MAX      = 50;
-
-// The cleaned query returned by validateStructuredSearch();
-export interface StructuredSearch {
-  title: string;
-  plot: string;
-  character: string;
-  person: string;
-}
 
 /**
  * Rejects query parameters not accepted by `GET /api/titles`.

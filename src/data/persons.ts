@@ -1,18 +1,29 @@
 /**
  * Data-access layer for the `persons` table.
  *
- * Exports six types and two query functions:
+ * Types:
  * - `Person` — a person row with name, birth/death year, name rating and professions.
  * - `KnownFor` — a compact title (tconst and primaryTitle) used in `PersonDetail`.
  * - `PersonDetail` — extends `Person` with `roles` (credit categories) and `knownFor` titles.
+ * - `PersonTitle` — one title credit for a person: tconst, title, category, job and characters.
+ * - `CoPlayer` — a person who has shared screen credit with another, with a co-occurrence frequency.
+ * - `PersonWord` — a word strongly associated with a person's titles, with a frequency count.
  * - `PersonFilter` — optional name search and actorsOnly flag for `getPersons`.
  * - `PersonBrowse` — extends `PersonFilter` with sort field and direction.
  * - `PERSON_SORT_FIELDS` / `PersonSortField` — the allowed sort fields: name, rating.
+ *
+ * Query functions:
  * - `getPersons(logAs, browse, limit, offset)` — paged slice of persons matching the filter,
  *   sorted by the chosen field and direction, plus the total number of matches. A name
  *   search is logged by name_search/actor_search under `logAs`, or not at all if null.
  * - `getPersonDetail(nconst)` — one person with roles and known-for titles,
  *   or undefined when no such person exists.
+ * - `checkPersonExists(nconst)` — true when a person with this nconst exists.
+ * - `getPersonTitles(nconst, limit, offset)` — paged title credits for the person, newest first.
+ * - `getCoPlayers(nconst, limit, offset)` — paged co-players ranked by frequency, plus the total;
+ *   undefined when no such person exists.
+ * - `getPersonWords(nconst, limit, offset)` — paged word associations ranked by frequency, plus
+ *   the total; undefined when no such person exists.
  */
 import { pool } from '../db.js';
 import { orderBy, Sort } from './sorting.js';
@@ -157,94 +168,84 @@ export async function getPersonDetail(nconst: string): Promise<PersonDetail | un
 }
 
 export async function checkPersonExists(nconst: string): Promise<boolean> {
-  const { rowCount } = await pool.query(`
-    SELECT 1
-    FROM persons 
-    WHERE nconst = $1`,
-    [nconst]);
-  
+  const { rowCount } = await pool.query(`SELECT 1 FROM persons WHERE nconst = $1`,[nconst]);
     return (rowCount ?? 0) > 0;
-  
+}
+
+// The primary name of a person, or undefined when no such person exists.
+// co_players() and person_words() take a name, not an nconst.
+async function nameOf(nconst: string): Promise<string | undefined> {
+  const { rows } = await pool.query<{ primaryName: string }>(
+    'SELECT primary_name AS "primaryName" FROM persons WHERE nconst = $1',
+    [nconst]);
+  return rows[0]?.primaryName;
 }
 
 export async function getPersonTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
-  const { rows: items} = await pool.query<PersonTitle>(`
-    SELECT  t.tconst,
-            tp.nconst,
-            t.primary_title as "primaryTitle",
-            tp.category,
-            tp.job,
-            ARRAY(SELECT c.character_name
-                  FROM title_person_characters c
-                  WHERE c.tconst = tp.tconst and c.ordering = tp.ordering
-                  ORDER BY c.character_name) as characters
-    FROM title_persons tp
-    JOIN titles t ON t.tconst = tp.tconst
-    WHERE tp.nconst = $1
-    ORDER BY t.start_year DESC NULLS LAST, t.tconst, tp.ordering
-    LIMIT $2 
-    OFFSET $3`,
-    [nconst, limit, offset]);
+  // The page and the count are independent, so they run in parallel.
+  const [page, count] = await Promise.all([
+    pool.query<PersonTitle>(`
+      SELECT  t.tconst,
+              tp.nconst,
+              t.primary_title as "primaryTitle",
+              tp.category,
+              tp.job,
+              ARRAY(SELECT c.character_name
+                    FROM title_person_characters c
+                    WHERE c.tconst = tp.tconst and c.ordering = tp.ordering
+                    ORDER BY c.character_name) as characters
+      FROM title_persons tp
+      JOIN titles t ON t.tconst = tp.tconst
+      WHERE tp.nconst = $1
+      ORDER BY t.start_year DESC NULLS LAST, t.tconst, tp.ordering
+      LIMIT $2
+      OFFSET $3`,
+      [nconst, limit, offset]),
+    pool.query<{ total: number }>(
+      'SELECT count(*)::int AS total FROM title_persons WHERE nconst = $1',
+      [nconst]),
+  ]);
 
-  const { rows: countRows } = await pool.query(`
-    SELECT count(*)::int as total from title_persons where nconst = $1`,
-    [nconst]);
-  
-  return { items, total: countRows[0].total };
+  return { items: page.rows, total: count.rows[0].total };
 }
 
-export async function getCoPlayers(nconst: string, limit: number, offset: number): Promise<{ items: CoPlayer[], total: number}> {
-  const { rows: nameRows } = await pool.query<{primaryName: string}>(`
-    SELECT primary_name as "primaryName"
-    FROM persons
-    WHERE nconst = $1`,
-  [nconst]);
+export async function getCoPlayers(nconst: string, limit: number, offset: number): Promise<{ items: CoPlayer[], total: number} | undefined> {
+  const name = await nameOf(nconst); // the queries below need the name, so this runs first
+  if (name === undefined) return undefined;
 
-  const name = nameRows[0].primaryName;
-
-  const { rows: items } = await pool.query<CoPlayer>(`
-    SELECT  nconst,
-            primary_name as "primaryName",
-            frequency::int as frequency
-    FROM co_players($1) 
-    ORDER BY frequency DESC, primary_name, nconst
-    LIMIT $2
-    OFFSET $3`,
-    [name, limit, offset]);
-
-  
-  const { rows: countRows } = await pool.query(`
-    SELECT count(*)::int as total from co_players($1)`,
-  [name]);
-
-  return { items, total: countRows[0].total};
-  
+  // The page and the count are independent, so they run in parallel.
+  const [page, count] = await Promise.all([
+    pool.query<CoPlayer>(
+      `SELECT nconst,
+              primary_name AS "primaryName",
+              frequency::int AS frequency
+       FROM co_players($1)
+       ORDER BY frequency DESC, primary_name, nconst
+       LIMIT $2 OFFSET $3`,
+      [name, limit, offset]),
+    pool.query<{ total: number }>(
+      'SELECT count(*)::int AS total FROM co_players($1)',
+      [name]),
+  ]);
+  return { items: page.rows, total: count.rows[0].total };
 }
 
 const PERSON_WORDS_LEN = 10;
 
-export async function getPersonWords(nconst: string, limit: number, offset: number): Promise<{ items: PersonWord[]; total: number}> {
-  const { rows: nameRows } = await pool.query<{primaryName: string}>(`
-    SELECT primary_name as "primaryName"
-    FROM persons
-    WHERE nconst = $1`,
-  [nconst]);
+export async function getPersonWords(nconst: string, limit: number, offset: number): Promise<{ items: PersonWord[]; total: number} | undefined> {
+  const name = await nameOf(nconst); // the queries below need the name, so this runs first
+  if (name === undefined) return undefined;
 
-  const name = nameRows[0].primaryName;
-  
-  const { rows: items } = await pool.query<PersonWord>(`
-    SELECT word, frequency::int as frequency
-    FROM person_words($1, $2)
-    ORDER BY frequency DESC, word
-    LIMIT $3
-    OFFSET $4`,
-  [name, PERSON_WORDS_LEN, limit, offset]);
-
-  const { rows: countRows } = await pool.query(`
-    SELECT count(*)::int as total
-    from person_words($1, $2)`,
-  [name, PERSON_WORDS_LEN]);
-
-  return { items, total: countRows[0].total };
-
+  const [page, count] = await Promise.all([
+    pool.query<PersonWord>(
+      `SELECT word, frequency::int AS frequency
+       FROM person_words($1, $2)
+       ORDER BY frequency DESC, word
+       LIMIT $3 OFFSET $4`,
+      [name, PERSON_WORDS_LEN, limit, offset]),
+    pool.query<{ total: number }>(
+      'SELECT count(*)::int AS total FROM person_words($1, $2)',
+      [name, PERSON_WORDS_LEN]),
+  ]);
+  return { items: page.rows, total: count.rows[0].total };
 }
