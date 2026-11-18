@@ -62,5 +62,5 @@ User stories derived from the database functions in `D_functions.sql`.
 | US-22 | As a user, I want to bookmark and unbookmark titles and list my bookmarks. | `add_title_bookmark`, `remove_title_bookmark`, `get_title_bookmarks`|
 | US-23 | As a user, I want to bookmark and unbookmark persons and list my bookmarks. | `add_person_bookmark`, `remove_person_bookmark`, `get_person_bookmarks`|
 | US-24 | As a user, I want to rate a title 1–10, change my rating, and remove it. | `rate`, `remove_rating` |
-| US-25 | As a user, I want to see my rating history. | `get_title_rating_history` ******|
+| US-25 | As a user, I want to see my rating history. | `get_users_title_rating_history` ******|
 | US-26 | As a user, I want to view my search history, delete one entry, or clear it all. | `get_search_history`, `clear_search_history_entry`, `clear_search_history` |
