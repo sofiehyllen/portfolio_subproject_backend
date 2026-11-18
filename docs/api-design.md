@@ -25,7 +25,7 @@
 |---|---|
 | `/api/titles` | The collection of titles, narrowed by search parameters, or filtered (`genre`, `titleType`) and sorted (`sort`, `order`) when not searching |
 | `/api/titles/{tconst}` | One specific title |
-| `/api/titles/{tconst}/actors` | The actors of a title (ranked by name rating) |
+| `/api/titles/{tconst}/actors` | The actors of a title, including people appearing as themselves (ranked by name rating) |
 | `/api/titles/{tconst}/similar` | Titles of the same kind as the given title (movies, series or video games), ranked by the number of genres they share with it |
 | `/api/persons` | The collection of persons, narrowed by `name` and `actorsOnly`, and sorted (`sort`, `order`) |
 | `/api/persons/{nconst}` | One specific person |
@@ -88,7 +88,7 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 |---|---|---|---|
 | `GET /api/titles` | Paged list of titles, either browsed (sorted and filtered by genre and title type) or narrowed by one search mode | 200 | `400` invalid search, sort or filter parameter, unknown query parameter, or modes mixed; `401` invalid token |
 | `GET /api/titles/{tconst}` | One title with genres, rating and credits | 200 | `400` invalid tconst; `404` unknown title |
-| `GET /api/titles/{tconst}/actors` | Paged actors of the title, highest name rating first | 200 | `400` invalid tconst; `404` unknown title |
+| `GET /api/titles/{tconst}/actors` | Paged actors of the title, including people appearing as themselves, highest name rating first | 200 | `400` invalid tconst; `404` unknown title |
 | `GET /api/titles/{tconst}/similar` | Paged titles of the same kind sharing genres with the title, most shared genres first: `movie` and `tvMovie` match each other, `tvSeries` and `tvMiniSeries` match each other, and `videoGame` matches `videoGame`. Any other type (for example `tvEpisode` or `short`) gives an empty list | 200 | `400` invalid tconst; `404` unknown title |
 | `GET /api/persons` | Paged list of persons, optionally filtered by `name` and `actorsOnly`, and sorted by name or rating | 200 | `400` invalid search or sort parameter, or unknown query parameter; `401` invalid token |
 | `GET /api/persons/{nconst}` | One person with name rating, professions and known-for titles | 200 | `400` invalid nconst; `404` unknown person |
