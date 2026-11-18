@@ -72,7 +72,6 @@ router.param('nconst', (_req, res, next, value: string) => {
 // POST /api/users: registers a user. Public. Returns 201 with the new
 // profile and a Location header pointing at it.
 router.post('/', async (req, res, next) => {
-  router.use(requireAuth);
   try {
     const input = validateNewUser(req.body); // 400 on missing or invalid fields
     const user = await register(input); // 409 from the service
@@ -81,6 +80,10 @@ router.post('/', async (req, res, next) => {
     next(err);
   }
 });
+
+// Every route below this line requires a token. 
+// Registration above stays public.
+router.use(requireAuth);
 
 // GET /api/users/{uconst}: the user's profile (never the password hash).
 router.get('/:uconst', (_req, res) => {
