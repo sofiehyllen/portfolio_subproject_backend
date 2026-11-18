@@ -1,4 +1,4 @@
-import { createUser, getUser, lockOn, updateOn, updateUserHashPassword, User } from "../data/users.js";
+import { createUser, emailTaken, getUser, lockOn, updateOn, updateUserHashPassword, User, usernameTaken } from "../data/users.js";
 import { pool } from "../db.js";
 import { Conflict, Forbidden, NotFound } from "../middleware/errors.js";
 import { checkPassword, hashPassword } from "../auth/crypto.js";
@@ -28,18 +28,18 @@ export interface PasswordUpdateInput {
 
 /** Stores a new user with a hashed password and returns the stored user. */
 export async function register(input: NewUserInput): Promise<User> {
-  let uconst: number;
-  try {
-    uconst = await createUser({
-      firstName: input.firstName,
-      lastName: input.lastName,
-      username: input.username,
-      email: input.email,
-      passwordHash: await hashPassword(input.password), // the plain password is never stored
-    });
-  } catch (err) {
-    throw asConflict(err);
-  }
+  if (await usernameTaken(input.username)) throw new Conflict('Username already taken');
+  if (await emailTaken(input.email)) throw new Conflict('Email already taken');
+  // Two requests at the same moment can both pass the checks above; the second
+  // insert then fails on the UNIQUE constraint and the client gets 500.
+
+  const uconst = await createUser({
+    firstName: input.firstName,
+    lastName: input.lastName,
+    username: input.username,
+    email: input.email,
+    passwordHash: await hashPassword(input.password) // the plain password is never stored
+  });
 
   const user = await getUser(uconst);
   if (!user) throw new Error(`user ${uconst} missing right after create`);
@@ -56,11 +56,14 @@ export async function updateProfile(uconst: number, changes: UserUpdateInput): P
   try {
     await client.query('BEGIN');
     if (!(await lockOn(client, uconst))) throw new NotFound('User not found');
+    if (changes.email !== undefined && (await emailTaken(changes.email, uconst))) {
+      throw new Conflict('Email already taken');
+    }
     await updateOn(client, uconst, changes);
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
-    throw asConflict(err);
+    throw err;
   } finally {
     client.release();
   }
@@ -80,16 +83,4 @@ export async function changePassword(uconst: number, input: PasswordUpdateInput)
     throw new Forbidden('Current password is invalid');
   }
   await updateUserHashPassword(uconst, await hashPassword(input.newPassword));
-}
-
-
-// Turns a unique-constraint violation (23505) on users into a Conflict;
-// any other error is returned unchanged.
-function asConflict(err: unknown): unknown {
-  const pgErr = err as { code?: string; constraint?: string };
-  if (pgErr.code === '23505') {
-    if (pgErr.constraint === 'users_username_key') return new Conflict('Username already taken');
-    if (pgErr.constraint === 'users_email_key') return new Conflict('Email already taken');
-  }
-  return err;
 }

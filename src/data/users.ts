@@ -73,6 +73,21 @@ export async function getUser(uconst: number): Promise<User | undefined> {
   return rows[0];
 }
 
+// True when a user already has this username.
+export async function usernameTaken(username: string): Promise<boolean> {
+  const { rowCount } = await pool.query('SELECT 1 FROM users WHERE username = $1', [username]);
+  return (rowCount ?? 0) > 0;
+}
+
+// True when a user other than exceptUconst already has this email. Leave out
+// exceptUconst for a new user; pass it on update so a user may keep their own email.
+export async function emailTaken(email: string, exceptUconst?: number): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    'SELECT 1 FROM users WHERE email = $1 AND uconst IS DISTINCT FROM $2',
+    [email, exceptUconst ?? null]);
+  return (rowCount ?? 0) > 0;
+}
+
 // Locks the user's row until COMMIT. True when the user exists.
 export async function lockOn(client: PoolClient, uconst: number): Promise<boolean> {
   const { rowCount } = await client.query('SELECT 1 FROM users WHERE uconst = $1 FOR UPDATE', [uconst]);
