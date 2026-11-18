@@ -106,13 +106,6 @@ router.put('/:uconst/password', async (req, res, next) => {
   try {
     const input = validatePasswordUpdate(req.body);
     const user: users.User = res.locals.user;
-
-    const errors = validatePassword(input.newPassword, {
-      username: user.username,
-      currPassword: input.currentPassword,
-    });
-    if (errors.length > 0) throw new BadRequest(errors.join('; '));
-
     await changePassword(user.uconst, input); // 403, 404 from the service
     res.status(204).end();
   } catch (err) {

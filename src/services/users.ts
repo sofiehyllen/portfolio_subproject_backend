@@ -1,7 +1,8 @@
 import { createUser, emailTaken, getUser, lockOn, updateOn, updateUserHashPassword, User, usernameTaken } from "../data/users.js";
 import { pool } from "../db.js";
-import { Conflict, Forbidden, NotFound } from "../middleware/errors.js";
+import { BadRequest, Conflict, Forbidden, NotFound } from "../middleware/errors.js";
 import { checkPassword, hashPassword } from "../auth/crypto.js";
+import { validatePassword } from "../validation.js";
 
 // The input of each operation. validation.ts imports these.
 // The cleaned body returned by validateNewUser(); passed to the data layer to create a user.
@@ -82,5 +83,12 @@ export async function changePassword(uconst: number, input: PasswordUpdateInput)
   if (!(await checkPassword(input.currentPassword, user.passwordHash))) {
     throw new Forbidden('Current password is invalid');
   }
+
+  const errors = validatePassword(input.newPassword, {
+    username: user.username,
+    currPassword: input.currentPassword,
+  });
+  if (errors.length > 0) throw new BadRequest(errors.join('; '));
+
   await updateUserHashPassword(uconst, await hashPassword(input.newPassword));
 }
