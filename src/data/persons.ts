@@ -182,29 +182,31 @@ async function nameOf(nconst: string): Promise<string | undefined> {
 }
 
 export async function getPersonTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
-  const { rows: items} = await pool.query<PersonTitle>(`
-    SELECT  t.tconst,
-            tp.nconst,
-            t.primary_title as "primaryTitle",
-            tp.category,
-            tp.job,
-            ARRAY(SELECT c.character_name
-                  FROM title_person_characters c
-                  WHERE c.tconst = tp.tconst and c.ordering = tp.ordering
-                  ORDER BY c.character_name) as characters
-    FROM title_persons tp
-    JOIN titles t ON t.tconst = tp.tconst
-    WHERE tp.nconst = $1
-    ORDER BY t.start_year DESC NULLS LAST, t.tconst, tp.ordering
-    LIMIT $2 
-    OFFSET $3`,
-    [nconst, limit, offset]);
+  // The page and the count are independent, so they run in parallel.
+  const [page, count] = await Promise.all([
+    pool.query<PersonTitle>(`
+      SELECT  t.tconst,
+              tp.nconst,
+              t.primary_title as "primaryTitle",
+              tp.category,
+              tp.job,
+              ARRAY(SELECT c.character_name
+                    FROM title_person_characters c
+                    WHERE c.tconst = tp.tconst and c.ordering = tp.ordering
+                    ORDER BY c.character_name) as characters
+      FROM title_persons tp
+      JOIN titles t ON t.tconst = tp.tconst
+      WHERE tp.nconst = $1
+      ORDER BY t.start_year DESC NULLS LAST, t.tconst, tp.ordering
+      LIMIT $2
+      OFFSET $3`,
+      [nconst, limit, offset]),
+    pool.query<{ total: number }>(
+      'SELECT count(*)::int AS total FROM title_persons WHERE nconst = $1',
+      [nconst]),
+  ]);
 
-  const { rows: countRows } = await pool.query(`
-    SELECT count(*)::int as total from title_persons where nconst = $1`,
-    [nconst]);
-  
-  return { items, total: countRows[0].total };
+  return { items: page.rows, total: count.rows[0].total };
 }
 
 export async function getCoPlayers(nconst: string, limit: number, offset: number): Promise<{ items: CoPlayer[], total: number} | undefined> {

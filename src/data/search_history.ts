@@ -21,22 +21,23 @@ export interface UserSearchHistory {
 }
 
 export async function getUserSearchHistory(uconst: number, limit: number, offset: number): Promise<{items: UserSearchHistory[], total: number}> {
-    const { rows: items } = await pool.query<UserSearchHistory>(`
-        SELECT  sconst, 
-                search_string as "searchString", 
-                created_at as "createdAt"
-        FROM get_search_history($1)
-        ORDER BY created_at DESC, sconst DESC
-        LIMIT $2
-        OFFSET $3`,
-        [uconst, limit, offset]);
-    
-    const { rows: countRows } = await pool.query(`
-        SELECT count(*)::int AS total FROM get_search_history($1)`,
-        [uconst]);
+    // The page and the count are independent, so they run in parallel.
+    const [page, count] = await Promise.all([
+        pool.query<UserSearchHistory>(`
+            SELECT  sconst,
+                    search_string as "searchString",
+                    created_at as "createdAt"
+            FROM get_search_history($1)
+            ORDER BY created_at DESC, sconst DESC
+            LIMIT $2
+            OFFSET $3`,
+            [uconst, limit, offset]),
+        pool.query<{ total: number }>(
+            'SELECT count(*)::int AS total FROM get_search_history($1)',
+            [uconst]),
+    ]);
 
-    return { items, total: countRows[0].total };
-
+    return { items: page.rows, total: count.rows[0].total };
 }
 
 // Deletes the user's entire search history with clear_search_history().
