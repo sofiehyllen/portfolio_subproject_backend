@@ -14,10 +14,10 @@ import { requireAuth } from "../middleware/auth.js";
 
 export const router = Router();
 
-// Runs before every route in this router whose path contains :uconst, so
-// the checks are written once. An invalid uconst gets a 400, an unknown
-// user a 404, and the route never runs. A valid uconst is stored in
-// res.locals.uconst and the user in res.locals.user.
+// Runs before every route whose path contains :uconst, so validation and
+// authorization are written once. An invalid uconst gets a 400, a mismatch
+// with the authenticated caller a 403, and an unknown user a 404. On success,
+// the parsed uconst and the user row are stored in res.locals for the route.
 router.param('uconst', async (_req, res, next, value: string) => {
   try {
     const uconst = validateSerial(value);
