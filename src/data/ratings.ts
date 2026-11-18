@@ -95,7 +95,7 @@ export async function rateOn(client: PoolClient, uconst: number, tconst: string,
 }
 
 // The stored rating row, read on the given client.
-export async function findOn(client: PoolClient, uconst: number, tconst: string): Promise<UserRating> {
+export async function findOn(client: PoolClient, uconst: number, tconst: string): Promise<UserRating | undefined> {
   const { rows } = await client.query<UserRating>(
     `${SELECT} WHERE uconst = $1 AND tconst = $2`, [uconst, tconst]);
   return rows[0];

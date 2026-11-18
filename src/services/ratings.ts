@@ -16,6 +16,7 @@ export async function rateTitle(uconst: number, tconst: string, rating: number):
     const hadActive = await lockActiveRatingOn(client, uconst, tconst);
     await rateOn(client, uconst, tconst, rating);
     const stored = await findOn(client, uconst, tconst);
+    if (!stored) throw new Error(`Rating ${uconst}/${tconst} missing right after rate()`);
     await client.query('COMMIT');
     return { rating: stored, created: !hadActive };
   } catch (err) {
