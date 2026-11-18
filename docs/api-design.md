@@ -53,19 +53,23 @@ Narrowing is expressed as a query parameter (`/api/titles?keywords=space`): a se
 **Authentication rules, stated once.**
 Everything under `/api/titles` and `/api/persons`, `GET /api/related-words`, `POST /api/users` and `POST /api/auth/tokens` is public.
 Every other path needs `Authorization: Bearer <token>`, and the user in the token must be the `{uconst}` in the path.
-Searches on `/api/titles` and `/api/persons` accept an optional token. When one is present, the search is logged in the user's history. A token that is present but invalid is rejected with 401, not ignored.
+Searches on `/api/titles` and `/api/persons` accept an optional token. When one is present, the search is logged in the user's history (on the first page only). A token that is present but invalid is rejected with 401, not ignored.
+
 
 **Failure codes used everywhere:**<br>
-`400` the request is malformed or a parameter fails validation (the server cannot process it as sent), including a path identifier in the wrong format: 
+`400` the request is malformed or a parameter fails validation (the server cannot process it as sent). This includes an unknown query parameter on GET /api/titlesorGET /api/persons, a body that is not valid JSON, and a path identifier in the wrong format:
 
-  * `nconst`: must start with `nm` followed by 7-8 digits;
-  * `tconst`: must start with `tt` followed by 7-8 digits;
-  * `uconst`/`sconst`: must be a positive integer without a sign;
+* `nconst`: must start with `nm` followed by 7-8 digits;
+* `tconst`: must start with `tt` followed by 7-8 digits;
+* `uconst`/`sconst`: must be a positive integer without a sign or leading zeros, at most 2147483647;
 
 `401` no valid token (the caller is not identified), or wrong username or password at login;<br>
 `403` the caller is identified but not allowed: the token belongs to another user, or the current password given when changing the password is wrong;<br>
-`404` the resource does not exist (also for a deleted rating);<br>
-`409` the request conflicts with existing data (duplicate username or email).
+`404` the resource does not exist: an unknown endpoint, or a user, title, person, rating, bookmark or search-history entry that is not found (also for a deleted rating);<br>
+`409` the request conflicts with existing data: a duplicate username (at registration) or email (at registration or profile update);<br>
+`413` the request body is too large;<br>
+`415` the request body has an unsupported encoding;<br>
+`500` an unexpected error. The response never reveals stack traces, SQL text or database identifiers.
 
 ### Accounts
 
