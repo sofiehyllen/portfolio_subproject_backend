@@ -5,8 +5,97 @@ import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../src/app.js';
 import { pool } from '../src/db.js';
+import { hashPassword, verifyToken, TOKEN_TTL_SECONDS } from '../src/auth/crypto.js';
+import { TOKEN_COOKIE } from '../src/middleware/auth.js';
 
 afterAll(() => pool.end());
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AUTH.TS
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/auth/token', () => {
+  let username: string;
+  let userId: number;
+  let passwordHash: string;
+  beforeAll(async () => {
+    passwordHash = await hashPassword('password');
+    username = 'test_user';
+    const result = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', username, `${username}@test.com`, passwordHash]);
+
+    userId = result.rows[0].uconst;
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
+  it('Returns 200 with the user URI, no token in body', async () => {
+    const res = await request(app).post('/api/auth/token')
+                            .send({ username, password: 'password' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ user: `/api/users/${userId}` });
+  }); 
+
+  it('Sets up an Http jwt cookie valid for 12 hours', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username, password: 'password' });
+    
+    const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+    const cookie = cookies.find(i => i.startsWith(`${TOKEN_COOKIE}=`)) ?? '';
+    const token = cookie.split(';', 1)[0].slice(`${TOKEN_COOKIE}=`.length);
+
+    expect(verifyToken(token)).toMatchObject({ uconst: userId });
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toContain(`Max-Age=${TOKEN_TTL_SECONDS}`);
+  });
+
+  it('Returns 400 when username is missing', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { password: 'password'} );
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Returns 400 when password is missing', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { username } );
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Returns 400 when username is not a string', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { username: 123} );
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Returns 400 when password is not a string', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { password: 123} );
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Returns 401 when password is not valid', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { username, password: 'wrong_password'} );
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error: 'Unauthorized'});
+  });
+
+  it('Returns 401 when user does not exist', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { username: 'wrong_user', password: 'password'} );
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error: 'Unauthorized'});
+  });
+});
+
 
 
 // ═════════════════════════════════════════════════════════════════════════════
