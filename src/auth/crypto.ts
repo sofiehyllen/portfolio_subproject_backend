@@ -14,6 +14,9 @@ import jwt from 'jsonwebtoken';
 
 export interface Claims { uconst: number }
 
+/** Token lifetime in seconds. Also used as the cookie's maxAge, so both expire together. */
+export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
+
 const SECRET = process.env.JWT_SECRET;
 if (!SECRET) throw new Error('JWT_SECRET is not set');
 
@@ -59,7 +62,7 @@ export async function checkPassword(password: string, stored: string): Promise<b
  * @returns A signed HS256 JWT string valid for 24 hours.
  */
 export function signToken(claims: Claims): string {
-  return jwt.sign(claims, SECRET!, { algorithm: 'HS256', expiresIn: '24h' });
+  return jwt.sign(claims, SECRET!, { algorithm: 'HS256', expiresIn: TOKEN_TTL_SECONDS });
 }
 
 /**

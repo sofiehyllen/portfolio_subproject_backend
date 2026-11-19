@@ -1,4 +1,5 @@
 import express from 'express';
+import cookieParser from "cookie-parser";
 import { errorHandler, NotFound } from './middleware/errors.js';
 import { optionalAuth } from "./middleware/auth.js";
 import { router as authRouter } from './routes/auth.js';
@@ -10,6 +11,7 @@ import { router as wordsRouter } from './routes/words.js';
 export const app = express();
 
 app.use(express.json());
+app.use(cookieParser()); // fills req.cookies, read by the auth middleware
 
 app.use('/api/auth', authRouter);
 app.use('/api/titles', optionalAuth, titlesRouter);
