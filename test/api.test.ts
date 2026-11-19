@@ -527,21 +527,19 @@ describe('AUTH on /api/users/{uconst}/...', () => {
 
   beforeAll(async () => {
       const passwordHash = await hashPassword('password');
-      const useOneUsername = 'test_user_one';
-      const useTwoUsername = 'test_user_two';
       const userOne = await pool.query(`
         SELECT create_user($1,$2,$3,$4,$5) as uconst`,
-        ['TestOne', 'UserOne', 'test_user_one', `${useOneUsername}@test.com`, passwordHash])
+        ['TestOne', 'UserOne', 'test_user_one', `user_one@test.com`, passwordHash])
 
       const userTwo = await pool.query(`
         SELECT create_user($1,$2,$3,$4,$5) as uconst`,
-        ['TestTwo', 'UserTwo', 'test_user_two', `${useTwoUsername}@test.com`, passwordHash])
+        ['TestTwo', 'UserTwo', 'test_user_two', `user_two@test.com`, passwordHash])
     
       userOneId = userOne.rows[0].uconst;
       userTwoId = userTwo.rows[0].uconst;
 
       const res = await request(app).post('/api/auth/token')
-                                    .send({ username: useTwoUsername, password: 'password'});
+                                    .send({ username: "test_user_two", password: 'password'});
     cookie = jwtCookie(res);
     });
 
@@ -549,7 +547,6 @@ describe('AUTH on /api/users/{uconst}/...', () => {
     await pool.query('SELECT delete_user($1)', [userOneId]);
     await pool.query('SELECT delete_user($1)', [userTwoId]);
   });
-  
 
   it('Return 401 without a token', async () => {
     const res = await request(app).get(`/api/users/${userOneId}/search-history`);
@@ -558,7 +555,7 @@ describe('AUTH on /api/users/{uconst}/...', () => {
     expect(res.body).toMatchObject({ error:"Unauthorized", message:"Missing token" });
   });
 
-  it('Return 401 for an expired token', async () => {
+  it('Return 401 for a garbage token', async () => {
     const res = await request(app).get(`/api/users/${userOneId}/search-history`)
                                   .set('Cookie', `${TOKEN_COOKIE}=bad`);
 
@@ -570,9 +567,24 @@ describe('AUTH on /api/users/{uconst}/...', () => {
     const res = await request(app).get(`/api/users/${userOneId}/search-history`)
                   .set('Cookie', cookie);
     
-                  expect(res.status).toBe(403);
+    expect(res.status).toBe(403);
   });
 
+});
+
+
+describe('POST /api/users', () => {
+  it('Returns 201 with the profile and a Location header', async () => {
+    const suffix = Date.now();
+    const res = await request(app).post('/api/users')
+          .send({firstName: 'New', lastName: 'User', username: `user_${suffix}`, email: `user_${suffix}@test.com`, password: 'password'});
+    expect(res.status).toBe(201);
+    expect(res.headers.location).toMatch(/^\/api\/users\/d+$/);
+    expect(res.body).toMatchObject( { username: `user_${suffix}` } );
+
+    const id = Number(res.headers.location.split('/').pop());
+    await pool.query('SELECT delete_user($1)', [id]);
+  });
 });
 
 describe('PUT /api/users/{uid}/password', () => {
