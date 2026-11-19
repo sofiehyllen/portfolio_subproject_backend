@@ -618,7 +618,16 @@ describe('POST /api/users', () => {
       'createdAt', 'email', 'firstName', 'lastName', 'url', 'username']);
   });
 
-
+  it('Return 400 when username is missing', async () => {
+    const res = await request(app).post('/api/users')
+                .send( { 
+                  firstName: 'Test',
+                  lastName: 'User',
+                  email: 'users_bad@test.com',
+                  password: 'NewPassw0rd!'});
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
 });
 
 describe('PUT /api/users/{uid}/password', () => {
