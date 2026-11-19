@@ -13,11 +13,24 @@ afterAll(() => pool.end());
 // ═════════════════════════════════════════════════════════════════════════════
 // AUTH.TS
 // ═════════════════════════════════════════════════════════════════════════════
+/**
+ * Get JWT authentication cookie string from a `Set-Cookie` response header
+ * @param res the HTTP response containing `Set-Cookie` headers
+ * @returns the matching cookie entry starting with `TOKEN_COOKIE` or an empty string
+ */
+function jwtCookie(res: request.Response): string {
+  const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+  const cookie = cookies.find(i => i.startsWith(`${TOKEN_COOKIE}=`)) ?? '';
+
+  return cookie
+}
+
 
 describe('POST /api/auth/token', () => {
   let username: string;
   let userId: number;
   let passwordHash: string;
+
   beforeAll(async () => {
     passwordHash = await hashPassword('password');
     username = 'test_user';
@@ -44,8 +57,7 @@ describe('POST /api/auth/token', () => {
     const res = await request(app).post('/api/auth/token')
                                   .send({ username, password: 'password' });
     
-    const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
-    const cookie = cookies.find(i => i.startsWith(`${TOKEN_COOKIE}=`)) ?? '';
+    const cookie = jwtCookie(res);
     const token = cookie.split(';', 1)[0].slice(`${TOKEN_COOKIE}=`.length);
 
     expect(verifyToken(token)).toMatchObject({ uconst: userId });
@@ -93,6 +105,41 @@ describe('POST /api/auth/token', () => {
                                   .send( { username: 'wrong_user', password: 'password'} );
     expect(res.status).toBe(401);
     expect(res.body).toMatchObject({ error: 'Unauthorized'});
+  });
+});
+
+describe('DELETE /api/auth/token', () => {
+  let username: string;
+  let userId: number;
+  let passwordHash: string;
+  
+  beforeAll(async () => {
+    passwordHash = await hashPassword('password');
+    username = 'test_user';
+    const result = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', username, `${username}@test.com`, passwordHash]);
+
+    userId = result.rows[0].uconst;
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
+  it('Returns 204 and clears the cookies', async () => {
+    const res = await request(app).delete('/api/auth/token');
+
+    expect(res.status).toBe(204);
+    const cookie = jwtCookie(res);
+    expect(cookie).toMatch(new RegExp(`^${TOKEN_COOKIE}=;`));
+    expect(cookie).toMatch(/Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
+  });
+
+  it('Returns 204 when not logged in', async () => {
+    const res = await request(app).delete('/api/auth/token');
+
+    expect(res.status).toBe(204);
   });
 });
 
