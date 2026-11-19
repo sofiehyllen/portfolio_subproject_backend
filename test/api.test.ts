@@ -780,9 +780,53 @@ describe('PUT /api/users/{uid}/password', () => {
     expect(newLogin.status).toBe(200);
     expect(oldLogin.status).toBe(401);
   });
-
 });
 
+
+describe('DELETE /api/users/{uconst}', () => {
+    let userId: number;
+    let cookie: string;
+
+    beforeAll(async () => {
+      await pool.query('SELECT delete_user($1)', [userId]);
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_delete', 'users_delete@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+
+    
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_delete', password: 'password'});
+    cookie = jwtCookie(res);
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
+  it('Returns 204, the user is gone and the votes of the rated titles are restored', async () => {
+    const before = await request(app).get('/api/titles/tt2402927');
+    await request(app).put(`/api/users/${userId}/ratings/tt2402927`)
+                      .set('Cookie', cookie)
+                      .send({rating: 8});
+
+
+    const res = await request(app).delete(`/api/users/${userId}`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+
+    const deleted = await request(app).get(`/api/users/${userId}`)
+                                  .set('Cookie', cookie);
+    const afterRatingChange = await request(app).get(`/api/titles/tt2402927`);
+
+    expect(deleted.status).toBe(404);
+    expect(afterRatingChange.body.rating.votes).toBe(before.body.rating.votes);
+  }, 30000);
+  
+});
 
 // ═════════════════════════════════════════════════════════════════════════════
 // WORDS.TS
