@@ -768,14 +768,15 @@ describe('PUT /api/users/{uid}/password', () => {
   it('returns 204 for a valid password update', async () => {
     const res = await request(app)
       .put(`/api/users/${userId}/password`)
+      .set('Cookie', cookie)
       .send({currentPassword: 'password', newPassword: 'NewPassw0rd!'});
     
     expect(res.status).toBe(204);
 
     const newLogin = await request(app).post('/api/auth/token')
-                    .send({username: 'users_put', pasword: 'NewPassw0rd!'});
+                    .send({username: 'users_put', password: 'NewPassw0rd!'});
     const oldLogin = await request(app).post('/api/auth/token')
-                    .send({username: 'users_put', pasword: 'password'});
+                    .send({username: 'users_put', password: 'password'});
 
     expect(newLogin.status).toBe(200);
     expect(oldLogin.status).toBe(401);
@@ -826,7 +827,7 @@ describe('DELETE /api/users/{uconst}', () => {
   }, 50000);
 });
 
-describe('Ratings on /api/users/{uconst}/ratings/{tconst', () => {
+describe('Ratings on /api/users/{uconst}/ratings/{tconst}', () => {
   let userId: number;
   let cookie: string;
   let votes: number;
@@ -850,7 +851,7 @@ describe('Ratings on /api/users/{uconst}/ratings/{tconst', () => {
 
 afterAll(async () => {
   await pool.query('SELECT delete_user($1)', [userId]);
-});
+}, 30000);
 
 it('Return 201 for a new rating and counts it as a vote', async () => {
   const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
@@ -863,6 +864,58 @@ it('Return 201 for a new rating and counts it as a vote', async () => {
   expect(res.body).toMatchObject({ rating: 8 });
   expect(title.body.rating.votes).toBe(votes + 1);
 }, 30000);
+
+it('Return 200 and the active rating', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+  .send({ rating: 9 });
+
+  expect(res.status).toBe(200);
+  expect(res.body).toMatchObject({ rating: 9 });
+});
+
+it('Return 400 when the rating is outside of 1-10', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+  .send({ rating: 44 });
+
+  expect(res.status).toBe(400);
+  expect(res.body).toMatchObject({ error: 'Bad Request'});
+});
+
+it('Return 404 when title not found', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt2402927`)
+  .set('Cookie', cookie)
+  .send({ rating: 8 });
+
+  expect(res.status).toBe(404);
+});
+
+it('Return 204 when rating is deleted and takes back the vote', async () => {
+  const res = await request(app).delete(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+
+  const title = await request(app).get('/api/titles/tt4924682');
+
+  expect(res.status).toBe(204);
+  expect(title.body.rating.votes).toBe(votes);
+});
+
+it('Return 404 when removing the same rating', async () => {
+  const res = await request(app).delete(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+
+  expect(res.status).toBe(404);
+});
+
+it('Return 201 when the rating again', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+  .send({ rating: 7 });
+
+  expect(res.status).toBe(201);
+
+});
 
 });
 
