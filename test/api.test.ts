@@ -669,6 +669,46 @@ describe('POST /api/users', () => {
   });
 });
 
+describe('PATCH /api/users/{uconst}', () => {
+  let userId: number;
+  let otherId: number;
+  let cookie: string;
+
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_patch', 'users_patch@test.com', passwordHash]);
+
+    const other = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'Other', 'users_path_other', 'users_path_other@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+    otherId = other.rows[0].uconst;
+    
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_patch', password: 'password'});
+    cookie = jwtCookie(res);
+  });
+
+  afterAll(async () => {
+    await pool.query(`SELECT delete_user($1)`, [userId]);
+    await pool.query(`SELECT delete_user($1)`, [otherId]);   
+  });
+
+  it('Returns 200 and changes only the field that is sent', async () => {
+    const res = await request(app).patch(`/api/users/${userId}`)
+                .set('Cookie', cookie)
+                .send( {firstName: 'Changed'});
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      firstName: 'Changed',
+      lastName: 'User',
+      username: 'users_patch'})
+  });
+})
+
 describe('PUT /api/users/{uid}/password', () => {
   let userId: number;
 
