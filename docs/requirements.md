@@ -15,6 +15,7 @@ User stories derived from the database functions in `D_functions.sql`.
 |---|---|---|
 | US-1 | As a visitor, I want to register an account so I can save my activity. | `create_user` |
 | US-2 | As a visitor, I want to log in with username and password so my requests are tied to me. | `get_user_by_username` plus hash check in code |
+| US-2b | As a user, I want to log out so my session cookie is cleared. | `clearTokenCookie` in code |
 | US-3 | As a user, I want to view my profile. | `get_user_by_id` |
 | US-4 | As a user, I want to update my profile. | `update_user` |
 | US-5 | As a user, I want to change my password. | `update_user_password` |

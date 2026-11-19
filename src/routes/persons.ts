@@ -25,7 +25,7 @@ router.get('/', async (req, res, next) => {
     const browse = validatePersonBrowse(req.query);
     const page = pageOf(req.query);
 
-    const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
+    const logAs = searchLogUser(page, res.locals.auth?.uconst);
     const { items, total } = await persons.getPersons(logAs, browse, page.limit, page.offset);
 
     res.json(paged(req, page, total, items.map(toPersonDto)));

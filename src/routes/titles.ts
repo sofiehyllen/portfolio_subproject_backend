@@ -41,7 +41,7 @@ router.get('/', async (req, res, next) => {
     // Substring search: ?text=...
     if (query.text !== undefined) {
       const text = validateTitleSearch(query);
-      const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
+      const logAs = searchLogUser(page, res.locals.auth?.uconst);
       const { items, total } = await titles.searchText(logAs, text, page.limit, page.offset);
       res.json(paged(req, page, total, items.map(toTitleSummaryDto)));
       return;
@@ -51,7 +51,7 @@ router.get('/', async (req, res, next) => {
     // (match alone also selects this mode, so it is reported as missing keywords)
     if (query.keywords !== undefined || query.match !== undefined) {
       const { keywords, match } = validateKeywordSearch(query);
-      const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
+      const logAs = searchLogUser(page, res.locals.auth?.uconst);
       const { items, total } = await titles.searchKeywords(logAs, keywords, match, page.limit, page.offset);
       res.json(paged(req, page, total, items.map(toTitleSummaryDto)));
       return;
@@ -59,7 +59,7 @@ router.get('/', async (req, res, next) => {
     // Structured search: ?title=...&plot=...&character=...&person=...
     if (isStructuredSearch(query)) {
       const search = validateStructuredSearch(query);
-      const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
+      const logAs = searchLogUser(page, res.locals.auth?.uconst);
       const { items, total } = await titles.searchStructured(logAs, search, page.limit, page.offset);
       res.json(paged(req, page, total, items.map(toTitleSummaryDto)));
       return;

@@ -56,18 +56,31 @@ export async function createUser(user: NewUser): Promise<number> {
   return rows[0].uconst;
 }
 
+// The columns of a User, shared by getUser and getUserByUsername,
+// so both return the shape the User interface expects.
+const USER_COLUMNS = `
+  uconst,
+  first_name    AS "firstName",
+  last_name     AS "lastName",
+  username,
+  email,
+  password_hash AS "passwordHash",
+  created_at    AS "createdAt"`;
+
 // One user by id, or undefined when no such user exists.
 export async function getUser(uconst: number): Promise<User | undefined> {
   const { rows } = await pool.query<User>(
-    `SELECT uconst,
-            first_name      AS "firstName",
-            last_name       AS "lastName",
-            username,
-            email,
-            password_hash   AS "passwordHash",
-            created_at      AS "createdAt"
-    FROM get_user_by_id($1)`,
+    `SELECT ${USER_COLUMNS} FROM get_user_by_id($1)`,
     [uconst]
+  );
+  return rows[0];
+}
+
+// One user by name, or undefined when no such user exists.
+export async function getUserByUsername(username: string): Promise<User | undefined> {
+  const { rows } = await pool.query<User>(
+    `SELECT ${USER_COLUMNS} FROM get_user_by_username($1)`,
+    [username]
   );
   return rows[0];
 }
