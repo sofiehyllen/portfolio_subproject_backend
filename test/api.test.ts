@@ -788,7 +788,6 @@ describe('DELETE /api/users/{uconst}', () => {
     let cookie: string;
 
     beforeAll(async () => {
-      await pool.query('SELECT delete_user($1)', [userId]);
     const passwordHash = await hashPassword('password');
     const user = await pool.query(`
       select create_user($1, $2, $3, $4, $5) as uconst`,
@@ -807,8 +806,8 @@ describe('DELETE /api/users/{uconst}', () => {
   });
 
   it('Returns 204, the user is gone and the votes of the rated titles are restored', async () => {
-    const before = await request(app).get('/api/titles/tt2402927');
-    await request(app).put(`/api/users/${userId}/ratings/tt2402927`)
+    const before = await request(app).get('/api/titles/tt4924682');
+    await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
                       .set('Cookie', cookie)
                       .send({rating: 8});
 
@@ -820,12 +819,51 @@ describe('DELETE /api/users/{uconst}', () => {
 
     const deleted = await request(app).get(`/api/users/${userId}`)
                                   .set('Cookie', cookie);
-    const afterRatingChange = await request(app).get(`/api/titles/tt2402927`);
+    const afterRatingChange = await request(app).get(`/api/titles/tt4924682`);
 
     expect(deleted.status).toBe(404);
     expect(afterRatingChange.body.rating.votes).toBe(before.body.rating.votes);
-  }, 30000);
+  }, 50000);
+});
+
+describe('Ratings on /api/users/{uconst}/ratings/{tconst', () => {
+  let userId: number;
+  let cookie: string;
+  let votes: number;
+
+  beforeAll(async () => {
+  const passwordHash = await hashPassword('password');
+  const user = await pool.query(`
+    select create_user($1, $2, $3, $4, $5) as uconst`,
+  ['Test', 'User', 'users_rating', 'users_rating@test.com', passwordHash]);
+
+  userId = user.rows[0].uconst;
+
   
+  const res = await request(app).post('/api/auth/token')
+                                .send({ username: 'users_rating', password: 'password'});
+  cookie = jwtCookie(res);
+
+  const title = await request(app).get('/api/titles/tt4924682');
+  votes = title.body.rating.votes;
+});
+
+afterAll(async () => {
+  await pool.query('SELECT delete_user($1)', [userId]);
+});
+
+it('Return 201 for a new rating and counts it as a vote', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+  .send({ rating: 8 });
+
+  const title = await request(app).get('/api/titles/tt4924682');
+
+  expect(res.status).toBe(201);
+  expect(res.body).toMatchObject({ rating: 8 });
+  expect(title.body.rating.votes).toBe(votes + 1);
+}, 30000);
+
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
