@@ -270,6 +270,49 @@ describe('GET /api/persons (paged listing)', () => {
   });
 });
 
+describe('GET /api/persons/ (sorting)', () => {
+  it('sort by rating', async () => {
+    const resAsc = await request(app).get('/api/persons?sort=rating&order=asc');
+    const resDesc = await request(app).get('/api/persons?sort=rating&order=desc');
+
+    expect(resAsc.status).toBe(200);
+    expect(resDesc.status).toBe(200);
+
+    expect(resAsc).not.toMatchObject(resDesc);
+  });
+
+  it('combine sorting with name filter', async () => {
+    const res = await request(app).get('/api/persons?name=blanchett&sort=rating&order=desc');
+
+    expect(res.status).toBe(200);
+    expect(res.body.items.length).toBeGreaterThan(0);
+  });
+
+  it('keeps sorting and filters in the paging links', async () => {
+    const res = await request(app).get('/api/persons?name=blanchett&sort=rating&order=desc&limit=5');
+
+    expect(res.status).toBe(200);
+    expect(res.body.links.next).toContain('sort=rating');
+    expect(res.body.links.next).toContain('order=desc');
+    expect(res.body.links.next).toContain('name=blanchett');
+    
+  });
+
+  it('Returns 400 for an uknown sort field', async () => {
+    const res = await request(app).get('/api/persons?wrongField=abc');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Bad Request", message: "unknown query parameter 'wrongField'" });
+  });
+
+  it('Returns 400 for an uknown sorting direction', async () => {
+    const res = await request(app).get('/api/persons?sort=rating&order=up');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Bad Request", message:"order must be one of asc, desc" });
+  });
+});
+
 describe('GET /api/persons/{nconst}/titles', () => {
   it('returns only matching titles for a valid search', async () => {
     const res = await request(app).get('/api/persons/nm0000054/titles');
