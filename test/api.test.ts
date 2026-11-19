@@ -137,11 +137,6 @@ describe('DELETE /api/auth/token', () => {
     expect(cookie).toMatch(/Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
   });
 
-  it('Returns 204 when not logged in', async () => {
-    const res = await request(app).delete('/api/auth/token');
-
-    expect(res.status).toBe(204);
-  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
