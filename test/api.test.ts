@@ -509,6 +509,18 @@ describe('GET /api/persons/{nconst}/words', () => {
   });
 });
 
+describe('GET /api/persons/{nconst}/words (size)', () => {
+  it('Returns at most 10 words in total', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/words?limit=100');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeLessThanOrEqual(10);
+    expect(res.body.items.length).toBeLessThanOrEqual(10);
+    expect(res.body.total).toEqual(res.body.items.length);
+  });
+
+});
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 // TITLES.TS
@@ -824,6 +836,61 @@ describe('GET /api/titles/{tconst}/similar', () => {
 // ═════════════════════════════════════════════════════════════════════════════
 // USERS.TS
 // ═════════════════════════════════════════════════════════════════════════════
+
+describe('AUTH on /api/users/{uconst}/...', () => {
+  let userOneId: number;
+  let userTwoId: number;
+  let cookie: string;
+
+  beforeAll(async () => {
+      const passwordHash = await hashPassword('password');
+      const useOneUsername = 'test_user_one';
+      const useTwoUsername = 'test_user_two';
+      const userOne = await pool.query(`
+        SELECT create_user($1,$2,$3,$4,$5) as uconst`,
+        ['TestOne', 'UserOne', 'test_user_one', `${useOneUsername}@test.com`, passwordHash])
+
+      const userTwo = await pool.query(`
+        SELECT create_user($1,$2,$3,$4,$5) as uconst`,
+        ['TestTwo', 'UserTwo', 'test_user_two', `${useTwoUsername}@test.com`, passwordHash])
+    
+      userOneId = userOne.rows[0].uconst;
+      userTwoId = userTwo.rows[0].uconst;
+
+      const res = await request(app).post('/api/auth/token')
+                                    .send({ username: useTwoUsername, password: 'password'});
+    cookie = jwtCookie(res);
+    });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userOneId]);
+    await pool.query('SELECT delete_user($1)', [userTwoId]);
+  });
+  
+
+  it('Return 401 without a token', async () => {
+    const res = await request(app).get(`/api/users/${userOneId}/search-history`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error:"Unauthorized", message:"Missing token" });
+  });
+
+  it('Return 401 for an expired token', async () => {
+    const res = await request(app).get(`/api/users/${userOneId}/search-history`)
+                                  .set('Cookie', `${TOKEN_COOKIE}=bad`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error:"Unauthorized", message: "Invalid or expired token" });
+  });
+
+  it('Returns 403 for anothers users token', async () => {
+    const res = await request(app).get(`/api/users/${userOneId}/search-history`)
+                  .set('Cookie', cookie);
+    
+                  expect(res.status).toBe(403);
+  });
+
+});
 
 describe('PUT /api/users/{uid}/password', () => {
   let userId: number;
