@@ -637,9 +637,35 @@ describe('POST /api/users', () => {
                   username: 'users_bad',
                   email: 'users_bad@test.com',
                   password: 'pswd'});
-                  
+
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Return 409 when username is taken', async () => {
+    const res = await request(app).post('/api/users')
+                .send( { 
+                  firstName: 'Test',
+                  lastName: 'User',
+                  username: 'users_taken',
+                  email: 'users_other@test.com',
+                  password: 'NewPassw0rd!'});
+                  
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'Conflict'});
+  });
+
+  it('Return 409 when email is taken', async () => {
+    const res = await request(app).post('/api/users')
+                .send( { 
+                  firstName: 'Test',
+                  lastName: 'User',
+                  username: 'users_random',
+                  email: 'user_taken@test.com',
+                  password: 'NewPassw0rd!'});
+                  
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'Conflict'});
   });
 });
 
