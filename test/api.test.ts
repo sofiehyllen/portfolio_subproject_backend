@@ -570,21 +570,55 @@ describe('AUTH on /api/users/{uconst}/...', () => {
     expect(res.status).toBe(403);
   });
 
+  it('Returns 400 for an invalid uconst', async () => {
+    const res = await request(app).get('/api/users/abc')
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
+  });
+
 });
 
 
 describe('POST /api/users', () => {
-  it('Returns 201 with the profile and a Location header', async () => {
-    const suffix = Date.now();
-    const res = await request(app).post('/api/users')
-          .send({firstName: 'New', lastName: 'User', username: `user_${suffix}`, email: `user_${suffix}@test.com`, password: 'password'});
-    expect(res.status).toBe(201);
-    expect(res.headers.location).toMatch(/^\/api\/users\/d+$/);
-    expect(res.body).toMatchObject( { username: `user_${suffix}` } );
+  let takenId: number;
+  let newId: number | undefined;
 
-    const id = Number(res.headers.location.split('/').pop());
-    await pool.query('SELECT delete_user($1)', [id]);
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const result = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+      ['Test', 'User', 'users_taken', 'user_taken@test.com', passwordHash]);
+    
+    takenId = result.rows[0].uconst;
   });
+
+  afterAll(async () => {
+    await pool.query(`SELECT delete_user($1)`, [takenId]);
+    
+    if (newId) {
+      await pool.query('select delete_user($1)', [newId]);
+    }
+  });
+
+  it('Return 201 with the profile and a Location header, without the password', async () => {
+    const res = await request(app).post('/api/users')
+                .send({ firstName: 'Test', 
+                        lastName: 'User', 
+                        username: 'users_new', 
+                        email: 'users_new@test.com',
+                        password: 'NewPassw0rd!'});
+    
+    expect(res.status).toBe(201);
+    newId = Number(res.body.url.split('/').pop());
+    expect(res.headers.location).toBe(res.body.url);
+    expect(res.body).toMatchObject({ username: 'users_new', email: 'users_new@test.com'});
+    expect(Object.keys(res.body).sort()).toEqual([
+      'createdAt', 'email', 'firstName', 'lastName', 'url', 'username']);
+  });
+
+
 });
 
 describe('PUT /api/users/{uid}/password', () => {
