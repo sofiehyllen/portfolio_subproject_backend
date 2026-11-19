@@ -35,7 +35,7 @@ export const TOKEN_COOKIE = 'jwt';
 /**
  * Cookie attributes shared by set and clear (the browser only removes a
  * cookie when path and attributes match the ones it was set with).
- * - `httpOnly`: browser scripts cannot read the token (protects against XSS theft).
+ * - `httpOnly`: browser scripts cannot read the token.
  * - `sameSite: 'strict'`: the cookie is not sent on cross-site requests (protects against CSRF).
  * - `secure` is left off so the cookie also works over plain http in development.
  */

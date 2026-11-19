@@ -239,4 +239,15 @@ Content-Type: application/json
 { "status": 404, "error": "Not Found", "message": "Title not found" }
 ```
 
+## 6. Cross-origin policy
 
+The frontend (Subproject 3) is served from another origin than the API, so the browser only lets it read responses when the API allows that origin. The policy is set with the `cors` middleware in `app.ts`.
+
+| Setting | Value | Why |
+|---|---|---|
+| Allowed origin | Exactly one, from `CORS_ORIGIN` (default `http://localhost:5173`) | Only our own frontend may read responses. |
+| Credentials | Allowed (`Access-Control-Allow-Credentials: true`) | The token travels in the `jwt` cookie; without this the browser neither sends the cookie nor sets it at login. The frontend must call `fetch(url, { credentials: 'include' })` |
+| Methods | `GET`, `PUT`, `PATCH`, `POST`, `DELETE` | The methods the API offers (section 3) |
+| Exposed headers | `Location` | So the frontend can read the URI of a new user after `POST /api/users` |
+
+The middleware runs first in the chain, so preflight (`OPTIONS`) requests are answered before any other middleware, and error responses (400, 401, 404, 500) also carry the headers, so the frontend can read the error body.

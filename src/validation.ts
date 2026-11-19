@@ -106,7 +106,7 @@ export function validateNewUser(body: unknown): NewUserInput {
 
 
 /**
- * Parses and validates the body of `POST /api/auth/tokens` (login).
+ * Parses and validates the body of `POST /api/auth/token` (login).
  * Only presence is checked: the password rules apply when a password is set, not at login.
  * @throws {BadRequest} Listing every missing field.
  */
