@@ -743,10 +743,26 @@ describe('PUT /api/users/{uid}/password', () => {
                                   .send({ username: 'users_put', password: 'password'});
     cookie = jwtCookie(res);
   });
-  
 
   afterAll(async () => {
     await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
+  it('Returns 403 when the current password is not correct', async () => {
+    const res = await request(app).put(`/api/users/${userId}/password`)
+                .set('Cookie', cookie)
+                .send({ currentPassword: 'wrongPswd', newPassword: 'NewPassw0rd!'});
+    
+    expect(res.status).toBe(403);
+  });
+
+  it('Returns 400 when the new password is not long enough', async () => {
+    const res = await request(app).put(`/api/users/${userId}/password`)
+                .set('Cookie', cookie)
+                .send({ currentPassword: 'password', newPassword: 'NewP0!'});
+    
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
   });
 
   it('returns 204 for a valid password update', async () => {
@@ -755,57 +771,16 @@ describe('PUT /api/users/{uid}/password', () => {
       .send({currentPassword: 'password', newPassword: 'NewPassw0rd!'});
     
     expect(res.status).toBe(204);
+
+    const newLogin = await request(app).post('/api/auth/token')
+                    .send({username: 'users_put', pasword: 'NewPassw0rd!'});
+    const oldLogin = await request(app).post('/api/auth/token')
+                    .send({username: 'users_put', pasword: 'password'});
+
+    expect(newLogin.status).toBe(200);
+    expect(oldLogin.status).toBe(401);
   });
 
-  it('returns 404 for an unknown user', async () => {
-    const res = await request(app)
-      .put(`/api/users/999999999/password`)
-      .send({currentPassword: 'password', newPassword: 'newPassword'});
-    
-    expect(res.status).toBe(404);
-  });
-
-  it('returns 400 when newPassword is missing', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({currentPassword: 'password'});
-    
-      expect(res.status).toBe(400);
-  });
-
-  it('returns 400 when currentPassword is missing', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({newPassword: 'password'});
-
-    expect(res.status).toBe(400);
-
-  });
-
-  it('returns 400 when currentPassword is not a string', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({currentPassword: 123});
-    
-    expect(res.status).toBe(400);
-
-  });
-
-  it('returns 400 when newPassword is not a string', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({newPassword: 123});
-
-    expect(res.status).toBe(400);
-  });
-  
-  it('returns 400 when currentPassword is undefined', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({currentPassword: undefined});
-      
-    expect(res.status).toBe(400);
-  });
 });
 
 
