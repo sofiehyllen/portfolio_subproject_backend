@@ -7,6 +7,7 @@ import { app } from '../src/app.js';
 import { pool } from '../src/db.js';
 import { hashPassword, verifyToken, TOKEN_TTL_SECONDS } from '../src/auth/crypto.js';
 import { TOKEN_COOKIE } from '../src/middleware/auth.js';
+import { url } from 'node:inspector';
 
 afterAll(() => pool.end());
 
@@ -310,6 +311,31 @@ describe('GET /api/persons/ (sorting)', () => {
 
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: "Bad Request", message:"order must be one of asc, desc" });
+  });
+});
+
+describe('GET /api/persons/{nconst}', () => {
+  it('Returns the person', async () => {
+    const res = await request(app).get('/api/persons/nm0000949');
+    
+    expect(res.status).toBe(200);
+    const expectedKeys = ['url', 'primaryName', 'birthYear', 'deathYear', 'avgNameRating', 'professions', 'roles', 'knownFor'];
+    expect(Object.keys(res.body).sort()).toEqual(expectedKeys.sort());
+
+  });
+
+  it('Returns 404 for an uknown person', async () => {
+    const res = await request(app).get('/api/persons/nm0000000');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: "Not Found", message: "Person not found"  });
+  });
+
+  it('Returns 400 for wrong nconst', async () => {
+    const res = await request(app).get('/api/persons/mm0000949');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Bad Request", message: "nconst must be a string starting with nm and have at least 7 digits"  });
   });
 });
 
