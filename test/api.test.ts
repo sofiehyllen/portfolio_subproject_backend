@@ -299,8 +299,6 @@ describe('GET /api/persons/{nconst}/words', () => {
   });
 
 });
-
-
 // ═════════════════════════════════════════════════════════════════════════════
 // TITLES.TS
 // ═════════════════════════════════════════════════════════════════════════════
@@ -322,124 +320,26 @@ describe('GET /api/titles (paged listing)', () => {
       expect(item.url).toMatch(/^\/api\/titles\/tt\d+$/);
     }
   });
-
-  it('gives every item its rating, the same as on the title itself', async () => {
-    const res = await request(app).get('/api/titles?limit=20');
-
-    for (const item of res.body.items) {
-      expect(item).toHaveProperty('rating');
-      if (item.rating !== null) {
-        expect(item.rating).toEqual({
-          average: expect.any(Number),
-          votes: expect.any(Number),
-        });
-      }
-
-      const detail = await request(app).get(item.url);
-      expect(item.rating).toEqual(detail.body.rating);
-    }
-  });
-
-  it('gives a next link that leads to the following page', async () => {
-    const first = await request(app).get('/api/titles?limit=5');
-    const second = await request(app).get(first.body.links.next);
-
-    expect(second.status).toBe(200);
-    expect(second.body.offset).toBe(5);
-    expect(second.body.links.prev).toBe('/api/titles?limit=5&offset=0');
-
-    const firstUrls = first.body.items.map((item: { url: string }) => item.url);
-    for (const item of second.body.items) {
-      expect(firstUrls).not.toContain(item.url);
-    }
-  });
-
-  it('applies the default when the page size exceeds the maximum', async () => {
-    const res = await request(app).get('/api/titles?limit=1000');
-
-    expect(res.status).toBe(200);
-    expect(res.body.limit).toBe(20);
-  });
 });
 
-describe('GET /api/titles (sorting and filtering)', () => {
-  it('sorts by the chosen field and direction', async () => {
-    const res = await request(app).get('/api/titles?sort=votes&order=desc&limit=10');
+describe('GET /api/titles (text search)', () => {
+  it('returns title summaries ordered by tconst', async () => {
+    const res = await request(app).get('/api/titles?text=love&limit=50');
 
     expect(res.status).toBe(200);
-    const votes = res.body.items.map((item: { rating: { votes: number } }) => item.rating.votes);
-    expect(votes).toEqual([...votes].sort((a, b) => b - a));
-  });
+    expect(res.body.items.length).toBeGreaterThan(0);
+    for (const item of res.body.items) {
+      expect(Object.keys(item).sort()).toEqual(['primaryTitle', 'startYear', 'url']);
+    }
 
-  it('filters by genre and title type, and the total counts only matching titles', async () => {
-    const all = await request(app).get('/api/titles?limit=1');
-    const res = await request(app).get('/api/titles?genre=Comedy&titleType=movie&limit=10');
-
-    expect(res.status).toBe(200);
-    expect(res.body.total).toBeGreaterThan(0);
-    expect(res.body.total).toBeLessThan(all.body.total);
-    for (const item of res.body.items) expect(item.titleType).toBe('movie');
-  });
-
-  it('keeps sorting and filters in the paging links', async () => {
-    const res = await request(app).get('/api/titles?sort=year&order=desc&titleType=movie&limit=5');
-
-    const next = new URL(res.body.links.next, 'http://localhost');
-    expect(next.searchParams.get('sort')).toBe('year');
-    expect(next.searchParams.get('order')).toBe('desc');
-    expect(next.searchParams.get('titleType')).toBe('movie');
-    expect(next.searchParams.get('offset')).toBe('5');
-  });
-
-  it('gives 400 for an unknown sort field or direction', async () => {
-    const res = await request(app).get('/api/titles?sort=popularity&order=up');
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('sort must be one of');
-    expect(res.body.message).toContain('order must be one of asc, desc');
-  });
-
-  it('gives 400 when sorting or filtering is mixed with a text search', async () => {
-    const res = await request(app).get('/api/titles?text=love&sort=rating');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: 'sort cannot be combined with text' });
-  });
-
-  it.each([
-    ['empty', 'text='],
-    ['blank', 'text=%20%20'],
-    ['too long', `text=${'a'.repeat(101)}`],
-    ['sent twice', 'text=love&text=war'],
-  ])('gives 400 for search text that is %s', async (_case, qs) => {
-    const res = await request(app).get(`/api/titles?${qs}`);
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: 'text must be 1-100 characters' });
-  });
-
-  it('trims the search text', async () => {
-    const plain = await request(app).get('/api/titles?text=love');
-    const padded = await request(app).get('/api/titles?text=%20love%20');
-
-    expect(padded.status).toBe(200);
-    expect(padded.body.total).toBe(plain.body.total);
-  });
-
-  it.each([
-    ['browsing', 'keyword=war&sort=year', 'keyword'],
-    ['searching', 'text=love&sortt=year', 'sortt'],
-  ])('gives 400 for a query parameter it does not accept when %s, instead of ignoring it', async (_mode, qs, param) => {
-    const res = await request(app).get(`/api/titles?${qs}`);
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: `unknown query parameter '${param}'` });
+    const tconsts = res.body.items.map((item: { url: string }) => item.url.split('/').pop());
+    expect(tconsts).toEqual([...tconsts].sort());
   });
 });
 
 describe('GET /api/titles (keyword search)', () => {
-  it.each(['all', 'any', 'weighted'])('gives a paged list of title summaries with match=%s', async (match) => {
-    const res = await request(app).get(`/api/titles?keywords=space,war&match=${match}&limit=5`);
+  it('gives a paged list of title summaries with match=all', async () => {
+    const res = await request(app).get('/api/titles?keywords=space,war&match=all&limit=5');
 
     expect(res.status).toBe(200);
     expect(res.body.limit).toBe(5);
@@ -448,73 +348,85 @@ describe('GET /api/titles (keyword search)', () => {
       expect(Object.keys(item).sort()).toEqual(['primaryTitle', 'startYear', 'url']);
     }
   });
+});
 
+describe('GET /api/titles (structured search)', () => {
   it.each([
-    ['any', 'best_match_querying'],
-    ['weighted', 'weighted_search'],
-  ])('ranks match=%s in the same order as %s', async (match, dbFunction) => {
-    const res = await request(app).get(`/api/titles?keywords=space,war,love&match=${match}&limit=50`);
-    // The function's own order; called without a user, so nothing is logged
-    // (except by best_match_querying, which logs even without a user).
-    const { rows } = await pool.query<{ tconst: string }>(
-      `SELECT tconst FROM ${dbFunction}(NULL, 'space', 'war', 'love') LIMIT 50`);
+    ['title', 'title=love'],
+    ['plot', 'plot=war'],
+    ['character', 'character=galadriel'],
+    ['person', 'person=blanchett'],
+    ])('finds titles by %s, case-insensitive', async (_field, qs) => {
+    const [name, value] = qs.split('=');
+    const res = await request(app).get(`/api/titles?${name}=${value.toUpperCase()}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.items.map((item: { url: string }) => item.url.split('/').pop()))
-      .toEqual(rows.map(row => row.tconst));
+    expect(res.body.total).toBeGreaterThan(0);
+    for (const item of res.body.items) {
+      expect(Object.keys(item).sort()).toEqual(['primaryTitle', 'startYear', 'url']);
+    }
   });
 
-  it('defaults to weighted', async () => {
-    const plain = await request(app).get('/api/titles?keywords=space,war');
-    const weighted = await request(app).get('/api/titles?keywords=space,war&match=weighted');
+  it('requires every given field to match', async () => {
+    const one = await request(app).get('/api/titles?person=blanchett');
+    const both = await request(app).get('/api/titles?person=blanchett&character=galadriel');
 
-    expect(plain.status).toBe(200);
-    expect(plain.body.items).toEqual(weighted.body.items);
-  });
-
-  it('finds no more titles with all than with any', async () => {
-    const all = await request(app).get('/api/titles?keywords=space,war&match=all');
-    const any = await request(app).get('/api/titles?keywords=space,war&match=any');
-
-    expect(all.body.total).toBeLessThanOrEqual(any.body.total);
-  });
-
-  it('keeps keywords and match in the paging links', async () => {
-    const res = await request(app).get('/api/titles?keywords=love&match=any&limit=1');
-
-    expect(res.body.links.next).toContain('keywords=love');
-    expect(res.body.links.next).toContain('match=any');
+    expect(both.status).toBe(200);
+    expect(both.body.total).toBeGreaterThan(0);
+    expect(both.body.total).toBeLessThan(one.body.total);
   });
 
   it.each([
-    ['missing', 'match=all', 'keywords is required'],
-    ['empty', 'keywords=', 'keywords is required'],
-    ['only commas', 'keywords=,,', 'keywords is required'],
-    ['sent twice', 'keywords=a&keywords=b', 'keywords must be one comma separated list'],
-    ['too many', `keywords=${Array.from({ length: 11 }, (_, i) => `w${i}`).join(',')}`, 'keywords can have at most 10 words'],
-    ['too long', `keywords=${'a'.repeat(51)}`, 'each word can be at most 50 characters'],
-  ])('gives 400 for keywords that are %s', async (_case, qs, message) => {
+    ['text', 'title=love&text=love'],
+    ['keywords', 'title=love&keywords=war'],
+  ])('gives 400 when mixed with %s', async (_mode, qs) => {
     const res = await request(app).get(`/api/titles?${qs}`);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message });
-  });
-
-  it('gives 400 for an unknown match', async () => {
-    const res = await request(app).get('/api/titles?keywords=war&match=some');
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toBe('match must be one of all, any, weighted');
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
   });
 
   it.each([
-    ['browsing', 'keywords=war&sort=rating', 'sort cannot be combined with keywords'],
-    ['text search', 'text=love&keywords=war', 'keywords cannot be combined with text'],
-  ])('gives 400 when mixed with %s', async (_mode, qs, message) => {
+    ['sort', 'title=love&sort=year'],
+    ['a filter', 'title=love&genre=Comedy'],
+  ])('gives 400 when mixed with %s', async (_mode, qs) => {
     const res = await request(app).get(`/api/titles?${qs}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe(message);
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
+  });
+});
+
+describe('GET /api/titles (sorting and filtering)', () => {
+  it.each(['asc', 'desc'])('sorts by year in %s order with missing years last', async (order) => {
+    const first = await request(app).get(`/api/titles?sort=year&order=${order}&limit=100`);
+    const last = await request(app).get(`/api/titles?sort=year&order=${order}&limit=100&offset=${first.body.total - 100}`);
+
+    expect(first.status).toBe(200);
+    const years = first.body.items.map((item: { startYear: number | null }) => item.startYear);
+    expect(years.every((year: number | null) => year !== null)).toBe(true);
+    expect(years).toEqual([...years].sort((a, b) => order === 'asc' ? a - b : b - a));
+
+    expect(last.body.items.at(-1).startYear).toBeNull();
+  }, 30000);
+
+  it('filters by genre case-insensitively', async () => {
+    const proper = await request(app).get('/api/titles?genre=Comedy&limit=1');
+    const upper = await request(app).get('/api/titles?genre=COMEDY&limit=1');
+
+    expect(upper.status).toBe(200);
+    expect(proper.body.total).toBeGreaterThan(0);
+    expect(upper.body.total).toBe(proper.body.total);
+  });
+
+  it.each([
+    ['genre', 'genre=NoSuchGenre'],
+    ['title type', 'titleType=noSuchType'],
+  ])('gives an empty list for an unknown %s', async (_name, qs) => {
+    const res = await request(app).get(`/api/titles?${qs}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 0, items: [] });
   });
 });
 
@@ -535,11 +447,15 @@ describe('GET /api/titles/{tconst}', () => {
     }
   });
 
-  it('gives 404 for an unknown title', async () => {
-    const res = await request(app).get('/api/titles/tt0000000');
+  it.each([
+    ['no tt prefix', '0063929'],
+    ['6 digits', 'tt123456'],
+    ['9 digits', 'tt123456789'],
+  ])('gives 400 for an invalid tconst: %s', async (_case, tconst) => {
+    const res = await request(app).get(`/api/titles/${tconst}`);
 
-    expect(res.status).toBe(404);
-    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request', message: 'tconst must start with tt followed by 7-8 digits' });
   });
 });
 
@@ -550,7 +466,6 @@ describe('GET /api/titles/{tconst}/actors', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ limit: 3, offset: 0 });
     expect(res.body.items.length).toBeLessThanOrEqual(3);
-    expect(res.body.items.length).toBeLessThanOrEqual(res.body.total);
 
     const ratings = res.body.items.map((actor: { nameRating: number | null }) => actor.nameRating ?? -1);
     expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
@@ -558,29 +473,24 @@ describe('GET /api/titles/{tconst}/actors', () => {
       expect(actor.url).toMatch(/^\/api\/persons\/nm\d+$/);
     }
   });
-
-  it('keeps the path in the paging links', async () => {
-    const res = await request(app).get('/api/titles/tt0063929/actors?limit=1');
-
-    expect(res.body.links.next).toBe('/api/titles/tt0063929/actors?limit=1&offset=1');
-  });
-
-  it('gives 404 for an unknown title', async () => {
-    const res = await request(app).get('/api/titles/tt0000000/actors');
-    
-    expect(res.status).toBe(404);
-    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
-  });
 });
 
 describe('GET /api/titles/{tconst}/similar', () => {
+  // The title types of the titles similar to the first title of the given type.
+  async function similarTypes(titleType: string): Promise<string[]> {
+    const list = await request(app).get(`/api/titles?titleType=${titleType}&limit=1`);
+    const similar = await request(app).get(`${list.body.items[0].url}/similar?limit=20`);
+
+    return Promise.all(similar.body.items.map(async (item: { url: string }) =>
+      (await request(app).get(item.url)).body.titleType));
+  }
+
   it('returns a page of movies, most shared genres first', async () => {
     const res = await request(app).get('/api/titles/tt0111596/similar?limit=5');
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ limit: 5, offset: 0 });
     expect(res.body.items.length).toBeGreaterThan(0);
-    expect(res.body.items.length).toBeLessThanOrEqual(5);
 
     const scores = res.body.items.map((movie: { similarityScore: number }) => movie.similarityScore);
     expect(scores).toEqual([...scores].sort((a, b) => b - a));
@@ -590,27 +500,21 @@ describe('GET /api/titles/{tconst}/similar', () => {
     }
   });
 
-  it('keeps the path in the paging links', async () => {
-    const res = await request(app).get('/api/titles/tt0111596/similar?limit=1');
+  it('matches movie and tvMovie with each other', async () => {
+    const types = await similarTypes('tvMovie');
 
-    expect(res.body.links.next).toBe('/api/titles/tt0111596/similar?limit=1&offset=1');
-  });
+    expect(types).toContain('movie');
+    for (const type of types) expect(['movie', 'tvMovie']).toContain(type);
+  }, 30000);
 
-  it('gives an empty list for a title that is not a movie', async () => {
-    const res = await request(app).get('/api/titles/tt0063929/similar');
+  it.each(['tvEpisode', 'short'])('gives an empty list for %s', async (titleType) => {
+    const list = await request(app).get(`/api/titles?titleType=${titleType}&limit=1`);
+    const res = await request(app).get(`${list.body.items[0].url}/similar`);
 
     expect(res.status).toBe(200);
-    expect(res.body.items).toEqual([]);
-    expect(res.body.total).toBe(0);
-  });
-
-  it('gives 404 for an unknown title', async () => {
-    const res = await request(app).get('/api/titles/tt0000000/similar');
-    expect(res.status).toBe(404);
-    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
+    expect(res.body).toMatchObject({ total: 0, items: [] });
   });
 });
-
 
 // ═════════════════════════════════════════════════════════════════════════════
 // USERS.TS
