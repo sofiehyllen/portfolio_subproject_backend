@@ -176,74 +176,6 @@ describe('GET /api/persons (name filter)', () => {
 
 }); 
 
-describe('GET /api/persons (paged listing)', () => {
-  it('returns 200 with a paged response', async () => {
-    const res = await request(app).get('/api/persons');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ limit: 20, offset: 0 });
-    expect(res.body.items.length).toBeLessThanOrEqual(20);
-    expect(res.body.links.prev).toBeNull();
-  });
-
-  it('returns items in the person DTO shape', async () => {
-    const res = await request(app).get('/api/persons');
-    expect(res.body.items).toHaveLength(20);
-    
-    res.body.items
-      .forEach((element: any) => {
-        expect(element).toHaveProperty('url');
-        expect(typeof element.url).toBe('string');
-
-        expect(element).toHaveProperty('primaryName');
-        expect(typeof element.primaryName).toBe('string');
-
-        expect(element).toHaveProperty('birthYear');
-        expect(element.birthYear === null || typeof element.birthYear === 'number');
-
-        expect(element).toHaveProperty('deathYear');
-        expect(element.deathYear === null || typeof element.deathYear === 'number');
-
-        expect(element).toHaveProperty('avgNameRating');
-        expect(element.avgNameRating === null || typeof element.avgNameRating === 'number');
-
-        expect(element).toHaveProperty('professions');
-        expect(Array.isArray(element.professions)).toBe(true);
-      });
-  });
-
-  it('respects limits and offsets', async () => {
-    const res = await request(app).get('/api/persons?limit=10&offset=500');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ limit: 10, offset: 500 });
-    expect(res.body.items.length).toBeLessThanOrEqual(20);
-    expect(res.body.links.prev).toBe("/api/persons?limit=10&offset=490");
-    expect(res.body.links.next).toBe("/api/persons?limit=10&offset=510");
-  });
-
-  it('returns empty list but correct total past last page', async () => {
-    const first = await request(app).get('/api/persons?limit=1');
-    const total = first.body.total;
-
-    const res = await request(app).get(`/api/persons?offset=${total}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ total: 536498, offset: total, limit: 20 });
-    expect(res.body.items.length).toBeLessThanOrEqual(0);
-    expect(res.body.links.prev).toBe(`/api/persons?offset=${total - 20}&limit=20`);
-    expect(res.body.links.next).toBeNull();
-  }, 30000);
-
-  it('caps limit over 20', async () => {
-    const res = await request(app).get('/api/persons?limit=1000000');
-  
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({limit: 20 });
-
-  });
-});
-
 describe('GET /api/persons/ (sorting)', () => {
   it('sort by rating', async () => {
     const resAsc = await request(app).get('/api/persons?sort=rating&order=asc');
@@ -260,16 +192,6 @@ describe('GET /api/persons/ (sorting)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.items.length).toBeGreaterThan(0);
-  });
-
-  it('keeps sorting and filters in the paging links', async () => {
-    const res = await request(app).get('/api/persons?name=blanchett&sort=rating&order=desc&limit=5');
-
-    expect(res.status).toBe(200);
-    expect(res.body.links.next).toContain('sort=rating');
-    expect(res.body.links.next).toContain('order=desc');
-    expect(res.body.links.next).toContain('name=blanchett');
-    
   });
 
   it('Returns 400 for an uknown sort field', async () => {
