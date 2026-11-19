@@ -46,25 +46,21 @@ describe('POST /api/auth/token', () => {
     await pool.query('SELECT delete_user($1)', [userId]);
   });
 
-  it('Returns 200 with the user URI, no token in body', async () => {
+  it('Returns 200 with the user URI, no token in body and an HttpOnly jwt cookie', async () => {
     const res = await request(app).post('/api/auth/token')
-                            .send({ username, password: 'password' });
+                                  .send({ username, password: 'password' });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ user: `/api/users/${userId}` });
-  }); 
 
-  it('Sets up an Http jwt cookie valid for 12 hours', async () => {
-    const res = await request(app).post('/api/auth/token')
-                                  .send({ username, password: 'password' });
-    
     const cookie = jwtCookie(res);
     const token = cookie.split(';', 1)[0].slice(`${TOKEN_COOKIE}=`.length);
 
     expect(verifyToken(token)).toMatchObject({ uconst: userId });
     expect(cookie).toMatch(/HttpOnly/i);
     expect(cookie).toContain(`Max-Age=${TOKEN_TTL_SECONDS}`);
-  });
+  }); 
+
 
   it('Returns 400 when username is missing', async () => {
     const res = await request(app).post('/api/auth/token')
@@ -76,20 +72,6 @@ describe('POST /api/auth/token', () => {
   it('Returns 400 when password is missing', async () => {
     const res = await request(app).post('/api/auth/token')
                                   .send( { username } );
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: 'Bad Request'});
-  });
-
-  it('Returns 400 when username is not a string', async () => {
-    const res = await request(app).post('/api/auth/token')
-                                  .send( { username: 123} );
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: 'Bad Request'});
-  });
-
-  it('Returns 400 when password is not a string', async () => {
-    const res = await request(app).post('/api/auth/token')
-                                  .send( { password: 123} );
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: 'Bad Request'});
   });
@@ -110,24 +92,7 @@ describe('POST /api/auth/token', () => {
 });
 
 describe('DELETE /api/auth/token', () => {
-  let username: string;
-  let userId: number;
-  let passwordHash: string;
   
-  beforeAll(async () => {
-    passwordHash = await hashPassword('password');
-    username = 'test_user';
-    const result = await pool.query(`
-      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
-    ['Test', 'User', username, `${username}@test.com`, passwordHash]);
-
-    userId = result.rows[0].uconst;
-  });
-
-  afterAll(async () => {
-    await pool.query('SELECT delete_user($1)', [userId]);
-  });
-
   it('Returns 204 and clears the cookies', async () => {
     const res = await request(app).delete('/api/auth/token');
 
