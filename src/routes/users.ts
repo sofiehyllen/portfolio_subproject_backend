@@ -10,8 +10,11 @@ import { pageOf, paged } from './pagination.js';
 import { rateTitle } from "../services/ratings.js";
 import { changePassword, register, updateProfile } from "../services/users.js";
 import { bookmarkPerson, bookmarkTitle } from "../services/bookmarks.js";
-import { requireAuth } from "../middleware/auth.js";
 
+// Two routers, so the guard is named where they are mounted (app.ts):
+// - registrationRouter: public, only POST /api/users.
+// - router: every other users route; mounted behind requireAuth.
+export const registrationRouter = Router();
 export const router = Router();
 
 // Runs before every route whose path contains :uconst, so validation and
@@ -71,7 +74,7 @@ router.param('nconst', (_req, res, next, value: string) => {
 
 // POST /api/users: registers a user. Public. Returns 201 with the new
 // profile and a Location header pointing at it.
-router.post('/', async (req, res, next) => {
+registrationRouter.post('/', async (req, res, next) => {
   try {
     const input = validateNewUser(req.body); // 400 on missing or invalid fields
     const user = await register(input); // 409 from the service
@@ -80,10 +83,6 @@ router.post('/', async (req, res, next) => {
     next(err);
   }
 });
-
-// Every route below this line requires a token. 
-// Registration above stays public.
-router.use(requireAuth);
 
 // GET /api/users/{uconst}: the user's profile (never the password hash).
 router.get('/:uconst', (_req, res) => {
