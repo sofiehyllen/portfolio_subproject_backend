@@ -682,7 +682,7 @@ describe('PATCH /api/users/{uconst}', () => {
 
     const other = await pool.query(`
       select create_user($1, $2, $3, $4, $5) as uconst`,
-    ['Test', 'Other', 'users_path_other', 'users_path_other@test.com', passwordHash]);
+    ['Test', 'Other', 'users_path_other', 'users_patch_other@test.com', passwordHash]);
 
     userId = user.rows[0].uconst;
     otherId = other.rows[0].uconst;
@@ -705,7 +705,24 @@ describe('PATCH /api/users/{uconst}', () => {
     expect(res.body).toMatchObject({
       firstName: 'Changed',
       lastName: 'User',
-      username: 'users_patch'})
+      username: 'users_patch'});
+  });
+
+  it('Returns 400 when username is sent', async () => {
+    const res = await request(app).patch(`/api/users/${userId}`)
+                .set('Cookie', cookie)
+                .send( { username: 'users_changed'});
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Returns 409 when email is taken', async () => {
+    const res = await request(app).patch(`/api/users/${userId}`)
+                .set('Cookie', cookie)
+                .send( { email: 'users_patch_other@test.com'});
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'Conflict'});
   });
 })
 
