@@ -19,7 +19,7 @@ export interface LoginInput {
  * Verifies the credentials and returns a signed JWT on success.
  *
  * @param input - The username and plaintext password to authenticate.
- * @returns The authenticated user's `uconst` and a signed JWT valid for 24 hours.
+ * @returns The authenticated user's `uconst` and a signed JWT valid for 12 hours.
  * @throws {Unauthorized} When the username does not exist or the password does not match.
  */
 export async function login(input: LoginInput): Promise<{ uconst: number; token: string }> {

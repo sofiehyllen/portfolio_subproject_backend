@@ -5,7 +5,7 @@
  * Stored format: `scrypt$<salt>$<hash>`, both base64-encoded. The salt is
  * random per password, so two users with the same password get different hashes.
  *
- * JWTs are HS256-signed with JWT_SECRET and expire after 24 hours. The only
+ * JWTs are HS256-signed with JWT_SECRET and expire after 12 hours. The only
  * claim is `uconst` (the user's id).
  */
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
@@ -59,7 +59,7 @@ export async function checkPassword(password: string, stored: string): Promise<b
  * Signs a JWT containing the given claims.
  *
  * @param claims - The payload to encode (`uconst`).
- * @returns A signed HS256 JWT string valid for 24 hours.
+ * @returns A signed HS256 JWT string valid for 12 hours.
  */
 export function signToken(claims: Claims): string {
   return jwt.sign(claims, SECRET!, { algorithm: 'HS256', expiresIn: TOKEN_TTL_SECONDS });
