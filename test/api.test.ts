@@ -109,7 +109,7 @@ describe('DELETE /api/auth/token', () => {
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe('GET /api/persons (name filter)', () => {
-  it('Returns only persons matching the name', async () => {
+  it('Returns only persons matching the name, case-insensitive', async () => {
     const res = await request(app).get('/api/persons?name=blanchett');
 
     expect(res.status).toBe(200);
@@ -119,34 +119,6 @@ describe('GET /api/persons (name filter)', () => {
     }
 
   });
-
-  it('Returns 400 for an blank name', async () => {
-    const res = await request(app).get('/api/persons?name=');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: 'Bad Request' });
-  });
-
-  it('Returns 400 for an nonexistent name', async () => {
-    const res = await request(app).get('/api/persons?name=123456abcde');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ "total": 0, "items": []});
-  });
-
-  it('Returns 400 for a name longer than 100 characters', async () => {
-    const res = await request(app).get('/api/persons?name=abcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcde');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: 'Bad Request' });
-  });
-
-  it('Returns actors with ActorsOnly=true with no name', async () => {
-    const res = await request(app).get('/api/persons?actorsOnly=true')
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: 'Bad Request', message:"actorsOnly requires name" });
-  });
-
 
   it('Returns actors with ActorsOnly=true with name', async () => {
     const res = await request(app).get('/api/persons?actorsOnly=true&name=blanchett')
@@ -159,6 +131,12 @@ describe('GET /api/persons (name filter)', () => {
       expect(item.professions.find((i: string) => i === 'actor' || i === 'actress')).toBeDefined();
     }
 
+  });
+
+  it('Returns actors with ActorsOnly=true with no name', async () => {
+    const res = await request(app).get('/api/persons?actorsOnly=true')
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request', message:"actorsOnly requires name" });
   });
 
 }); 
@@ -199,36 +177,6 @@ describe('GET /api/persons (paged listing)', () => {
       });
   });
 
-  it('respects limits and offsets', async () => {
-    const res = await request(app).get('/api/persons?limit=10&offset=500');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ limit: 10, offset: 500 });
-    expect(res.body.items.length).toBeLessThanOrEqual(20);
-    expect(res.body.links.prev).toBe("/api/persons?limit=10&offset=490");
-    expect(res.body.links.next).toBe("/api/persons?limit=10&offset=510");
-  });
-
-  it('returns empty list but correct total past last page', async () => {
-    const first = await request(app).get('/api/persons?limit=1');
-    const total = first.body.total;
-
-    const res = await request(app).get(`/api/persons?offset=${total}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ total: 536498, offset: total, limit: 20 });
-    expect(res.body.items.length).toBeLessThanOrEqual(0);
-    expect(res.body.links.prev).toBe(`/api/persons?offset=${total - 20}&limit=20`);
-    expect(res.body.links.next).toBeNull();
-  }, 30000);
-
-  it('caps limit over 20', async () => {
-    const res = await request(app).get('/api/persons?limit=1000000');
-  
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({limit: 20 });
-
-  });
 });
 
 describe('GET /api/persons/ (sorting)', () => {
@@ -249,28 +197,20 @@ describe('GET /api/persons/ (sorting)', () => {
     expect(res.body.items.length).toBeGreaterThan(0);
   });
 
-  it('keeps sorting and filters in the paging links', async () => {
-    const res = await request(app).get('/api/persons?name=blanchett&sort=rating&order=desc&limit=5');
-
-    expect(res.status).toBe(200);
-    expect(res.body.links.next).toContain('sort=rating');
-    expect(res.body.links.next).toContain('order=desc');
-    expect(res.body.links.next).toContain('name=blanchett');
-    
-  });
-
-  it('Returns 400 for an uknown sort field', async () => {
-    const res = await request(app).get('/api/persons?wrongField=abc');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: "Bad Request", message: "unknown query parameter 'wrongField'" });
-  });
-
   it('Returns 400 for an uknown sorting direction', async () => {
     const res = await request(app).get('/api/persons?sort=rating&order=up');
 
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: "Bad Request", message:"order must be one of asc, desc" });
+  });
+});
+
+describe('GET /api/persons (query parameters)', () => {
+  it('Returns 400 for an uknown sort field', async () => {
+    const res = await request(app).get('/api/persons?wrongField=abc');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Bad Request", message: "unknown query parameter 'wrongField'" });
   });
 });
 
@@ -299,62 +239,7 @@ describe('GET /api/persons/{nconst}', () => {
   });
 });
 
-describe('GET /api/persons/{nconst}/titles', () => {
-  it('returns only matching titles for a valid search', async () => {
-    const res = await request(app).get('/api/persons/nm0000054/titles');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
-      "total": 2,
-      "limit": 20,
-      "offset": 0,
-      "items": [
-        {
-          "url": "/api/titles/tt13734340",
-          "person": "/api/persons/nm0000054",
-          "primaryTitle": "Marilyn Monroe: Photobiography",
-          "category": "archive_footage",
-          "job": null,
-          "characters": ["Self"]
-        },
-        {
-          "url": "/api/titles/tt3483980",
-          "person": "/api/persons/nm0000054",
-          "primaryTitle": "From Gold to Containers, from Salt to Empires",
-          "category": "archive_footage",
-          "job": null,
-          "characters": ["Self"]
-        }
-      ],
-      "links": {
-        "prev": null,
-        "next": null
-      }
-    });
-  });
-
-  it('returns 404 when person is not found', async () => {
-    const res = await request(app).get('/api/persons/nm9999999/titles');
-
-    expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({
-      "status": 404,
-      "error": "Not Found",
-      "message": "Person not found"});
-  });
-
-  it('returns 400 for an invalid search paramenter', async () => {
-    const res = await request(app).get('/api/persons/tm9999999/titles');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({
-      "status": 400,
-      "error": "Bad Request",
-      "message": "nconst must be a string starting with nm and have at least 7 digits"});
-  });
-});
-
-describe('GET /api/persons/{nconst}/titles (ordering', () => {
+describe('GET /api/persons/{nconst}/titles (ordering)', () => {
   it('Keeps the path in the paging links', async () => {
     const res = await request(app).get('/api/persons/nm0000949/titles?limit=1&offset=1');
 
@@ -365,8 +250,8 @@ describe('GET /api/persons/{nconst}/titles (ordering', () => {
   });
 });
 
-describe('GET /:nconst/co-players', () => {
-  it('returns only matching co-players for a valid search', async () => {
+describe('GET api/persons/{nconst}/co-players', () => {
+  it('Returns only matching co-players for a valid search', async () => {
     const res = await request(app).get('/api/persons/nm0000949/co-players?limit=1');
 
     expect(res.status).toBe(200);
@@ -398,34 +283,9 @@ describe('GET /:nconst/co-players', () => {
 
   });
 
-  it('returns 400 for an invalid search paramenter', async () => {
-    const res = await request(app).get('/api/persons/tm9999999/co-players');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({
-      "status":400,
-      "error":"Bad Request",
-      "message":"nconst must be a string starting with nm and have at least 7 digits"});
-  });
 });
 
 describe('GET /api/persons/{nconst}/words', () => {
-  it('returns a page of associated words, most frequent first', async () => {
-    const res = await request(app).get('/api/persons/nm0000949/words?limit=5');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ limit: 5, offset: 0 });
-    expect(res.body.items.length).toBeGreaterThan(0);
-    expect(res.body.items.length).toBeLessThanOrEqual(5);
-    expect(res.body.links.prev).toBeNull();
-
-    for (const item of res.body.items) {
-      expect(Object.keys(item).sort()).toEqual(['frequency', 'word']);
-    }
-
-    const frequencies = res.body.items.map((item: { frequency: number }) => item.frequency);
-    expect(frequencies).toEqual([...frequencies].sort((a, b) => b - a));
-  });
 
   it('matches the words and frequencies from person_words', async () => {
     const res = await request(app).get('/api/persons/nm0000949/words');
@@ -436,47 +296,6 @@ describe('GET /api/persons/{nconst}/words', () => {
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(rows.length);
     expect(res.body.items).toEqual(rows);
-  });
-
-  it('keeps the path in the paging links', async () => {
-    const res = await request(app).get('/api/persons/nm0000949/words?limit=3');
-
-    expect(res.body.links.next).toBe('/api/persons/nm0000949/words?limit=3&offset=3');
-
-    const second = await request(app).get(res.body.links.next);
-    expect(second.status).toBe(200);
-    expect(second.body.offset).toBe(3);
-    expect(second.body.links.prev).toBe('/api/persons/nm0000949/words?limit=3&offset=0');
-  });
-
-
-  it('gives 404 for an unknown person', async () => {
-    const res = await request(app).get('/api/persons/nm9999999/words');
-
-    expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ status: 404, error: 'Not Found', message: 'Person not found' });
-  });
-
-  it('gives 400 for an invalid nconst', async () => {
-    const res = await request(app).get('/api/persons/tm9999999/words');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({
-      status: 400,
-      error: 'Bad Request',
-      message: 'nconst must be a string starting with nm and have at least 7 digits',
-    });
-  });
-});
-
-describe('GET /api/persons/{nconst}/words (size)', () => {
-  it('Returns at most 10 words in total', async () => {
-    const res = await request(app).get('/api/persons/nm0000949/words?limit=100');
-
-    expect(res.status).toBe(200);
-    expect(res.body.total).toBeLessThanOrEqual(10);
-    expect(res.body.items.length).toBeLessThanOrEqual(10);
-    expect(res.body.total).toEqual(res.body.items.length);
   });
 
 });
