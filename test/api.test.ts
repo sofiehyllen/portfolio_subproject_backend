@@ -143,11 +143,64 @@ describe('DELETE /api/auth/token', () => {
   });
 });
 
-
-
 // ═════════════════════════════════════════════════════════════════════════════
 // PERSONS.TS
 // ═════════════════════════════════════════════════════════════════════════════
+
+describe('GET /api/persons (name filter)', () => {
+  it('Returns only persons matching the name', async () => {
+    const res = await request(app).get('/api/persons?name=blanchett');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
+    for (const item of res.body.items) {
+      expect(item.primaryName.toLowerCase()).toContain('blanchett');
+    }
+
+  });
+
+  it('Returns 400 for an blank name', async () => {
+    const res = await request(app).get('/api/persons?name=');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
+  });
+
+  it('Returns 400 for an nonexistent name', async () => {
+    const res = await request(app).get('/api/persons?name=123456abcde');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ "total": 0, "items": []});
+  });
+
+  it('Returns 400 for a name longer than 100 characters', async () => {
+    const res = await request(app).get('/api/persons?name=abcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcdefhgabcde');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
+  });
+
+  it('Returns actors with ActorsOnly=true with no name', async () => {
+    const res = await request(app).get('/api/persons?actorsOnly=true')
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request', message:"actorsOnly requires name" });
+  });
+
+
+  it('Returns actors with ActorsOnly=true with name', async () => {
+    const res = await request(app).get('/api/persons?actorsOnly=true&name=blanchett')
+    const allProfessions= await request(app).get('/api/persons?name=blanchett')
+    
+    expect(res.status).toBe(200);
+    expect(res.body.total).not.toEqual(allProfessions.body.total);
+
+    for (const item of res.body.items) {
+      expect(item.professions.find((i: string) => i === 'actor' || i === 'actress')).toBeDefined();
+    }
+
+  });
+
+}); 
 
 describe('GET /api/persons (paged listing)', () => {
   it('returns 200 with a paged response', async () => {
