@@ -628,6 +628,19 @@ describe('POST /api/users', () => {
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: 'Bad Request'});
   });
+
+  it('Return 400 when password is too short', async () => {
+    const res = await request(app).post('/api/users')
+                .send( { 
+                  firstName: 'Test',
+                  lastName: 'User',
+                  username: 'users_bad',
+                  email: 'users_bad@test.com',
+                  password: 'pswd'});
+                  
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
 });
 
 describe('PUT /api/users/{uid}/password', () => {
