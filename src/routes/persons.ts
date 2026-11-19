@@ -3,18 +3,13 @@ import * as persons from '../data/persons.js';
 import * as error from '../middleware/errors.js';
 import { pageOf, paged, searchLogUser} from '../routes/pagination.js'
 import { toPersonDto, toPersonDetailDto, toPersonTitleDto, toCoPlayerDto, toPersonWordDto } from './dto.js';
-import { validatePersonBrowse } from "../validation.js";
+import { validatePersonBrowse, validateNconst } from "../validation.js";
 
 export const router = Router();
 
-// nconst is an IMDb-style string (e.g. "nm0000042"): nm followed by at least 7 digits.
-function parseNconst(value: string): string | undefined {
-  return /^nm\d{7,}$/.test(value) ? value : undefined;
-}
-
 // validates the :nconst route param and stores the value in res.locals
 router.param('nconst', (_req, res, next, value: string) => {
-    const nconst = parseNconst(value);
+    const nconst = validateNconst(value);
     if (nconst === undefined) {
         return next(new error.BadRequest('nconst must be a string starting with nm and have at least 7 digits'));
     }
@@ -30,7 +25,7 @@ router.get('/', async (req, res, next) => {
     const browse = validatePersonBrowse(req.query);
     const page = pageOf(req.query);
 
-    const logAs = searchLogUser(page, res.locals.uconst as number | undefined);
+    const logAs = searchLogUser(page, res.locals.auth?.uconst);
     const { items, total } = await persons.getPersons(logAs, browse, page.limit, page.offset);
 
     res.json(paged(req, page, total, items.map(toPersonDto)));
@@ -73,39 +68,30 @@ router.get('/:nconst/titles', async (req, res, next) => {
     }
 });
 
-
+// GET /api/persons/{nconst}/co-players
+// Paged actors who share titles with the person, most frequent first
 router.get('/:nconst/co-players', async (req, res, next) => {
     try {
-        const nconst: string = res.locals.nconst;
-        const person = await persons.checkPersonExists(nconst);
-        if (!person) {
-            throw new error.NotFound('Person not found');
-        }
-
         const page = pageOf(req.query);
-        const {items, total} =  await persons.getCoPlayers(nconst, page.limit, page.offset);
-        res.json(paged(req, page, total, items.map(toCoPlayerDto)));
+        const result = await persons.getCoPlayers(res.locals.nconst, page.limit, page.offset);
+        if (!result) throw new error.NotFound('Person not found');
 
-    } catch (error) {
-        next(error);
+        res.json(paged(req, page, result.total, result.items.map(toCoPlayerDto)));
+    } catch (err) {
+        next(err);
     }
 });
 
-
+// GET /api/persons/{nconst}/words
+// Paged words most used in the person's titles, most frequent first
 router.get('/:nconst/words', async (req, res, next) => {
     try {
-        const nconst: string = res.locals.nconst;
-        const person = await persons.checkPersonExists(nconst);
-        if (!person) {
-            throw new error.NotFound('Person not found');
-        }
-
         const page = pageOf(req.query);
-        const { items, total } = await persons.getPersonWords(nconst, page.limit, page.offset);
+        const result = await persons.getPersonWords(res.locals.nconst, page.limit, page.offset);
+        if (!result) throw new error.NotFound('Person not found');
 
-        res.json(paged(req, page, total, items.map(toPersonWordDto)))
-
-    } catch (error) {
-        next(error);
+        res.json(paged(req, page, result.total, result.items.map(toPersonWordDto)));
+    } catch (err) {
+        next(err);
     }
 });

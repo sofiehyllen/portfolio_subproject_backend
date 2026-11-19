@@ -1,11 +1,13 @@
 // Request validation — cleans and type-narrows query/body input before it reaches the data layer.
 // Most validators return the cleaned value or throw BadRequest (400) with every field error at once.
-// Exception: validatePassword returns string[] and parseSort adds to a caller-supplied errors array.
+// Exception: parseSort adds to a caller-supplied errors array.
 
 import { BadRequest } from './middleware/errors.js';
-import { KEYWORD_MATCHES, KeywordMatch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
+import { KEYWORD_MATCHES, KeywordMatch, StructuredSearch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
 import { Sort, SORT_ORDERS, SortOrder } from "./data/sorting.js";
+import type { NewUserInput, PasswordUpdateInput, UserUpdateInput } from "./services/users.js";
+import { LoginInput } from "./services/auth.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -78,28 +80,6 @@ export function parseSort<F extends string>(
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 
-// The cleaned body returned by validateNewUser(); passed to the data layer to create a user.
-export interface NewUserInput {
-  firstName: string;
-  lastName: string;
-  username: string;
-  email: string;
-  password: string;
-}
-
-// The cleaned body returned by validateUserUpdate(); only the fields the client sent (at least one).
-export interface UserUpdateInput {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-}
-
-// The cleaned body returned by validatePasswordUpdate(); passed to the password-change route handler.
-export interface PasswordUpdateInput {
-  currentPassword: string;
-  newPassword: string;
-}
-
 /**
  * Parses and validates the body of `POST /api/users`.
  * @throws {BadRequest} Listing every invalid field.
@@ -123,6 +103,24 @@ export function validateNewUser(body: unknown): NewUserInput {
   if (errors.length > 0) throw new BadRequest(errors.join('; '));
   return { firstName, lastName, username, email: mail, password: password as string };
 }
+
+
+/**
+ * Parses and validates the body of `POST /api/auth/token` (login).
+ * Only presence is checked: the password rules apply when a password is set, not at login.
+ * @throws {BadRequest} Listing every missing field.
+ */
+export function validateLogin(body: unknown): LoginInput {
+  const b = asObject(body);
+  const errors: string[] = [];
+  const username = text(b.username, 'username', undefined, errors).toLowerCase(); // stored in lower case
+  const password = b.password; // not trimmed, as at registration
+  if (typeof password !== 'string' || password === '') errors.push('password is required');
+
+  if (errors.length > 0) throw new BadRequest(errors.join('; '));
+  return { username, password: password as string };
+}
+
 
 /**
  * Parses and validates the body of `PATCH /api/users/{uconst}`.
@@ -194,6 +192,18 @@ export function validatePasswordUpdate(body: unknown): PasswordUpdateInput {
   return { currentPassword, newPassword };
 }
 
+/**
+ * Parses the body of `PUT /api/users/{uconst}/ratings/{tconst}`.
+ * @throws {BadRequest} If `rating` is not an integer between 1 and 10.
+ */
+export function validateRating(body: unknown): number {
+  const rating = asObject(body).rating;
+  if (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 10) {
+    throw new BadRequest('rating must be an integer between 1 and 10');
+  }
+  return rating;
+}
+
 // ── Titles ────────────────────────────────────────────────────────────────────
 
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
@@ -204,14 +214,6 @@ const FILTER_MAX    = 100;
 const SEARCH_MAX    = 100;
 const WORDS_MAX     = 10;
 const WORD_MAX      = 50;
-
-// The cleaned query returned by validateStructuredSearch();
-export interface StructuredSearch {
-  title: string;
-  plot: string;
-  character: string;
-  person: string;
-}
 
 /**
  * Rejects query parameters not accepted by `GET /api/titles`.
@@ -384,4 +386,37 @@ export function validatePersonBrowse(query: Record<string, unknown>): PersonBrow
 
   if (errors.length > 0) throw new BadRequest(errors.join('; ')); // throw once with all collected errors
   return { name, actorsOnly, ...sort }; // spread sort to include both the sort field and direction
+}
+
+/**
+ * Validates an IMDB title identifier (tconst)
+ * @param tconst - raw value to validate
+ * @returns the same string if it is `tt` followed by 7-8 digits, otherwise `undefined`
+ */
+export function validateTconst(tconst: string): string | undefined {
+  return /^tt\d{7,8}$/.test(tconst) ? tconst : undefined;
+}
+
+/**
+ * Validates an IMDB person identifier (nconst)
+ * @param nconst - raw value to validate
+ * @returns the same string if it is `nm` followed by 7-8 digits, otherwise `undefined`
+ */
+export function validateNconst(nconst: string): string | undefined {
+  return /^nm\d{7,8}$/.test(nconst) ? nconst : undefined;
+}
+
+/**
+ * Validates a `SERIAL` key (gconst, pconst, uconst, sconst) and converts it to a number
+ * @param value - raw value to validate
+ * @returns the value as a number if it is a positive integer without a sign
+ * or leading zeros and fits a Postgres `INT`, otherwise `undefined`
+ */
+export function validateSerial(value: string): number | undefined {
+  if (!/^[1-9]\d*$/.test(value)) {
+    return undefined;
+  }
+
+  const number = Number(value);
+  return number <= 2147483647 ? number : undefined; // fits a Postgres integer
 }

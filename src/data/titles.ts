@@ -13,20 +13,20 @@
  *   first; undefined if the title does not exist.
  * - `searchText(logAs, text, limit, offset)` — paged substring search via `string_search`,
  *   ordered by tconst, with the total number of matches. Logs the search under `logAs`
- *   (a user id), or skips logging if null; the route passes null after the first page.
+ *   (a user id), or skips logging if null.
  * - `searchKeywords(logAs, keywords, match, limit, offset)` — paged keyword search via
  *   `exact_match_search` (all), `best_match_querying` (any) or `weighted_search` (weighted),
  *   ranked by the function's score, then tconst. Logs like `searchText`.
  * - `searchStructured(logAs, search, limit, offset)` — paged search via `structured_string_search`
  *   across title, plot, character and person fields; empty fields are ignored. Same logging
  *   behaviour as `searchText`.
+ * - `checkTitleExists(tconst)` — true when a title with this tconst exists.
  *
  * Types: `Title` (row shape of `list`, extended by `TitleDetail` with genres and `Credit`s),
  * `TitleSummary` (tconst, primaryTitle, startYear; returned by `searchText`), `Actor`,
- * `SimilarMovie`, and `TitleFilter` / `TitleBrowse` / `TitleSortField` for `list`.
+ * `SimilarMovie`, `StructuredSearch`, and `TitleFilter` / `TitleBrowse` / `TitleSortField` for `list`.
  */
 import { pool } from '../db.js';
-import type { StructuredSearch } from "../validation.js";
 import { orderBy, Sort } from './sorting.js';
 
 export interface Title {
@@ -49,6 +49,14 @@ export interface TitleSummary {
   tconst: string;
   primaryTitle: string;
   startYear: number | null;
+}
+
+// The fields of a structured search.
+export interface StructuredSearch {
+  title: string;
+  plot: string;
+  character: string;
+  person: string;
 }
 
 // Titles are aliased t and their ratings r, so callers can filter and sort on either.
@@ -106,6 +114,12 @@ function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params
                                AND lower(g.genre_name) = lower($${firstParam + params.length - 1}))`);
   }
   return { sql: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '', params };
+}
+
+// True when a title with this tconst exists.
+export async function checkTitleExists(tconst: string): Promise<boolean> {
+  const { rowCount } = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
+  return (rowCount ?? 0) > 0;
 }
 
 // A page of titles, filtered and sorted as asked. Titles without a value for the

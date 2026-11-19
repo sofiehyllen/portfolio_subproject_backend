@@ -1,3 +1,20 @@
+/**
+ * Data-access layer for the `bookmark_title` and `bookmark_person` tables.
+ *
+ * Types:
+ * - `BookmarkTitle` — a bookmarked title row: tconst, title name and creation timestamp.
+ * - `BookmarkPerson` — a bookmarked person row: nconst, person name and creation timestamp.
+ *
+ * Query functions:
+ * - `countTitleBookmarks(uconst)` — total number of title bookmarks for the user.
+ * - `countPersonBookmarks(uconst)` — total number of person bookmarks for the user.
+ * - `getTitleBookmarks(uconst, limit, offset)` — paged title bookmarks, newest first.
+ * - `addTitleBookmark(uconst, tconst)` — creates a title bookmark.
+ * - `removeTitleBookmark(uconst, tconst)` — removes a title bookmark; returns false if none was found.
+ * - `getPersonBookmarks(uconst, limit, offset)` — paged person bookmarks, newest first.
+ * - `addPersonBookmark(uconst, nconst)` — creates a person bookmark.
+ * - `removePersonBookmark(uconst, nconst)` — removes a person bookmark; returns false if none was found.
+ */
 import { pool } from '../db.js';
 
 export interface BookmarkTitle {
@@ -48,41 +65,19 @@ export async function getTitleBookmarks(uconst: number, limit: number, offset: n
 }
 
 // Create title bookmark
-export async function addTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
-  const title = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
-  if (!title.rowCount) return false;
-
+export async function addTitleBookmark(uconst: number, tconst: string): Promise<void> {
   await pool.query('SELECT add_title_bookmark($1, $2)', [uconst, tconst]);
-  return true;
 }
 
-// Delete title bookmark
+// Removes a title bookmark with remove_title_bookmark(), which returns
+// whether a bookmark was deleted.
+// Returns false when the user has no bookmark of the title.
 export async function removeTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // Check if the bookmark exists; return false (→ 404) if not
-    const { rowCount } = await client.query(
-      `SELECT 1 FROM bookmark_title WHERE uconst = $1 AND tconst = $2`,
-      [uconst, tconst]
-    );
-    if (!rowCount) {
-      await client.query('ROLLBACK');
-      return false;
-    }
-
-    await client.query(`SELECT remove_title_bookmark($1, $2)`, [uconst, tconst]);
-
-    await client.query('COMMIT');
-    return true;
-      
-  } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-  } finally {
-      client.release();
-  }
+  const { rows } = await pool.query<{ deleted: boolean }>(
+    'SELECT remove_title_bookmark($1, $2) AS deleted',
+    [uconst, tconst]
+  );
+  return rows[0].deleted;
 }
 
 //Get list of users bookmarked persons
@@ -101,39 +96,17 @@ export async function getPersonBookmarks(uconst: number, limit: number, offset: 
 }
 
 // Create person bookmark
-export async function addPersonBookmark(uconst: number, nconst: string): Promise<boolean> {
-  const person = await pool.query('SELECT 1 FROM persons WHERE nconst = $1', [nconst]);
-  if (!person.rowCount) return false;
-
+export async function addPersonBookmark(uconst: number, nconst: string): Promise<void> {
   await pool.query('SELECT add_person_bookmark($1, $2)', [uconst, nconst]);
-  return true;
 }
 
-// Delete person bookmark
+// Removes a person bookmark with remove_person_bookmark(), which returns
+// whether a bookmark was deleted.
+// Returns false when the user has no bookmark of the person.
 export async function removePersonBookmark(uconst: number, nconst: string): Promise<boolean> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // Check if the bookmark exists; return false (→ 404) if not
-    const { rowCount } = await client.query(
-      `SELECT 1 FROM bookmark_person WHERE uconst = $1 AND nconst = $2`,
-      [uconst, nconst]
-    );
-    if (!rowCount) {
-      await client.query('ROLLBACK');
-      return false;
-    }
-
-    await client.query(`SELECT remove_person_bookmark($1, $2)`, [uconst, nconst]);
-
-    await client.query('COMMIT');
-    return true;
-      
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  const { rows } = await pool.query<{ deleted: boolean }>(
+    'SELECT remove_person_bookmark($1, $2) AS deleted',
+    [uconst, nconst]
+  );
+  return rows[0].deleted;
 }
