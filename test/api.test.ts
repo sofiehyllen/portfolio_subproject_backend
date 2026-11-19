@@ -728,14 +728,22 @@ describe('PATCH /api/users/{uconst}', () => {
 
 describe('PUT /api/users/{uid}/password', () => {
   let userId: number;
+  let cookie: string;
 
   beforeAll(async () => {
-    const suffix = Date.now();
-    const result = await pool.query(`
-      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
-    ['Test', 'User', `user_${suffix}`, `user_${suffix}@test.com`, 'password']);
-    userId = result.rows[0].uconst; 
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_put', 'users_put@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+
+    
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_put', password: 'password'});
+    cookie = jwtCookie(res);
   });
+  
 
   afterAll(async () => {
     await pool.query('SELECT delete_user($1)', [userId]);
