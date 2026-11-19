@@ -394,6 +394,17 @@ describe('GET /api/persons/{nconst}/titles', () => {
   });
 });
 
+describe('GET /api/persons/{nconst}/titles (ordering', () => {
+  it('Keeps the path in the paging links', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/titles?limit=1&offset=1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.links.prev).toContain("/api/persons/nm0000949/titles?limit=1&offset=0");
+    expect(res.body.links.next).toContain("/api/persons/nm0000949/titles?limit=1&offset=2");
+
+  });
+});
+
 describe('GET /:nconst/co-players', () => {
   it('returns only matching co-players for a valid search', async () => {
     const res = await request(app).get('/api/persons/nm0000949/co-players?limit=1');
