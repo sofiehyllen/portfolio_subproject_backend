@@ -9,7 +9,7 @@
 | Title | A film, series or episode from IMDb, with plot, genres, rating and credits. Its actors and similar titles are sub-collections. | The centre of the application that users search for and browse; most searches end at a title|
 | Person | An actor, director, writer etc., with name rating, professions and known-for titles. Their co-players and frequent words are sub-collections | Browsing people and following them to their titles; the target of person searches |
 | User | A registered account, which owns its title ratings, bookmarks (on titles and persons) and search history | Owner of all personal data; register, view, update, delete |
-| Token | Proof of a successful login | The API is stateless, so login creates a credential the client sends on later requests |
+| Token | Proof of a successful login | The API is stateless, so login creates a credential stored in an HttpOnly cookie that the browser sends automatically on later requests |
 
 **IMDb data** (titles, persons and everything derived from them) is read-only: no `POST`, `PUT`, `PATCH` or `DELETE`.
 **Framework data** (users, ratings, bookmarks, search history) supports CRUD (create, read, update and delete) where the operation makes sense (bookmarks and history entries have nothing to update).
@@ -36,7 +36,8 @@ exposing them would tie the contract to an implementation detail.
 | `/api/users` | The collection of users (only `POST` is offered, to register) |
 | `/api/users/{uconst}` | One specific user (profile) |
 | `/api/users/{uconst}/password` | The user’s password (write-only: it can be replaced but never read)|
-| `/api/auth/tokens` | Tokens (only `POST` is offered, to log in) |
+| `/api/auth/login` | Login (sets the JWT cookie) |
+| `/api/auth/logout` | Logout (clears the JWT cookie) |
 | `/api/users/{uconst}/ratings` | A user's list of active ratings (rating history) |
 | `/api/users/{uconst}/ratings/{tconst}` | A user's rating of one specific title |
 | `/api/users/{uconst}/bookmarks/titles` | A user's list of bookmarked titles |
@@ -51,9 +52,9 @@ Narrowing is expressed as a query parameter (`/api/titles?keywords=space`): a se
 
 ## 3. Operations
 **Authentication rules, stated once.**
-Everything under `/api/titles` and `/api/persons`, `GET /api/related-words`, `POST /api/users` and `POST /api/auth/tokens` is public.
-Every other path needs `Authorization: Bearer <token>`, and the user in the token must be the `{uconst}` in the path.
-Searches on `/api/titles` and `/api/persons` accept an optional token. When one is present, the search is logged in the user's history. A token that is present but invalid is rejected with 401, not ignored.
+Everything under `/api/titles` and `/api/persons`, `GET /api/related-words`, `POST /api/users`, `POST /api/auth/login` and `POST /api/auth/logout` is public.
+Every other path requires a valid JWT cookie (set at login), and the user in the token must be the `{uconst}` in the path.
+Searches on `/api/titles` and `/api/persons` accept an optional token cookie. When one is present, the search is logged in the user's history. A token that is present but invalid is rejected with 401, not ignored.
 
 **Failure codes used everywhere:**<br>
 `400` the request is malformed or a parameter fails validation (the server cannot process it as sent), including a path identifier in the wrong format: 
@@ -72,7 +73,8 @@ Searches on `/api/titles` and `/api/persons` accept an optional token. When one 
 | Method and path | Does what | Success | Failure |
 |---|---|---|---|
 | `POST /api/users` | Registers a user and returns the new profile. Body: `firstName`, `lastName`, `username`, `email`, `password`. The password is hashed before storage | 201, `Location` header | `400` missing or invalid field; `409` username or email already taken |
-| `POST /api/auth/tokens` | Logs in. Body: `username`, `password`. Returns a token and the user's URI | 201 | `400` missing field; `401` wrong username or password (one message for both) |
+| `POST /api/auth/login` | Logs in. Body: `username`, `password`. Sets an HttpOnly JWT cookie and returns the user's URI. The token is not in the body | 200 | `400` missing field; `401` wrong username or password (one message for both) |
+| `POST /api/auth/logout` | Logs out. Clears the JWT cookie. Public and logging out without being logged in also succeeds | 204 | — |
 | `GET /api/users/{uconst}` | Returns the user's profile (never the password hash) | 200 | `400` invalid uconst; `401`; `403`; `404` |
 | `PATCH /api/users/{uconst}` | Updates the fields sent: `firstName`, `lastName`, `email` (username cannot be changed) | 200 | `400` invalid field or uconst, or username or password sent; `401`; `403`; `404`; `409` email taken |
 | `PUT /api/users/{uconst}/password` | Replaces the password. Body: `currentPassword`, `newPassword` | 204 | `400` missing field or new password fails the rules or invalid uconst; `401` no valid token; `403` token belongs to another user, or the current password is wrong; `404` unknown user |
