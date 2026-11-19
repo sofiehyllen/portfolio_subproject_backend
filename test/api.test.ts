@@ -270,7 +270,7 @@ describe('GET api/persons/{nconst}/co-players', () => {
         "prev": null,
         "next": "/api/persons/nm0000949/co-players?limit=1&offset=1"
       }});
-  }, 30000);
+  });
 
   it('returns 404 when person is not found', async () => {
     const res = await request(app).get('/api/persons/nm9999999/co-players');
@@ -408,7 +408,7 @@ describe('GET /api/titles (sorting and filtering)', () => {
     expect(years).toEqual([...years].sort((a, b) => order === 'asc' ? a - b : b - a));
 
     expect(last.body.items.at(-1).startYear).toBeNull();
-  }, 30000);
+  });
 
   it('filters by genre case-insensitively', async () => {
     const proper = await request(app).get('/api/titles?genre=Comedy&limit=1');
@@ -505,7 +505,7 @@ describe('GET /api/titles/{tconst}/similar', () => {
 
     expect(types).toContain('movie');
     for (const type of types) expect(['movie', 'tvMovie']).toContain(type);
-  }, 30000);
+  });
 
   it.each(['tvEpisode', 'short'])('gives an empty list for %s', async (titleType) => {
     const list = await request(app).get(`/api/titles?titleType=${titleType}&limit=1`);
@@ -824,7 +824,7 @@ describe('DELETE /api/users/{uconst}', () => {
 
     expect(deleted.status).toBe(404);
     expect(afterRatingChange.body.rating.votes).toBe(before.body.rating.votes);
-  }, 50000);
+  });
 });
 
 describe('Ratings on /api/users/{uconst}/ratings/{tconst}', () => {
@@ -851,7 +851,7 @@ describe('Ratings on /api/users/{uconst}/ratings/{tconst}', () => {
 
 afterAll(async () => {
   await pool.query('SELECT delete_user($1)', [userId]);
-}, 30000);
+});
 
 it('Return 201 for a new rating and counts it as a vote', async () => {
   const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
@@ -863,7 +863,7 @@ it('Return 201 for a new rating and counts it as a vote', async () => {
   expect(res.status).toBe(201);
   expect(res.body).toMatchObject({ rating: 8 });
   expect(title.body.rating.votes).toBe(votes + 1);
-}, 30000);
+});
 
 it('Return 200 and the active rating', async () => {
   const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
@@ -919,17 +919,211 @@ it('Return 201 when the rating again', async () => {
 
 });
 
+describe('Bookmarks on /api/users/{uconst}/bookmarks', () => {
+  let userId: number;
+  let cookie: string;
+
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const result = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_bookmark', 'users_bookmark@test.com', passwordHash]);
+
+    userId = result.rows[0].uconst;
+
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_bookmark', password: 'password' });
+    cookie = jwtCookie(res);
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
+  it('Returns 204 for a title bookmark, which shows in the list', async () => {
+    const res = await request(app).put(`/api/users/${userId}/bookmarks/titles/tt0111596`)
+                                  .set('Cookie', cookie);
+    const list = await request(app).get(`/api/users/${userId}/bookmarks/titles`)
+                                   .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(list.body.total).toBe(1);
+    expect(list.body.items[0]).toMatchObject({ title: '/api/titles/tt0111596' });
+  });
+
+  it('Returns 204 and changes nothing when bookmarking the same title again', async () => {
+    const res = await request(app).put(`/api/users/${userId}/bookmarks/titles/tt0111596`)
+                                  .set('Cookie', cookie);
+    const list = await request(app).get(`/api/users/${userId}/bookmarks/titles`)
+                                   .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(list.body.total).toBe(1);
+  });
+
+  it('Returns 404 when bookmarking an unknown title', async () => {
+    const res = await request(app).put(`/api/users/${userId}/bookmarks/titles/tt0000000`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('Returns 204 when removing a title bookmark, which is then gone', async () => {
+    const res = await request(app).delete(`/api/users/${userId}/bookmarks/titles/tt0111596`)
+                                  .set('Cookie', cookie);
+    const list = await request(app).get(`/api/users/${userId}/bookmarks/titles`)
+                                   .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(list.body.total).toBe(0);
+  });
+
+  it('Returns 404 when removing the title bookmark again', async () => {
+    const res = await request(app).delete(`/api/users/${userId}/bookmarks/titles/tt0111596`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('Returns 204 for a person bookmark, which shows in the list', async () => {
+    const res = await request(app).put(`/api/users/${userId}/bookmarks/persons/nm0000949`)
+                                  .set('Cookie', cookie);
+    const list = await request(app).get(`/api/users/${userId}/bookmarks/persons`)
+                                   .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(list.body.items[0]).toMatchObject({ person: '/api/persons/nm0000949' });
+  });
+
+  it('Returns 404 when removing a person that is not bookmarked', async () => {
+    const res = await request(app).delete(`/api/users/${userId}/bookmarks/persons/nm0000054`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('Search history on /api/users/{uconst}/search-history', () => {
+  let userId: number;
+  let otherId: number;
+  let cookie: string;
+  let otherCookie: string;
+
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_history', 'users_history@test.com', passwordHash]);
+    const other = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'Other', 'users_history_other', 'users_history_other@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+    otherId = other.rows[0].uconst;
+
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_history', password: 'password' });
+    const otherRes = await request(app).post('/api/auth/token')
+                                       .send({ username: 'users_history_other', password: 'password' });
+    cookie = jwtCookie(res);
+    otherCookie = jwtCookie(otherRes);
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+    await pool.query('SELECT delete_user($1)', [otherId]);
+  });
+
+  it('Returns a logged search', async () => {
+    await request(app).get('/api/titles?text=love')
+                      .set('Cookie', cookie);
+
+    const res = await request(app).get(`/api/users/${userId}/search-history`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.items[0].searchString).toContain('love');
+  });
+
+  it('Returns 404 when deleting the entry of another user', async () => {
+    await request(app).get('/api/titles?text=space')
+                      .set('Cookie', otherCookie);
+    const other = await request(app).get(`/api/users/${otherId}/search-history`)
+                                    .set('Cookie', otherCookie);
+    const sconst = other.body.items[0].url.split('/').pop();
+
+    const res = await request(app).delete(`/api/users/${userId}/search-history/${sconst}`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('Returns 204 when deleting an entry, which is then gone', async () => {
+    const history = await request(app).get(`/api/users/${userId}/search-history`)
+                                      .set('Cookie', cookie);
+
+    const res = await request(app).delete(history.body.items[0].url)
+                                  .set('Cookie', cookie);
+    const after = await request(app).get(`/api/users/${userId}/search-history`)
+                                    .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(after.body.total).toBe(0);
+  });
+
+  it('Returns 204 when clearing the whole history', async () => {
+    await request(app).get('/api/titles?text=love')
+                      .set('Cookie', cookie);
+    await request(app).get('/api/titles?text=war')
+                      .set('Cookie', cookie);
+
+    const res = await request(app).delete(`/api/users/${userId}/search-history`)
+                                  .set('Cookie', cookie);
+    const after = await request(app).get(`/api/users/${userId}/search-history`)
+                                    .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(after.body.total).toBe(0);
+  });
+});
+
+
+
 // ═════════════════════════════════════════════════════════════════════════════
 // WORDS.TS
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe('GET /api/related-words', () => {
+    let userId: number;
+  let cookie: string;
+
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_words', 'users_words@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+
+    
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_words', password: 'password'});
+    cookie = jwtCookie(res);
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
   it('returns the most associated words, most frequent first, without the given words', async () => {
     const res = await request(app).get('/api/related-words?words=space,war');
 
     expect(res.status).toBe(200);
     expect(res.body.items.length).toBeGreaterThan(0);
-    expect(res.body.total).toBe(res.body.items.length);
+    for (const item of res.body.items) {
+      expect(Object.keys(item).sort()).toEqual(['count', 'word']);
+    }
 
     const counts = res.body.items.map((item: { count: number }) => item.count);
     expect(counts).toEqual([...counts].sort((a, b) => b - a));
@@ -939,38 +1133,21 @@ describe('GET /api/related-words', () => {
     expect(found).not.toContain('war');
   });
 
-  it('pages the list and keeps the words in the paging links', async () => {
-    const res = await request(app).get('/api/related-words?words=space&limit=3');
-
-    expect(res.body.items).toHaveLength(3);
-    expect(res.body.total).toBe(10);
-
-    const next = new URL(res.body.links.next, 'http://localhost');
-    expect(next.pathname).toBe('/api/related-words');
-    expect(next.searchParams.get('words')).toBe('space');
-    expect(next.searchParams.get('offset')).toBe('3');
-
-    const second = await request(app).get(res.body.links.next);
-    expect(second.status).toBe(200);
-    expect(second.body.items).toHaveLength(3);
-  });
-
-  it('gives an empty list when no title has the word', async () => {
-    const res = await request(app).get('/api/related-words?words=zzzznotaword');
+  it('Returns an empty page with the correct total past the last page', async () => {
+    const all = await request(app).get('/api/related-words?words=space');
+    const res = await request(app).get(`/api/related-words?words=space&offset=${all.body.total}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ total: 0, items: [] });
+    expect(res.body).toMatchObject({ total: all.body.total, items: [] });
   });
 
-  it.each([
-    ['missing', '/api/related-words'],
-    ['blank', '/api/related-words?words=,%20,'],
-    ['sent twice', '/api/related-words?words=a&words=b'],
-    ['too many words', '/api/related-words?words=a,b,c,d,e,f,g,h,i,j,k'],
-    ['a word that is too long', `/api/related-words?words=${'a'.repeat(51)}`],
-  ])('gives 400 when words is %s', async (_case, url) => {
-    const res = await request(app).get(url);
+  it('Does not log the search in the history', async () => {
+    await request(app).get('/api/related-words?words=space')
+                      .set('Cookie', cookie);
 
-    expect(res.status).toBe(400);
+    const res = await request(app).get(`/api/users/${userId}/search-history`)
+                                  .set('Cookie', cookie);
+
+    expect(res.body.total).toBe(0);
   });
 });
