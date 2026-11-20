@@ -18,7 +18,7 @@ import { PoolClient } from "pg";
 import { pool } from '../db.js';
 
 /**
- * A rating row stored in `user_title_rating`
+ * A rating row stored in `user_title_ratings`
  * @property uconst       - ID of the user
  * @property tconst       - ID of the title
  * @property rating       - rating (1-10)

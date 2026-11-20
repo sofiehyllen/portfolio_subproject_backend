@@ -224,7 +224,7 @@ const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
 const KEYWORD_PARAMS = ['keywords', 'match'];
 /** Structured-search parameters of `GET /api/titles` */
 const STRUCTURED_PARAMS = ['title', 'plot', 'character', 'person'] as const;
-/** Every parameter of the `genre` and `titleType` filters */
+/** Every parameter `GET /api/titles accepts`; anything else is rejected. */
 const TITLES_PARAMS = ['text', ...KEYWORD_PARAMS, ...BROWSE_PARAMS, ...STRUCTURED_PARAMS, 'limit', 'offset'];
 /** Maximum lenght of the `genre` and `titleType` filters*/
 const FILTER_MAX    = 100;

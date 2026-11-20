@@ -87,7 +87,7 @@ const USER_COLUMNS = `
   created_at    AS "createdAt"`;
 
 /**
- * Gets one user by id with `get_user_with_id()`
+ * Gets one user by id with `get_user_by_id()`
  * 
  * @param uconst        - ID of the user
  * @returns               the user or `undefined` when no such user exists

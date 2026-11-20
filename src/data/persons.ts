@@ -122,9 +122,10 @@ export interface PersonFilter {
 
 /** The fields `GET /api/persons` can be sorted by. Also used at runtime for validation. */
 export const PERSON_SORT_FIELDS = ['name', 'rating'] as const;
+/** A person sort field: `'name'` or `'rating'`. */
 export type PersonSortField = typeof PERSON_SORT_FIELDS[number];
 
-/** A person sort field: `'name'` or `'rating'`. */
+/** The column behind each sort field. Only these strings ever reach ORDER BY. */
 const PERSON_SORT_COLUMN: Record<PersonSortField, string> = {
   name:   'p.primary_name',
   rating: 'p.avg_name_rating',
