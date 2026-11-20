@@ -313,9 +313,11 @@ describe('GET /api/titles (paged listing)', () => {
     expect(res.body.links.prev).toBeNull();
   });
 
-  it('identifies every item by URI', async () => {
+  it('Return every item with its URI', async () => {
     const res = await request(app).get('/api/titles?limit=5');
 
+    expect(res.status).toBe(200);
+    expect(res.body.items.length).toBeGreaterThan(0);
     for (const item of res.body.items) {
       expect(item.url).toMatch(/^\/api\/titles\/tt\d+$/);
     }
@@ -323,7 +325,8 @@ describe('GET /api/titles (paged listing)', () => {
 });
 
 describe('GET /api/titles (text search)', () => {
-  it('returns title summaries ordered by tconst', async () => {
+
+  it('Returns title summaries ordered by tconst', async () => {
     const res = await request(app).get('/api/titles?text=love&limit=50');
 
     expect(res.status).toBe(200);
@@ -338,7 +341,7 @@ describe('GET /api/titles (text search)', () => {
 });
 
 describe('GET /api/titles (keyword search)', () => {
-  it('gives a paged list of title summaries with match=all', async () => {
+  it('Returns a paged list of title summaries with match=all', async () => {
     const res = await request(app).get('/api/titles?keywords=space,war&match=all&limit=5');
 
     expect(res.status).toBe(200);
@@ -351,14 +354,9 @@ describe('GET /api/titles (keyword search)', () => {
 });
 
 describe('GET /api/titles (structured search)', () => {
-  it.each([
-    ['title', 'title=love'],
-    ['plot', 'plot=war'],
-    ['character', 'character=galadriel'],
-    ['person', 'person=blanchett'],
-    ])('finds titles by %s, case-insensitive', async (_field, qs) => {
-    const [name, value] = qs.split('=');
-    const res = await request(app).get(`/api/titles?${name}=${value.toUpperCase()}`);
+
+  it('Returns titles found by title, case-insensitive', async () => {
+    const res = await request(app).get('/api/titles?title=love');
 
     expect(res.status).toBe(200);
     expect(res.body.total).toBeGreaterThan(0);
@@ -367,7 +365,29 @@ describe('GET /api/titles (structured search)', () => {
     }
   });
 
-  it('requires every given field to match', async () => {
+  it('Returns titles found by plot, case-insensitive', async () => {
+    const res = await request(app).get('/api/titles?plot=war');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
+  });
+
+  it('Returns titles found by character, case-insensitive', async () => {
+    const res = await request(app).get('/api/titles?character=galadriel');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
+  });
+
+  it('Returns titles found by person, case-insensitive', async () => {
+    const res = await request(app).get('/api/titles?person=blanchett');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
+  });
+
+
+  it('Requires every given field to match', async () => {
     const one = await request(app).get('/api/titles?person=blanchett');
     const both = await request(app).get('/api/titles?person=blanchett&character=galadriel');
 
@@ -376,21 +396,29 @@ describe('GET /api/titles (structured search)', () => {
     expect(both.body.total).toBeLessThan(one.body.total);
   });
 
-  it.each([
-    ['text', 'title=love&text=love'],
-    ['keywords', 'title=love&keywords=war'],
-  ])('gives 400 when mixed with %s', async (_mode, qs) => {
-    const res = await request(app).get(`/api/titles?${qs}`);
+  it('Returns 400 when mixed with text', async () => {
+    const res = await request(app).get(`/api/titles?title=love&text=love`);
 
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: 'Bad Request' });
   });
 
-  it.each([
-    ['sort', 'title=love&sort=year'],
-    ['a filter', 'title=love&genre=Comedy'],
-  ])('gives 400 when mixed with %s', async (_mode, qs) => {
-    const res = await request(app).get(`/api/titles?${qs}`);
+  it('Returns 400 when mixed with keywords', async () => {
+    const res = await request(app).get(`/api/titles?title=love&keywords=war`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
+  });
+
+  it('Returns 400 when mixed with sort', async () => {
+    const res = await request(app).get(`/api/titles?title=love&sort=year`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
+  });
+
+  it('Returns 400 when mixed with filter', async () => {
+    const res = await request(app).get(`/api/titles?title=love&genre=Comedy`);
 
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: 'Bad Request' });
