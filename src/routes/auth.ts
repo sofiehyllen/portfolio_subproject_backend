@@ -10,6 +10,7 @@ import { validateLogin } from '../validation.js';
 import { uri } from './dto.js';
 import { clearTokenCookie, setTokenCookie } from "../middleware/auth.js";
 
+/** Router for `/api/auth`. Public: no login needed. */
 export const router = Router();
 
 /**
