@@ -10,11 +10,16 @@
  * - `createUser(user)` — inserts a new user via create_user(); returns the new uconst.
  *   A duplicate username or email propagates PostgreSQL error 23505 unchanged.
  * - `getUser(uconst)` — one user by id, or undefined when no such user exists.
+ * - `getUserByUsername(username)` — one user by username, or undefined when no such user exists.
+ * - `usernameTaken(username)` — true when a user already has this username.
+ * - `emailTaken(email, exceptUconst?)` — true when a user other than exceptUconst already has
+ *   this email; pass exceptUconst on update so a user may keep their own email.
  * - `lockOn(client, uconst)` — locks the user's row for update; true when the user exists.
  * - `updateOn(client, uconst, changes)` — updates profile fields via update_user(); username is never changed.
  * - `deleteUser(uconst)` — deletes the user via delete_user(), which also removes their ratings
  *   from title averages; bookmarks and search history are removed via ON DELETE CASCADE.
- * - `updateUserHashPassword(uconst, newHash)` — replaces the stored password hash.
+ *   Returns false when no such user exists.
+ * - `updatePassword(uconst, newHash)` — replaces the stored password hash via update_user_password().
  */
 import { PoolClient } from "pg";
 import { pool } from '../db.js';
