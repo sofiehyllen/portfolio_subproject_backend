@@ -1,3 +1,14 @@
+/**
+ * Route handlers for the `/api/users` collection: profile, password, ratings,
+ * bookmarks and search history.
+ *
+ * Two routers, so the guard is named where they are mounted (`app.ts`):
+ * - `registrationRouter` — public; only `POST /api/users`.
+ * - `router` — every other route; mounted behind `requireAuth`.
+ *
+ * Every route with `:uconst` works only on the caller's own account; the
+ * `uconst` param handler checks this before the route runs.
+ */
 import { Router } from 'express';
 import * as users from '../data/users.js';
 import * as bookmark from '../data/bookmarks.js';
@@ -11,16 +22,20 @@ import { rateTitle } from "../services/ratings.js";
 import { changePassword, register, updateProfile } from "../services/users.js";
 import { bookmarkPerson, bookmarkTitle } from "../services/bookmarks.js";
 
-// Two routers, so the guard is named where they are mounted (app.ts):
-// - registrationRouter: public, only POST /api/users.
-// - router: every other users route; mounted behind requireAuth.
+/** Public router: only `POST /api/users` (registration). */
 export const registrationRouter = Router();
+/** Router for every other `/api/users` route; mounted behind `requireAuth`. */
 export const router = Router();
 
-// Runs before every route whose path contains :uconst, so validation and
-// authorization are written once. An invalid uconst gets a 400, a mismatch
-// with the authenticated caller a 403, and an unknown user a 404. On success,
-// the parsed uconst and the user row are stored in res.locals for the route.
+/**
+ * Runs before every route whose path contains `:uconst`, so validation and
+ * authorization are written once. On success, stores the parsed id in
+ * `res.locals.uconst` and the user row in `res.locals.user`.
+ *
+ * @throws `400 Bad Request` — `uconst` is not a positive integer.
+ * @throws `403 Forbidden`   — `uconst` is not the logged-in user's id.
+ * @throws `404 Not Found`   — no such user.
+ */
 router.param('uconst', async (_req, res, next, value: string) => {
   try {
     const uconst = validateSerial(value);
@@ -41,6 +56,11 @@ router.param('uconst', async (_req, res, next, value: string) => {
   }
 });
 
+/**
+ * Validates the `:sconst` route parameter and stores it in `res.locals.sconst`.
+ *
+ * @throws `400 Bad Request` — `sconst` is not a positive integer.
+ */
 router.param('sconst', (_req, res, next, value: string) => {
   const sconst = validateSerial(value);
   if (sconst === undefined){
@@ -50,6 +70,11 @@ router.param('sconst', (_req, res, next, value: string) => {
   next();
 });
 
+/**
+ * Validates the `:tconst` route parameter and stores it in `res.locals.tconst`.
+ *
+ * @throws `400 Bad Request` — not `tt` followed by 7–8 digits.
+ */
 router.param('tconst', (_req, res, next, value: string) => {
   const tconst = validateTconst(value);
 
@@ -72,8 +97,16 @@ router.param('nconst', (_req, res, next, value: string) => {
 
 // ── User profile ─────────────────────────────────────────────────────────────
 
-// POST /api/users: registers a user. Public. Returns 201 with the new
-// profile and a Location header pointing at it.
+/**
+ * POST /api/users
+ *
+ * Registers a user. Public.
+ *
+ * @body    `{ firstName, lastName, username, email, password }`.
+ * @returns `201` with the new `UserDto` and a `Location` header pointing at it.
+ * @throws  `400 Bad Request` — missing or invalid fields, or the password breaks the rules.
+ * @throws  `409 Conflict`    — username or email already taken.
+ */
 registrationRouter.post('/', async (req, res, next) => {
   try {
     const input = validateNewUser(req.body); // 400 on missing or invalid fields
@@ -84,15 +117,31 @@ registrationRouter.post('/', async (req, res, next) => {
   }
 });
 
-// GET /api/users/{uconst}: the user's profile (never the password hash).
+/**
+ * GET /api/users/{uconst}
+ *
+ * The user's profile (never the password hash).
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `200` with a `UserDto`.
+ */
 router.get('/:uconst', (_req, res) => {
   const user: users.User = res.locals.user;
   res.json(toUserDto(user));
 });
 
-// PATCH /api/users/{uconst}: changes the fields sent (firstName, lastName,
-// email) and returns the updated profile. The username cannot be changed,
-// and the password has its own endpoint.
+/**
+ * PATCH /api/users/{uconst}
+ *
+ * Changes the fields sent and returns the updated profile. The username cannot
+ * be changed, and the password has its own endpoint.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @body    Any of `{ firstName, lastName, email }`; at least one.
+ * @returns `200` with the updated `UserDto`.
+ * @throws  `400 Bad Request` — invalid, unknown or forbidden field, or no field sent.
+ * @throws  `409 Conflict`    — email already used by another user.
+ */
 router.patch('/:uconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -104,7 +153,18 @@ router.patch('/:uconst', async (req, res, next) => {
   }
 });
 
-// PUT /api/users/{uconst}/password: replaces the user's password
+/**
+ * PUT /api/users/{uconst}/password
+ *
+ * Replaces the user's password.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @body    `{ currentPassword, newPassword }`.
+ * @returns `204` with no body.
+ * @throws  `400 Bad Request` — a password is missing, or the new one breaks the rules
+ *          (including matching the username or the current password).
+ * @throws  `403 Forbidden`   — `currentPassword` is wrong.
+ */
 router.put('/:uconst/password', async (req, res, next) => {
   try {
     const input = validatePasswordUpdate(req.body);
@@ -123,8 +183,15 @@ router.put('/:uconst/password', async (req, res, next) => {
   }
 });
 
-// DELETE /api/users/{uconst}: deletes the user and all their ratings,
-// bookmarks and search history. 204 on success, no body.
+/**
+ * DELETE /api/users/{uconst}
+ *
+ * Deletes the user and all their ratings, bookmarks and search history.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `204` with no body.
+ * @throws  `404 Not Found` — the user was already gone.
+ */
 router.delete('/:uconst', async (_req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -140,7 +207,14 @@ router.delete('/:uconst', async (_req, res, next) => {
 
 // ── Ratings ───────────────────────────────────────────────────────────────────
 
-// GET /api/users/{uconst}/ratings: paged rating history, newest change first.
+/**
+ * GET /api/users/{uconst}/ratings
+ *
+ * Paged rating history, newest change first. Accepts `limit` and `offset`.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `200` with `Paged<RatingHistoryDto>`.
+ */
 router.get('/:uconst/ratings', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -157,8 +231,16 @@ router.get('/:uconst/ratings', async (req, res, next) => {
   }
 });
 
-// GET /api/users/{uconst}/ratings/{tconst}: the user's active rating of one title.
-// 404 when the user has never rated the title, or the rating has been removed.
+/**
+ * GET /api/users/{uconst}/ratings/{tconst}
+ *
+ * The user's active rating of one title.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `200` with a `UserRatingDto`.
+ * @throws  `400 Bad Request` — invalid `tconst`.
+ * @throws  `404 Not Found`   — the user has never rated the title, or the rating was removed.
+ */
 router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -171,7 +253,18 @@ router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
   }
 });
 
-// PUT /api/users/{uconst}/ratings/{tconst}: creates or changes the user's rating of a title.
+
+/**
+ * PUT /api/users/{uconst}/ratings/{tconst}
+ *
+ * Creates or changes the user's rating of a title.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @body    `{ rating }` — an integer from 1 to 10.
+ * @returns `201` with the `UserRatingDto` when the rating is new, `200` when it was changed.
+ * @throws  `400 Bad Request` — invalid `tconst` or `rating`.
+ * @throws  `404 Not Found`   — no such title.
+ */
 router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -186,7 +279,17 @@ router.put('/:uconst/ratings/:tconst', async (req, res, next) => {
   }
 });
 
-// DELETE /api/users/{uconst}/ratings/{tconst}: removes the user's rating of a title (soft delete).
+/**
+ * DELETE /api/users/{uconst}/ratings/{tconst}
+ *
+ * Removes the user's rating of a title (soft delete); the vote is taken out of
+ * the title's average.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `204` with no body.
+ * @throws  `400 Bad Request` — invalid `tconst`.
+ * @throws  `404 Not Found`   — the user has no active rating of the title.
+ */
 router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -204,7 +307,14 @@ router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
 
 // ── Bookmarks ─────────────────────────────────────────────────────────────────
 
-// GET /api/users/{uconst}/bookmarks/titles
+/**
+ * GET /api/users/{uconst}/bookmarks/titles
+ *
+ * Paged title bookmarks, newest first. Accepts `limit` and `offset`.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `200` with `Paged<UserBookmarkTitleDto>`.
+ */
 router.get('/:uconst/bookmarks/titles', async (req, res, next) => {
   try {
     const page = pageOf(req.query as Record <string, unknown>);
@@ -222,7 +332,16 @@ router.get('/:uconst/bookmarks/titles', async (req, res, next) => {
   }
 });
 
-// PUT /api/users/{uconst}/bookmarks/titles/{tconst}
+/**
+ * PUT /api/users/{uconst}/bookmarks/titles/{tconst}
+ *
+ * Bookmarks a title.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `204` with no body.
+ * @throws  `400 Bad Request` — invalid `tconst`.
+ * @throws  `404 Not Found`   — no such title.
+ */
 router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -235,7 +354,16 @@ router.put('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   }
 });
 
-// DELETE /api/users/{uconst}/bookmarks/titles/{tconst}
+/**
+ * DELETE /api/users/{uconst}/bookmarks/titles/{tconst}
+ *
+ * Removes a title bookmark.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `204` with no body.
+ * @throws  `400 Bad Request` — invalid `tconst`.
+ * @throws  `404 Not Found`   — the user has not bookmarked the title.
+ */
 router.delete('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -252,7 +380,14 @@ router.delete('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   }
 });
 
-// GET /api/users/{uconst}/bookmarks/persons
+/**
+ * GET /api/users/{uconst}/bookmarks/persons
+ *
+ * Paged person bookmarks, newest first. Accepts `limit` and `offset`.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `200` with `Paged<UserBookmarkPersonDto>`.
+ */
 router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
   try {
     const page = pageOf(req.query as Record <string, unknown>);
@@ -271,7 +406,16 @@ router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
   }
 });
 
-// PUT /api/users/{uconst}/bookmarks/persons/{nconst}
+/**
+ * PUT /api/users/{uconst}/bookmarks/persons/{nconst}
+ *
+ * Bookmarks a person.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `204` with no body.
+ * @throws  `400 Bad Request` — invalid `nconst`.
+ * @throws  `404 Not Found`   — no such person.
+ */
 router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -284,7 +428,16 @@ router.put('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   }
 });
 
-// DELETE /api/users/{uconst}/bookmarks/persons/{nconst}
+/**
+ * DELETE /api/users/{uconst}/bookmarks/persons/{nconst}
+ *
+ * Removes a person bookmark.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `204` with no body.
+ * @throws  `400 Bad Request` — invalid `nconst`.
+ * @throws  `404 Not Found`   — the user has not bookmarked the person.
+ */
 router.delete('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -303,7 +456,14 @@ router.delete('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
 
 // ── Search history ────────────────────────────────────────────────────────────
 
-// GET /api/users/{uconst}/search-history: a user's list of search history
+/**
+ * GET /api/users/{uconst}/search-history
+ *
+ * Paged search history, newest first. Accepts `limit` and `offset`.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `200` with `Paged<UserSearchHistoryDto>`.
+ */
 router.get('/:uconst/search-history', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -318,7 +478,16 @@ router.get('/:uconst/search-history', async (req, res, next) => {
   }
 });
 
-// DELETE /api/users/{uconst}/search-history/{sconst}: delete a specific search-history entry
+/**
+ * DELETE /api/users/{uconst}/search-history/{sconst}
+ *
+ * Deletes one search history entry.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `204` with no body.
+ * @throws  `400 Bad Request` — invalid `sconst`.
+ * @throws  `404 Not Found`   — the user has no such entry.
+ */
 router.delete('/:uconst/search-history/:sconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
@@ -332,8 +501,15 @@ router.delete('/:uconst/search-history/:sconst', async (req, res, next) => {
   }
 });
 
-// DELETE /api/users/{uconst}/search-history: delete user's search history
-// Clearing an empty history is not an error, so the answer is always 204.
+/**
+ * DELETE /api/users/{uconst}/search-history
+ *
+ * Deletes the user's entire search history. Clearing an empty history is not
+ * an error, so the answer is always `204`.
+ * Own account only: `401` without a valid token; `400`/`403`/`404` from the `uconst` param handler.
+ *
+ * @returns `204` with no body.
+ */
 router.delete('/:uconst/search-history', async (_req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;

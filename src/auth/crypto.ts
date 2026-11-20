@@ -12,10 +12,17 @@ import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import jwt from 'jsonwebtoken';
 
+/**
+ * The claims carried in the JWT
+ * @property uconst - ID of the authenticated user
+ */
 export interface Claims { uconst: number }
 
-/** Token lifetime in seconds. Also used as the cookie's maxAge, so both expire together. */
+/** 
+ * Token lifetime in seconds. Also used as the cookie's maxAge, so both expire together. 
+*/
 export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
+
 
 const SECRET = process.env.JWT_SECRET;
 if (!SECRET) throw new Error('JWT_SECRET is not set');

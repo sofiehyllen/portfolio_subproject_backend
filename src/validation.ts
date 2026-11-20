@@ -1,7 +1,14 @@
-// Request validation — cleans and type-narrows query/body input before it reaches the data layer.
-// Most validators return the cleaned value or throw BadRequest (400) with every field error at once.
-// Exception: parseSort adds to a caller-supplied errors array.
-
+/**
+ * Request validation: cleans and type-narrows query and body input before it
+ * reaches the services and the data layer.
+ *
+ * Most validators return the cleaned value or throw {@link BadRequest} (400)
+ * listing every field error at once. Exceptions:
+ * - `parseSort` pushes its errors to an array supplied by the caller.
+ * - `validatePassword` returns its errors instead of throwing.
+ * - `validateTconst`, `validateNconst` and `validateSerial` return `undefined`
+ *   for an invalid value.
+ */
 import { BadRequest } from './middleware/errors.js';
 import { KEYWORD_MATCHES, KeywordMatch, StructuredSearch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';
 import { PERSON_SORT_FIELDS, PersonBrowse } from "./data/persons.js";
@@ -11,12 +18,17 @@ import { LoginInput } from "./services/auth.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Maximum lengths match the columns of the users table.
+/** Maximum lenght of `firstName` and `lastName`*/
 const NAME_MAX     = 50;
+/** Maximum lenght of an email */
 const EMAIL_MAX    = 256;
+/** Minimum password lenght*/
 const PASSWORD_MIN = 8;
+/** Maximum password lenght*/
 const PASSWORD_MAX = 128;
+/**Allowed usernames: 3-50 letters, digits, `_`, `.` or `-` */
 const USERNAME = /^[A-Za-z0-9_.-]{3,50}$/;
+/** Loose email shape check: {}@{}.{}*/
 const EMAIL    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
@@ -206,13 +218,21 @@ export function validateRating(body: unknown): number {
 
 // ── Titles ────────────────────────────────────────────────────────────────────
 
+/** Browse-mode parameters of `GET /api/titles` */
 const BROWSE_PARAMS = ['sort', 'order', 'genre', 'titleType'];
+/** Keyword-search parameters of `GET /api/titles` */
 const KEYWORD_PARAMS = ['keywords', 'match'];
+/** Structured-search parameters of `GET /api/titles` */
 const STRUCTURED_PARAMS = ['title', 'plot', 'character', 'person'] as const;
+/** Every parameter `GET /api/titles accepts`; anything else is rejected. */
 const TITLES_PARAMS = ['text', ...KEYWORD_PARAMS, ...BROWSE_PARAMS, ...STRUCTURED_PARAMS, 'limit', 'offset'];
+/** Maximum lenght of the `genre` and `titleType` filters*/
 const FILTER_MAX    = 100;
+/** Maximum lenght of a search text or a structured-search field*/
 const SEARCH_MAX    = 100;
+/** Maximum number of words in a comma-separated word list*/
 const WORDS_MAX     = 10;
+/** Maximum length of one word in a word list */
 const WORD_MAX      = 50;
 
 /**
@@ -328,15 +348,26 @@ export function validateWords(value: unknown, field = 'words'): string[] {
   return words;
 }
 
+/**
+ * Validated keyword search of `GET /api/titles?keywords=...`
+ * @property keywords     - 1-10 trimmed keywords
+ * @property match        - how the keywords are combined: `all`, `any` or `weighted`
+ */
 export interface KeywordSearch {
   keywords: string[];
   match: KeywordMatch;
 }
 
 /**
- * Query of GET /api/titles?keywords=...: the keywords (as validateWords) and match
- * (all, any or weighted; default weighted). Sorting and filtering apply to browsing
- * only, not to a search (one mode per request).
+ * Parses and validates the keyword search of `GET /api/titles?keywords=...&match=...`.
+ * `keywords` follows {@link validateWords}; `match` is `all`, `any` or `weighted`
+ * (default `weighted`). Sorting, filtering and structured-search parameters belong
+ * to other modes and are rejected.
+ *
+ * @param query - The raw Express `req.query` object.
+ * @returns The validated keywords and match mode.
+ * @throws {BadRequest} If parameters from another mode are mixed in, `match` is
+ *   invalid, or `keywords` is missing or breaks the count/length limits.
  */
 export function validateKeywordSearch(query: Record<string, unknown>): KeywordSearch {
   const mixed = [...BROWSE_PARAMS, ...STRUCTURED_PARAMS].filter(param => query[param] !== undefined);
@@ -352,7 +383,9 @@ export function validateKeywordSearch(query: Record<string, unknown>): KeywordSe
 
 // ── Persons ───────────────────────────────────────────────────────────────────
 
+/**Every parameter `GET /api/persons` accepts */
 const PERSONS_PARAMS  = ['name', 'actorsOnly', 'sort', 'order', 'limit', 'offset'];
+/** Maximum length of the `name` parameter of the `GET /api/persons` */
 const PERSON_NAME_MAX = 100;
 
 /**

@@ -17,19 +17,35 @@
  */
 import { pool } from '../db.js';
 
+/**
+ * A title bookmarked by a user
+ * @property tconst     - ID of the bookmarked title
+ * @property title      - name of the title
+ * @property createdAt  - when the bookmark was created
+ */
 export interface BookmarkTitle {
   tconst: string;
   title: string;
   createdAt: Date;
 }
 
+/**
+ * A person bookmarked by a user
+ * @property nconst       - ID of the bookmarked person
+ * @property person       - name of the person
+ * @property createdAt    - when the bookmark was created
+ */
 export interface BookmarkPerson {
   nconst: string;
   person: string;
   createdAt: Date;
 }
 
-// Count all title bookmarks of a user
+/**
+ * Count all title bookmarks of a user
+ * @param uconst    - ID of the user
+ * @returns           the number of title bookmarks
+ */
 export async function countTitleBookmarks(uconst: number): Promise<number> {
   const { rows } = await pool.query<{ total: number }>(
     `SELECT COUNT(*)::int AS "total"
@@ -39,7 +55,11 @@ export async function countTitleBookmarks(uconst: number): Promise<number> {
   return rows[0].total;
 }
 
-// Count all person bookmarks of a user
+/**
+ * Count all person bookmarks of a user
+ * @param uconst    - ID of the user
+ * @returns           the number of person bookmarks
+ */
 export async function countPersonBookmarks(uconst: number): Promise<number> {
   const { rows } = await pool.query<{ total: number }>(
     `SELECT COUNT(*)::int AS "total"
@@ -49,7 +69,14 @@ export async function countPersonBookmarks(uconst: number): Promise<number> {
   return rows[0].total;
 }
 
-//Get list of users bookmarked titles
+/**
+ * Gets a page of the user's title booksmarks with `get_title_bookmarks()`, newest first (ties broken by tconst)
+ * 
+ * @param uconst          - ID of the user
+ * @param limit           - maximum number of bookmarks to return
+ * @param offset          - number of bookmarks to skip
+ * @returns                 the bookmarks on this page
+ */
 export async function getTitleBookmarks(uconst: number, limit: number, offset: number): Promise<BookmarkTitle[]> {
   const { rows } = await pool.query<BookmarkTitle>(
     `SELECT tconst, 
@@ -64,14 +91,22 @@ export async function getTitleBookmarks(uconst: number, limit: number, offset: n
   return rows;
 }
 
-// Create title bookmark
+/**
+ * Create title bookmark with `add_title_bookmark()`
+ * 
+ * @param uconst    - ID of the user
+ * @param tconst    - ID of the title
+ */
 export async function addTitleBookmark(uconst: number, tconst: string): Promise<void> {
   await pool.query('SELECT add_title_bookmark($1, $2)', [uconst, tconst]);
 }
 
-// Removes a title bookmark with remove_title_bookmark(), which returns
-// whether a bookmark was deleted.
-// Returns false when the user has no bookmark of the title.
+/**
+ * Removes a title bookmark with `remove_title_bookmark()`
+ * @param uconst        - ID of the user
+ * @param tconst        - ID of the title
+ * @returns               `false` when the user has no bookmarks of the title
+ */
 export async function removeTitleBookmark(uconst: number, tconst: string): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT remove_title_bookmark($1, $2) AS deleted',
@@ -80,7 +115,14 @@ export async function removeTitleBookmark(uconst: number, tconst: string): Promi
   return rows[0].deleted;
 }
 
-//Get list of users bookmarked persons
+/**
+ * Gets a page of the user's person bookmarks with `get_person_bookmarks()`, newst first (ties broken by nconst)
+ * 
+ * @param uconst        - ID of the user
+ * @param limit         - maximum number of bookmarks to return
+ * @param offset        - number of bookmarks to skip
+ * @returns               the bookmarks on this page
+ */
 export async function getPersonBookmarks(uconst: number, limit: number, offset: number): Promise<BookmarkPerson[]> {
   const { rows } = await pool.query<BookmarkPerson>(
     `SELECT nconst, 
@@ -95,14 +137,21 @@ export async function getPersonBookmarks(uconst: number, limit: number, offset: 
   return rows;
 }
 
-// Create person bookmark
+/**
+ * Create person bookmark with `add_person_bookmark()`
+ * @param uconst      - ID of the user
+ * @param nconst      - ID of the person
+ */
 export async function addPersonBookmark(uconst: number, nconst: string): Promise<void> {
   await pool.query('SELECT add_person_bookmark($1, $2)', [uconst, nconst]);
 }
 
-// Removes a person bookmark with remove_person_bookmark(), which returns
-// whether a bookmark was deleted.
-// Returns false when the user has no bookmark of the person.
+/**
+ * Removes a person bookmark with `remove_person_bookmark()`
+ * @param uconst      - ID of the user
+ * @param nconst      - ID of the person
+ * @returns             `false` when the user has no bookmark of the person
+ */
 export async function removePersonBookmark(uconst: number, nconst: string): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT remove_person_bookmark($1, $2) AS deleted',

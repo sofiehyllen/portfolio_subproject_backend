@@ -16,11 +16,25 @@ import { STATUS_CODES } from 'node:http';
 import { Request, Response, NextFunction } from 'express';
 
 // ─── Error classes ────────────────────────────────────────────────────────────
-
+/**
+ * Invalid or malformed request data. Sent as `400 Bad Request`
+ */
 export class BadRequest   extends Error {}
+/**
+ * Missing, malformed, forged or expired token. Sent as `401 Unauthorized`
+ */
 export class Unauthorized extends Error {}
+/**
+ * Logged in, but not allowed to do this (e.g. another user's account). Sent as `403 Forbidden`
+ */
 export class Forbidden    extends Error {}
+/**
+ * A required resource does not exist. Sent as `404 Not Found`
+ */
 export class NotFound     extends Error {}
+/**
+ * The request conflicts with the current state (e.g. username taken). Sent as `409 Conflict`
+ */
 export class Conflict     extends Error {}
 
 // ─── Error handler ────────────────────────────────────────────────────────────

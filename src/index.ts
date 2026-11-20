@@ -1,5 +1,6 @@
-// The entry point: create the app, mount the routes, listen.
-
+/**
+ * Entry point: starts with the HTTP server for the app built in `app.ts`
+ */
 import { app } from './app.js';
 
 const port = Number(process.env.PORT ?? 3000);

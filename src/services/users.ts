@@ -1,9 +1,24 @@
+/**
+ * User account operations: registration, profile update and password change
+ * 
+ * Enforces the rules that need the database (unique username and email, the current password check)
+ * and hashes passwords before they are stored
+ * 
+ * The input types are imported by `validation.ts`
+ * 
+ * -  `register(input)`                 - creates a user
+ * -  `updateProfile(uconst, changes)`  - changes first/last name or email
+ * -  `changePassword(uconst, inout)`   - replaces the password after checking the current one
+ */
 import * as users from "../data/users.js";
 import { pool } from "../db.js";
 import { Conflict, Forbidden, NotFound } from "../middleware/errors.js";
 import { checkPassword, hashPassword } from "../auth/crypto.js";
 
-// The input of each operation. validation.ts imports these.
+/**
+ * Validated body of `POST /api/users`.
+ * `password` is plaintext; {@link register} hashes it
+ */
 export interface NewUserInput {
   firstName: string;
   lastName: string;
@@ -12,21 +27,42 @@ export interface NewUserInput {
   password: string;
 }
 
+/**
+ * Validated body of `PATCH /api/users/{uconst}`.
+ * A field left out keeps its current value
+ */
 export interface UserUpdateInput {
   firstName?: string;
   lastName?: string;
   email?: string;
 }
-
+/**
+ * Validated body of `PUT /api/users/{uconst}/password`.
+ * Both passwords are plaintext
+ */
 export interface PasswordUpdateInput {
   currentPassword: string;
   newPassword: string;
 }
 
-/** Stores a new user with a hashed password and returns the stored user. */
+/**
+ * Registers a new user. The password is hashed before it is stored.
+ * 
+ * The two requests happening at the same time can both pass the uniqueness chaks
+ * the secons insert then fails on the UNIQUE constraint and the client gets `500`.
+ * 
+ * @param input     - the validated registration data 
+ * @returns           the stored user
+ * @throws {Conflict} when the username or email is already taken
+ */
 export async function register(input: NewUserInput): Promise<users.User> {
-  if (await users.usernameTaken(input.username)) throw new Conflict('Username already taken');
-  if (await users.emailTaken(input.email)) throw new Conflict('Email already taken');
+  if (await users.usernameTaken(input.username)) { 
+    throw new Conflict('Username already taken');
+  }
+
+  if (await users.emailTaken(input.email)) { 
+    throw new Conflict('Email already taken');
+  }
   // Two requests at the same moment can both pass the checks above; the second
   // insert then fails on the UNIQUE constraint and the client gets 500.
 
@@ -45,8 +81,14 @@ export async function register(input: NewUserInput): Promise<users.User> {
 
 
 /**
- * Locks the user, applies the changes and returns the updated user.
- * The lock and the update run in one transaction on one client.
+ * Applies a profile update and returns the updated user
+ * The row lock and the update run in one transaction on one client
+ * 
+ * @param uconst        - ID of the user 
+ * @param changes       - the fields to change; a field left out keeps its value
+ * @returns               the updated user
+ * @throws {Conflict}     when the new email belongs to another user
+ * @throws {NotFound}     when the user does not exist
  */
 export async function updateProfile(uconst: number, changes: UserUpdateInput): Promise<users.User> {
   if (changes.email !== undefined && (await users.emailTaken(changes.email, uconst))) {
@@ -72,8 +114,15 @@ export async function updateProfile(uconst: number, changes: UserUpdateInput): P
   return user;
 }
 
-
-/** Replaces the password when the current one is correct. */
+/**
+ * Replaces the user's password after checking the current one
+ * The route checks the new password's rules before calling this
+ * 
+ * @param uconst      - ID of the user
+ * @param input       - the current and the new plaintext password
+ * @throws {NotFound}   when the user does not exist
+ * @throws {Forbidden}  when `currentPassword` is wrong
+ */
 export async function changePassword(uconst: number, input: PasswordUpdateInput): Promise<void> {
   const user = await users.getUser(uconst);
   if (!user) throw new NotFound('User not found');

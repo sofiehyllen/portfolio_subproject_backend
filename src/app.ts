@@ -1,3 +1,13 @@
+/**
+ * Build the Express application: CORS, JSON and cookie parsong, the API routes, the 404 fallback and the error hnadler
+ * 
+ * Mounted routes:
+ * - `/api/auth`          - login and logout (public)
+ * - `/api/titles`        - titles; login optional (searches are logged when logged in)
+ * - `/api/users`         - `POST` is public (registration); every other route requires login
+ * - `/api/persons`       - persons; login optional
+ * - `/api/related-words` - word associations (public)
+ */
 import express from 'express';
 import cookieParser from "cookie-parser";
 import cors from 'cors';
