@@ -1,15 +1,21 @@
 /**
  * Route handlers for the `/api/titles` collection.
  *
- * Exposes one endpoint with three modes:
+ * `GET /` has four modes, chosen by the query parameters (one mode per request):
  * - `GET /?text=...` — paged substring search (text 1-100 characters, trimmed);
  *   results ordered by tconst. The search
  *   is logged in the user's history on the first page only (offset 0).
  *   Sorting and filtering parameters are rejected with 400 in this mode.
  * - `GET /?keywords=a,b&match=all|any|weighted` — paged keyword search (1-10 keywords,
  *   match defaults to weighted), ranked by the match mode. Logged and restricted like text.
+ * - `GET /?title=...&plot=...&character=...&person=...` — paged structured search; each
+ *   field at most 100 characters, at least one with text, empty fields ignored. Results
+ *   ordered by tconst. Logged and restricted like text.
  * - `GET /` — paged list of all titles. Optional `sort` (title, year, rating, votes,
  *   runtime; default title), `order` (asc, desc; default asc), `genre` and `titleType`.
+ *
+ * Also: `GET /{tconst}` (one title with genres, rating and credits), and the paged
+ * `GET /{tconst}/actors` and `GET /{tconst}/similar`.
  */
 import { Router } from 'express';
 import * as titles from '../data/titles.js';
@@ -19,8 +25,14 @@ import { isStructuredSearch, rejectUnknownTitleParams, validateStructuredSearch,
 import { pageOf, searchLogUser } from "./pagination.js";
 import { paged } from "./pagination.js";
 
+/** Router for `/api/titles`, mounted behind `optionalAuth`. */
 export const router = Router();
 
+/**
+ * Validates the `:tconst` route parameter and stores it in `res.locals.tconst`.
+ *
+ * @throws `400 Bad Request` — not `tt` followed by 7–8 digits.
+ */
 router.param('tconst', (_req, res, next, value: string) => {
   const tconst = validateTconst(value);
 
@@ -31,7 +43,24 @@ router.param('tconst', (_req, res, next, value: string) => {
   next();
 });
 
-
+/**
+ * GET /api/titles
+ *
+ * Lists or searches titles. The parameters choose one mode per request:
+ * - `?text=...` — substring search (1–100 characters), ordered by tconst.
+ * - `?keywords=a,b&match=all|any|weighted` — keyword search (1–10 keywords;
+ *   `match` defaults to weighted). `match` alone also selects this mode.
+ * - `?title=&plot=&character=&person=` — structured search; at least one field must have text.
+ * - none of the above — browse all titles, with optional `sort` (title, year, rating,
+ *   votes, runtime; default title), `order` (asc, desc; default asc), `genre` and `titleType`.
+ *
+ * Every mode accepts `limit` and `offset`. A search by a logged-in user is logged
+ * in their search history, on the first page only.
+ *
+ * @returns `200` with `Paged<TitleSummaryDto>` for a search, or `Paged<TitleDto>` when browsing.
+ * @throws  `400 Bad Request`  — unknown parameter, parameters from two modes, or an invalid value.
+ * @throws  `401 Unauthorized` — the token cookie is present but invalid or expired.
+ */
 router.get('/', async (req, res, next) => {
   try {
     const query = req.query as Record<string, unknown>;
@@ -77,7 +106,16 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// GET /api/titles/{tconst}: one title with genres, rating and credits.
+/**
+ * GET /api/titles/{tconst}
+ *
+ * One title with genres, rating and credits.
+ *
+ * @returns `200` with a `TitleDetailDto`.
+ * @throws  `400 Bad Request`  — invalid `tconst`.
+ * @throws  `401 Unauthorized` — the token cookie is present but invalid or expired.
+ * @throws  `404 Not Found`    — no such title.
+ */
 router.get('/:tconst', async (req, res, next) => {
   try {
     const title = await titles.get(res.locals.tconst);
@@ -89,7 +127,16 @@ router.get('/:tconst', async (req, res, next) => {
   }
 });
 
-// GET /api/titles/{tconst}/actors: paged actors of the title, highest name rating first.
+/**
+ * GET /api/titles/{tconst}/actors
+ *
+ * Paged actors of the title, highest name rating first. Accepts `limit` and `offset`.
+ *
+ * @returns `200` with `Paged<ActorDto>`.
+ * @throws  `400 Bad Request`  — invalid `tconst`.
+ * @throws  `401 Unauthorized` — the token cookie is present but invalid or expired.
+ * @throws  `404 Not Found`    — no such title.
+ */
 router.get('/:tconst/actors', async (req, res, next) => {
   try {
     const page = pageOf(req.query as Record<string, unknown>);
@@ -102,7 +149,17 @@ router.get('/:tconst/actors', async (req, res, next) => {
   }
 });
 
-// GET /api/titles/{tconst}/similar: paged movies sharing genres with the title, most shared first.
+/**
+ * GET /api/titles/{tconst}/similar
+ *
+ * Paged movies sharing genres with the title, most shared genres first.
+ * Accepts `limit` and `offset`.
+ *
+ * @returns `200` with `Paged<SimilarMovieDto>`.
+ * @throws  `400 Bad Request`  — invalid `tconst`.
+ * @throws  `401 Unauthorized` — the token cookie is present but invalid or expired.
+ * @throws  `404 Not Found`    — no such title.
+ */
 router.get('/:tconst/similar', async (req, res, next) => {
   try {
     const page = pageOf(req.query as Record<string, unknown>);
