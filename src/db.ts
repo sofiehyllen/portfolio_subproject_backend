@@ -1,5 +1,8 @@
-// The connection pool. Created once, imported everywhere.
-
+/**
+ * The PostgreSQL connection pool, created once and shared by every data-access module
+ * Connection settings come from the `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`
+ * environment variables
+ */
 import { Pool } from 'pg';
 
 export const pool = new Pool({
