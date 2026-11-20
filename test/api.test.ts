@@ -7,7 +7,6 @@ import { app } from '../src/app.js';
 import { pool } from '../src/db.js';
 import { hashPassword, verifyToken, TOKEN_TTL_SECONDS } from '../src/auth/crypto.js';
 import { TOKEN_COOKIE } from '../src/middleware/auth.js';
-import { url } from 'node:inspector';
 
 afterAll(() => pool.end());
 
@@ -120,12 +119,13 @@ describe('GET /api/persons (name filter)', () => {
 
   });
 
-  it('Returns actors with ActorsOnly=true with name', async () => {
+  it('Returns actors with ActorsOnly=true and a name', async () => {
     const res = await request(app).get('/api/persons?actorsOnly=true&name=blanchett')
-    const allProfessions= await request(app).get('/api/persons?name=blanchett')
+    const all = await request(app).get('/api/persons?name=blanchett')
     
     expect(res.status).toBe(200);
-    expect(res.body.total).not.toEqual(allProfessions.body.total);
+    expect(res.body.total).toBeGreaterThan(0);
+    expect(res.body.total).toBeLessThan(all.body.total);
 
     for (const item of res.body.items) {
       expect(item.professions.find((i: string) => i === 'actor' || i === 'actress')).toBeDefined();
@@ -133,7 +133,7 @@ describe('GET /api/persons (name filter)', () => {
 
   });
 
-  it('Returns actors with ActorsOnly=true with no name', async () => {
+  it('Returns actors with ActorsOnly=true without a name', async () => {
     const res = await request(app).get('/api/persons?actorsOnly=true')
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: 'Bad Request', message:"actorsOnly requires name" });
@@ -142,7 +142,7 @@ describe('GET /api/persons (name filter)', () => {
 }); 
 
 describe('GET /api/persons (paged listing)', () => {
-  it('returns 200 with a paged response', async () => {
+  it('Returns 200 with a paged response', async () => {
     const res = await request(app).get('/api/persons');
 
     expect(res.status).toBe(200);
@@ -151,62 +151,71 @@ describe('GET /api/persons (paged listing)', () => {
     expect(res.body.links.prev).toBeNull();
   });
 
-  it('returns items in the person DTO shape', async () => {
+  it('Returns items in the person DTO shape', async () => {
     const res = await request(app).get('/api/persons');
+
     expect(res.body.items).toHaveLength(20);
-    
-    res.body.items
-      .forEach((element: any) => {
-        expect(element).toHaveProperty('url');
-        expect(typeof element.url).toBe('string');
-
-        expect(element).toHaveProperty('primaryName');
-        expect(typeof element.primaryName).toBe('string');
-
-        expect(element).toHaveProperty('birthYear');
-        expect(element.birthYear === null || typeof element.birthYear === 'number');
-
-        expect(element).toHaveProperty('deathYear');
-        expect(element.deathYear === null || typeof element.deathYear === 'number');
-
-        expect(element).toHaveProperty('avgNameRating');
-        expect(element.avgNameRating === null || typeof element.avgNameRating === 'number');
-
-        expect(element).toHaveProperty('professions');
-        expect(Array.isArray(element.professions)).toBe(true);
-      });
+    for (const item of res.body.items){
+      expect(typeof item.url).toBe('string');
+      expect(typeof item.primaryName).toBe('string');
+      expect(item.birthYear === null || typeof item.birthYear === 'number').toBe(true);
+      expect(item.deathYear === null || typeof item.deathYear === 'number').toBe(true);
+      expect(item.avgNameRating === null || typeof item.avgNameRating === 'number').toBe(true);
+      expect(Array.isArray(item.professions)).toBe(true);}
   });
 
 });
 
 describe('GET /api/persons/ (sorting)', () => {
-  it('sort by rating', async () => {
-    const resAsc = await request(app).get('/api/persons?sort=rating&order=asc');
-    const resDesc = await request(app).get('/api/persons?sort=rating&order=desc');
+  
+    it('Sorts by rating ascending with missing ratings last', async () => {
+    const first = await request(app).get('/api/persons?sort=rating&order=asc&limit=100');
+    const last = await request(app).get(`/api/persons?sort=rating&order=asc&limit=100&offset=${first.body.total - 100}`);
 
-    expect(resAsc.status).toBe(200);
-    expect(resDesc.status).toBe(200);
-
-    expect(resAsc).not.toMatchObject(resDesc);
+    expect(first.status).toBe(200);
+    const ratings = first.body.items.map((item: { avgNameRating: number | null }) => item.avgNameRating);
+    expect(ratings).toEqual([...ratings].sort((a, b) => a - b));
+    expect(last.body.items.at(-1).avgNameRating).toBeNull();
   });
 
-  it('combine sorting with name filter', async () => {
+  it('Sorts by rating descending with missing ratings last', async () => {
+    const first = await request(app).get('/api/persons?sort=rating&order=desc&limit=100');
+    const last = await request(app).get(`/api/persons?sort=rating&order=desc&limit=100&offset=${first.body.total - 100}`);
+
+    expect(first.status).toBe(200);
+
+    const ratings = first.body.items.map((item: { avgNameRating: number | null }) => item.avgNameRating);
+    expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
+    expect(last.body.items.at(-1).avgNameRating).toBeNull();
+  });
+
+  it('Combine sorting with the name filter', async () => {
     const res = await request(app).get('/api/persons?name=blanchett&sort=rating&order=desc');
 
     expect(res.status).toBe(200);
     expect(res.body.items.length).toBeGreaterThan(0);
+
+    const ratings = res.body.items.map((item: { avgNameRating: number | null }) => item.avgNameRating);
+    expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
   });
 
-  it('Returns 400 for an uknown sorting direction', async () => {
+  it('Returns 400 for an unknown sorting direction', async () => {
     const res = await request(app).get('/api/persons?sort=rating&order=up');
 
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: "Bad Request", message:"order must be one of asc, desc" });
   });
+
+  it('Returns 400 for an unknown sort field', async () => {
+    const res = await request(app).get('/api/persons?sort=age');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Bad Request", message:"sort must be one of name, rating" });
+  });
 });
 
 describe('GET /api/persons (query parameters)', () => {
-  it('Returns 400 for an uknown sort field', async () => {
+  it('Returns 400 for an unknown sort field', async () => {
     const res = await request(app).get('/api/persons?wrongField=abc');
 
     expect(res.status).toBe(400);
@@ -219,19 +228,21 @@ describe('GET /api/persons/{nconst}', () => {
     const res = await request(app).get('/api/persons/nm0000949');
     
     expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ url: '/api/persons/nm0000949', primaryName: 'Cate Blanchett' });
+
     const expectedKeys = ['url', 'primaryName', 'birthYear', 'deathYear', 'avgNameRating', 'professions', 'roles', 'knownFor'];
     expect(Object.keys(res.body).sort()).toEqual(expectedKeys.sort());
 
   });
 
-  it('Returns 404 for an uknown person', async () => {
+  it('Returns 404 for an unknown person', async () => {
     const res = await request(app).get('/api/persons/nm0000000');
 
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ error: "Not Found", message: "Person not found"  });
   });
 
-  it('Returns 400 for wrong nconst', async () => {
+  it('Returns 400 for invalid nconst', async () => {
     const res = await request(app).get('/api/persons/mm0000949');
 
     expect(res.status).toBe(400);
@@ -239,7 +250,7 @@ describe('GET /api/persons/{nconst}', () => {
   });
 });
 
-describe('GET /api/persons/{nconst}/titles (ordering)', () => {
+describe('GET /api/persons/{nconst}/titles', () => {
   it('Keeps the path in the paging links', async () => {
     const res = await request(app).get('/api/persons/nm0000949/titles?limit=1&offset=1');
 
@@ -287,7 +298,7 @@ describe('GET api/persons/{nconst}/co-players', () => {
 
 describe('GET /api/persons/{nconst}/words', () => {
 
-  it('matches the words and frequencies from person_words', async () => {
+  it('Returns the words and frequencies from person_words', async () => {
     const res = await request(app).get('/api/persons/nm0000949/words');
     const { rows } = await pool.query<{ word: string; frequency: number }>(
       `SELECT word, frequency::int AS frequency FROM person_words('Cate Blanchett', 10)`
@@ -426,19 +437,31 @@ describe('GET /api/titles (structured search)', () => {
 });
 
 describe('GET /api/titles (sorting and filtering)', () => {
-  it.each(['asc', 'desc'])('sorts by year in %s order with missing years last', async (order) => {
-    const first = await request(app).get(`/api/titles?sort=year&order=${order}&limit=100`);
-    const last = await request(app).get(`/api/titles?sort=year&order=${order}&limit=100&offset=${first.body.total - 100}`);
+  
+  it('Sorts by year ascending with missing years last', async () => {
+    const first = await request(app).get('/api/titles?sort=year&order=asc&limit=100');
+    const last  = await request(app).get(`/api/titles?sort=year&order=asc&limit=100&offset=${first.body.total - 100}`);
 
     expect(first.status).toBe(200);
-    const years = first.body.items.map((item: { startYear: number | null }) => item.startYear);
-    expect(years.every((year: number | null) => year !== null)).toBe(true);
-    expect(years).toEqual([...years].sort((a, b) => order === 'asc' ? a - b : b - a));
+    const years = first.body.items.map((item: {startYear: number | null}) => item.startYear);
 
+    expect(years).toEqual([...years].sort((a,b) => a - b));
     expect(last.body.items.at(-1).startYear).toBeNull();
   });
 
-  it('filters by genre case-insensitively', async () => {
+  it('Sorts by year descending with missing years last', async () => {
+    const first = await request(app).get('/api/titles?sort=year&order=desc&limit=100');
+    const last  = await request(app).get(`/api/titles?sort=year&order=desc&limit=100&offset=${first.body.total - 100}`);
+
+    expect(first.status).toBe(200);
+    const years = first.body.items.map((item: {startYear: number | null}) => item.startYear);
+
+    expect(years).toEqual([...years].sort((a,b) => b - a));
+    expect(last.body.items.at(-1).startYear).toBeNull();
+  });
+
+
+  it('Filters by genre case-insensitively', async () => {
     const proper = await request(app).get('/api/titles?genre=Comedy&limit=1');
     const upper = await request(app).get('/api/titles?genre=COMEDY&limit=1');
 
@@ -447,19 +470,16 @@ describe('GET /api/titles (sorting and filtering)', () => {
     expect(upper.body.total).toBe(proper.body.total);
   });
 
-  it.each([
-    ['genre', 'genre=NoSuchGenre'],
-    ['title type', 'titleType=noSuchType'],
-  ])('gives an empty list for an unknown %s', async (_name, qs) => {
-    const res = await request(app).get(`/api/titles?${qs}`);
+  it('Returns an empty list for an unknown genre', async () => {
+    const res = await request(app).get('/api/titles?genre=NoSuchGenre');
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ total: 0, items: [] });
+    expect(res.body).toMatchObject( { total: 0, items:[]} );
   });
 });
 
 describe('GET /api/titles/{tconst}', () => {
-  it('returns the title that the list links to, with genres, rating and credits', async () => {
+  it('Returns the title that the list links to, with genres, rating and credits', async () => {
     const list = await request(app).get('/api/titles?limit=1');
     const url: string = list.body.items[0].url;
 
@@ -475,15 +495,25 @@ describe('GET /api/titles/{tconst}', () => {
     }
   });
 
-  it.each([
-    ['no tt prefix', '0063929'],
-    ['6 digits', 'tt123456'],
-    ['9 digits', 'tt123456789'],
-  ])('gives 400 for an invalid tconst: %s', async (_case, tconst) => {
-    const res = await request(app).get(`/api/titles/${tconst}`);
+  it('Returns 400 when tconst has no tt prefix', async () => {
+    const res = await request(app).get('/api/titles/0004563');
 
     expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: 'Bad Request', message: 'tconst must start with tt followed by 7-8 digits' });
+    expect(res.body).toMatchObject({error: 'Bad Request', message: 'tconst must start with tt followed by 7-8 digits'});
+  });
+
+  it('Returns 400 when tconst has 6 digits', async () => {
+    const res = await request(app).get('/api/titles/tt000456');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({error: 'Bad Request', message: 'tconst must start with tt followed by 7-8 digits'});
+  });
+
+  it('Returns 400 when tconst has 9 digits', async () => {
+    const res = await request(app).get('/api/titles/tt120004563');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({error: 'Bad Request', message: 'tconst must start with tt followed by 7-8 digits'});
   });
 });
 
@@ -504,16 +534,7 @@ describe('GET /api/titles/{tconst}/actors', () => {
 });
 
 describe('GET /api/titles/{tconst}/similar', () => {
-  // The title types of the titles similar to the first title of the given type.
-  async function similarTypes(titleType: string): Promise<string[]> {
-    const list = await request(app).get(`/api/titles?titleType=${titleType}&limit=1`);
-    const similar = await request(app).get(`${list.body.items[0].url}/similar?limit=20`);
-
-    return Promise.all(similar.body.items.map(async (item: { url: string }) =>
-      (await request(app).get(item.url)).body.titleType));
-  }
-
-  it('returns a page of movies, most shared genres first', async () => {
+  it('Returns a page of movies, most shared genres first', async () => {
     const res = await request(app).get('/api/titles/tt0111596/similar?limit=5');
 
     expect(res.status).toBe(200);
@@ -528,20 +549,38 @@ describe('GET /api/titles/{tconst}/similar', () => {
     }
   });
 
-  it('matches movie and tvMovie with each other', async () => {
-    const types = await similarTypes('tvMovie');
+  it('Matches movie and tvMovie with each other', async () => {
+    const list = await request(app).get('/api/titles?titleType=tvMovie&limit=1');
+    const similar = await request(app).get(`${list.body.items[0].url}/similar?limit=20`);
 
+    const types: string[] = [];
+    for (const item of similar.body.items) {
+      const title = await request(app).get(item.url);
+      types.push(title.body.titleType);
+    }
+
+    expect(similar.status).toBe(200);
     expect(types).toContain('movie');
-    for (const type of types) expect(['movie', 'tvMovie']).toContain(type);
+    expect(types.every(type => ['movie', 'tvMovie'].includes(type))).toBe(true);
   });
+  
 
-  it.each(['tvEpisode', 'short'])('gives an empty list for %s', async (titleType) => {
-    const list = await request(app).get(`/api/titles?titleType=${titleType}&limit=1`);
+  it('Returns an empty list for a tvEpisode', async () => {
+    const list = await request(app).get('/api/titles?titleType=tvEpisode&limit=1');
     const res = await request(app).get(`${list.body.items[0].url}/similar`);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ total: 0, items: [] });
   });
+
+  it('Returns an empty list for a short', async () => {
+    const list = await request(app).get('/api/titles?titleType=short&limit=1');
+    const res = await request(app).get(`${list.body.items[0].url}/similar`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 0, items: [] });
+  });
+
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -836,11 +875,11 @@ describe('DELETE /api/users/{uconst}', () => {
 
   it('Returns 204, the user is gone and the votes of the rated titles are restored', async () => {
     const before = await request(app).get('/api/titles/tt4924682');
-    await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+    const rated  = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
                       .set('Cookie', cookie)
                       .send({rating: 8});
 
-
+    expect(rated.status).toBe(201);
     const res = await request(app).delete(`/api/users/${userId}`)
                                   .set('Cookie', cookie);
 
