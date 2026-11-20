@@ -60,7 +60,7 @@ const SELECT = `
   FROM user_title_ratings`;
 
 /**
- * gets a page of the user's rating history, newest change first, with `get_title_rating_history()`
+ * gets a page of the user's rating history, newest change first, with `get_users_title_rating_history()`
  * which joins rating with title names
  * 
  * @param uconst        - ID of the user
@@ -75,7 +75,7 @@ export async function ratingHistory(
             title_name  AS "primaryTitle",
             rating,
             last_change AS "lastChange"
-      FROM get_title_rating_history($1)
+      FROM get_users_title_rating_history($1)
       ORDER BY last_change DESC, tconst
       LIMIT $2 OFFSET $3`,
     [uconst, limit, offset]);
@@ -89,7 +89,7 @@ export async function ratingHistory(
  */
 export async function countRatings(uconst: number): Promise<number> {
   const { rows } = await pool.query<{ total: number }>(
-    'SELECT count(*)::int AS total FROM get_title_rating_history($1)',
+    'SELECT count(*)::int AS total FROM get_users_title_rating_history($1)',
   [uconst]);
   return rows[0].total;
 }
