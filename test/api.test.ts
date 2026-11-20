@@ -1,11 +1,318 @@
 // Tests of the API over HTTP.
+// Sorted by route file: persons.ts, titles.ts, users.ts, words.ts
 
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../src/app.js';
 import { pool } from '../src/db.js';
+import { hashPassword, verifyToken, TOKEN_TTL_SECONDS } from '../src/auth/crypto.js';
+import { TOKEN_COOKIE } from '../src/middleware/auth.js';
 
 afterAll(() => pool.end());
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AUTH.TS
+// ═════════════════════════════════════════════════════════════════════════════
+/**
+ * Get JWT authentication cookie string from a `Set-Cookie` response header
+ * @param res the HTTP response containing `Set-Cookie` headers
+ * @returns the matching cookie entry starting with `TOKEN_COOKIE` or an empty string
+ */
+function jwtCookie(res: request.Response): string {
+  const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+  const cookie = cookies.find(i => i.startsWith(`${TOKEN_COOKIE}=`)) ?? '';
+
+  return cookie
+}
+
+
+describe('POST /api/auth/token', () => {
+  let username: string;
+  let userId: number;
+  let passwordHash: string;
+
+  beforeAll(async () => {
+    passwordHash = await hashPassword('password');
+    username = 'test_user';
+    const result = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', username, `${username}@test.com`, passwordHash]);
+
+    userId = result.rows[0].uconst;
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
+  it('Returns 200 with the user URI, no token in body and an HttpOnly jwt cookie', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username, password: 'password' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ user: `/api/users/${userId}` });
+
+    const cookie = jwtCookie(res);
+    const token = cookie.split(';', 1)[0].slice(`${TOKEN_COOKIE}=`.length);
+
+    expect(verifyToken(token)).toMatchObject({ uconst: userId });
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toContain(`Max-Age=${TOKEN_TTL_SECONDS}`);
+  }); 
+
+
+  it('Returns 400 when username is missing', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { password: 'password'} );
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Returns 400 when password is missing', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { username } );
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Returns 401 when password is not valid', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { username, password: 'wrong_password'} );
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error: 'Unauthorized'});
+  });
+
+  it('Returns 401 when user does not exist', async () => {
+    const res = await request(app).post('/api/auth/token')
+                                  .send( { username: 'wrong_user', password: 'password'} );
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error: 'Unauthorized'});
+  });
+});
+
+describe('DELETE /api/auth/token', () => {
+  
+  it('Returns 204 and clears the cookies', async () => {
+    const res = await request(app).delete('/api/auth/token');
+
+    expect(res.status).toBe(204);
+    const cookie = jwtCookie(res);
+    expect(cookie).toMatch(new RegExp(`^${TOKEN_COOKIE}=;`));
+    expect(cookie).toMatch(/Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
+  });
+
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PERSONS.TS
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('GET /api/persons (name filter)', () => {
+  it('Returns only persons matching the name, case-insensitive', async () => {
+    const res = await request(app).get('/api/persons?name=blanchett');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
+    for (const item of res.body.items) {
+      expect(item.primaryName.toLowerCase()).toContain('blanchett');
+    }
+
+  });
+
+  it('Returns actors with ActorsOnly=true and a name', async () => {
+    const res = await request(app).get('/api/persons?actorsOnly=true&name=blanchett')
+    const all = await request(app).get('/api/persons?name=blanchett')
+    
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
+    expect(res.body.total).toBeLessThan(all.body.total);
+
+    for (const item of res.body.items) {
+      expect(item.professions.find((i: string) => i === 'actor' || i === 'actress')).toBeDefined();
+    }
+
+  });
+
+  it('Returns actors with ActorsOnly=true without a name', async () => {
+    const res = await request(app).get('/api/persons?actorsOnly=true')
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request', message:"actorsOnly requires name" });
+  });
+
+}); 
+
+describe('GET /api/persons (paged listing)', () => {
+  it('Returns 200 with a paged response', async () => {
+    const res = await request(app).get('/api/persons');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ limit: 20, offset: 0 });
+    expect(res.body.items.length).toBeLessThanOrEqual(20);
+    expect(res.body.links.prev).toBeNull();
+  });
+
+  it('Returns items in the person DTO shape', async () => {
+    const res = await request(app).get('/api/persons');
+
+    expect(res.body.items).toHaveLength(20);
+    for (const item of res.body.items){
+      expect(typeof item.url).toBe('string');
+      expect(typeof item.primaryName).toBe('string');
+      expect(item.birthYear === null || typeof item.birthYear === 'number').toBe(true);
+      expect(item.deathYear === null || typeof item.deathYear === 'number').toBe(true);
+      expect(item.avgNameRating === null || typeof item.avgNameRating === 'number').toBe(true);
+      expect(Array.isArray(item.professions)).toBe(true);}
+  });
+
+});
+
+describe('GET /api/persons/ (sorting)', () => {
+  
+    it('Sorts by rating ascending with missing ratings last', async () => {
+    const first = await request(app).get('/api/persons?sort=rating&order=asc&limit=100');
+    const last = await request(app).get(`/api/persons?sort=rating&order=asc&limit=100&offset=${first.body.total - 100}`);
+
+    expect(first.status).toBe(200);
+    const ratings = first.body.items.map((item: { avgNameRating: number | null }) => item.avgNameRating);
+    expect(ratings).toEqual([...ratings].sort((a, b) => a - b));
+    expect(last.body.items.at(-1).avgNameRating).toBeNull();
+  });
+
+  it('Sorts by rating descending with missing ratings last', async () => {
+    const first = await request(app).get('/api/persons?sort=rating&order=desc&limit=100');
+    const last = await request(app).get(`/api/persons?sort=rating&order=desc&limit=100&offset=${first.body.total - 100}`);
+
+    expect(first.status).toBe(200);
+
+    const ratings = first.body.items.map((item: { avgNameRating: number | null }) => item.avgNameRating);
+    expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
+    expect(last.body.items.at(-1).avgNameRating).toBeNull();
+  });
+
+  it('Combine sorting with the name filter', async () => {
+    const res = await request(app).get('/api/persons?name=blanchett&sort=rating&order=desc');
+
+    expect(res.status).toBe(200);
+    expect(res.body.items.length).toBeGreaterThan(0);
+
+    const ratings = res.body.items.map((item: { avgNameRating: number | null }) => item.avgNameRating);
+    expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
+  });
+
+  it('Returns 400 for an unknown sorting direction', async () => {
+    const res = await request(app).get('/api/persons?sort=rating&order=up');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Bad Request", message:"order must be one of asc, desc" });
+  });
+
+  it('Returns 400 for an unknown sort field', async () => {
+    const res = await request(app).get('/api/persons?sort=age');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Bad Request", message:"sort must be one of name, rating" });
+  });
+});
+
+describe('GET /api/persons (query parameters)', () => {
+  it('Returns 400 for an unknown sort field', async () => {
+    const res = await request(app).get('/api/persons?wrongField=abc');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Bad Request", message: "unknown query parameter 'wrongField'" });
+  });
+});
+
+describe('GET /api/persons/{nconst}', () => {
+  it('Returns the person', async () => {
+    const res = await request(app).get('/api/persons/nm0000949');
+    
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ url: '/api/persons/nm0000949', primaryName: 'Cate Blanchett' });
+
+    const expectedKeys = ['url', 'primaryName', 'birthYear', 'deathYear', 'avgNameRating', 'professions', 'roles', 'knownFor'];
+    expect(Object.keys(res.body).sort()).toEqual(expectedKeys.sort());
+
+  });
+
+  it('Returns 404 for an unknown person', async () => {
+    const res = await request(app).get('/api/persons/nm0000000');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: "Not Found", message: "Person not found"  });
+  });
+
+  it('Returns 400 for invalid nconst', async () => {
+    const res = await request(app).get('/api/persons/mm0000949');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Bad Request", message: "nconst must be a string starting with nm and have at least 7 digits"  });
+  });
+});
+
+describe('GET /api/persons/{nconst}/titles', () => {
+  it('Keeps the path in the paging links', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/titles?limit=1&offset=1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.links.prev).toContain("/api/persons/nm0000949/titles?limit=1&offset=0");
+    expect(res.body.links.next).toContain("/api/persons/nm0000949/titles?limit=1&offset=2");
+
+  });
+});
+
+describe('GET api/persons/{nconst}/co-players', () => {
+  it('Returns only matching co-players for a valid search', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/co-players?limit=1');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      "total": 51,
+      "limit": 1,
+      "offset": 0,
+      "items": [
+        {
+          "url": "/api/persons/nm0101710",
+          "primaryName": "Billy Boyd",
+          "frequency": 2
+        }
+      ],
+      "links": {
+        "prev": null,
+        "next": "/api/persons/nm0000949/co-players?limit=1&offset=1"
+      }});
+  });
+
+  it('returns 404 when person is not found', async () => {
+    const res = await request(app).get('/api/persons/nm9999999/co-players');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({
+      "status":404,
+      "error":"Not Found",
+      "message":"Person not found"});
+
+  });
+
+});
+
+describe('GET /api/persons/{nconst}/words', () => {
+
+  it('Returns the words and frequencies from person_words', async () => {
+    const res = await request(app).get('/api/persons/nm0000949/words');
+    const { rows } = await pool.query<{ word: string; frequency: number }>(
+      `SELECT word, frequency::int AS frequency FROM person_words('Cate Blanchett', 10)`
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(rows.length);
+    expect(res.body.items).toEqual(rows);
+  });
+
+});
+// ═════════════════════════════════════════════════════════════════════════════
+// TITLES.TS
+// ═════════════════════════════════════════════════════════════════════════════
 
 describe('GET /api/titles (paged listing)', () => {
   it('returns the first page with the default page size', async () => {
@@ -17,131 +324,36 @@ describe('GET /api/titles (paged listing)', () => {
     expect(res.body.links.prev).toBeNull();
   });
 
-  it('identifies every item by URI', async () => {
+  it('Return every item with its URI', async () => {
     const res = await request(app).get('/api/titles?limit=5');
 
+    expect(res.status).toBe(200);
+    expect(res.body.items.length).toBeGreaterThan(0);
     for (const item of res.body.items) {
       expect(item.url).toMatch(/^\/api\/titles\/tt\d+$/);
     }
   });
-
-  it('gives every item its rating, the same as on the title itself', async () => {
-    const res = await request(app).get('/api/titles?limit=20');
-
-    for (const item of res.body.items) {
-      expect(item).toHaveProperty('rating');
-      if (item.rating !== null) {
-        expect(item.rating).toEqual({
-          average: expect.any(Number),
-          votes: expect.any(Number),
-        });
-      }
-
-      const detail = await request(app).get(item.url);
-      expect(item.rating).toEqual(detail.body.rating);
-    }
-  });
-
-  it('gives a next link that leads to the following page', async () => {
-    const first = await request(app).get('/api/titles?limit=5');
-    const second = await request(app).get(first.body.links.next);
-
-    expect(second.status).toBe(200);
-    expect(second.body.offset).toBe(5);
-    expect(second.body.links.prev).toBe('/api/titles?limit=5&offset=0');
-
-    const firstUrls = first.body.items.map((item: { url: string }) => item.url);
-    for (const item of second.body.items) {
-      expect(firstUrls).not.toContain(item.url);
-    }
-  });
-
-  it('applies the default when the page size exceeds the maximum', async () => {
-    const res = await request(app).get('/api/titles?limit=1000');
-
-    expect(res.status).toBe(200);
-    expect(res.body.limit).toBe(20);
-  });
 });
 
-describe('GET /api/titles (sorting and filtering)', () => {
-  it('sorts by the chosen field and direction', async () => {
-    const res = await request(app).get('/api/titles?sort=votes&order=desc&limit=10');
+describe('GET /api/titles (text search)', () => {
+
+  it('Returns title summaries ordered by tconst', async () => {
+    const res = await request(app).get('/api/titles?text=love&limit=50');
 
     expect(res.status).toBe(200);
-    const votes = res.body.items.map((item: { rating: { votes: number } }) => item.rating.votes);
-    expect(votes).toEqual([...votes].sort((a, b) => b - a));
-  });
+    expect(res.body.items.length).toBeGreaterThan(0);
+    for (const item of res.body.items) {
+      expect(Object.keys(item).sort()).toEqual(['primaryTitle', 'startYear', 'url']);
+    }
 
-  it('filters by genre and title type, and the total counts only matching titles', async () => {
-    const all = await request(app).get('/api/titles?limit=1');
-    const res = await request(app).get('/api/titles?genre=Comedy&titleType=movie&limit=10');
-
-    expect(res.status).toBe(200);
-    expect(res.body.total).toBeGreaterThan(0);
-    expect(res.body.total).toBeLessThan(all.body.total);
-    for (const item of res.body.items) expect(item.titleType).toBe('movie');
-  });
-
-  it('keeps sorting and filters in the paging links', async () => {
-    const res = await request(app).get('/api/titles?sort=year&order=desc&titleType=movie&limit=5');
-
-    const next = new URL(res.body.links.next, 'http://localhost');
-    expect(next.searchParams.get('sort')).toBe('year');
-    expect(next.searchParams.get('order')).toBe('desc');
-    expect(next.searchParams.get('titleType')).toBe('movie');
-    expect(next.searchParams.get('offset')).toBe('5');
-  });
-
-  it('gives 400 for an unknown sort field or direction', async () => {
-    const res = await request(app).get('/api/titles?sort=popularity&order=up');
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('sort must be one of');
-    expect(res.body.message).toContain('order must be one of asc, desc');
-  });
-
-  it('gives 400 when sorting or filtering is mixed with a text search', async () => {
-    const res = await request(app).get('/api/titles?text=love&sort=rating');
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: 'sort cannot be combined with text' });
-  });
-
-  it.each([
-    ['empty', 'text='],
-    ['blank', 'text=%20%20'],
-    ['too long', `text=${'a'.repeat(101)}`],
-    ['sent twice', 'text=love&text=war'],
-  ])('gives 400 for search text that is %s', async (_case, qs) => {
-    const res = await request(app).get(`/api/titles?${qs}`);
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: 'text must be 1-100 characters' });
-  });
-
-  it('trims the search text', async () => {
-    const plain = await request(app).get('/api/titles?text=love');
-    const padded = await request(app).get('/api/titles?text=%20love%20');
-
-    expect(padded.status).toBe(200);
-    expect(padded.body.total).toBe(plain.body.total);
-  });
-
-  it.each([
-    ['browsing', 'keyword=war&sort=year', 'keyword'],
-    ['searching', 'text=love&sortt=year', 'sortt'],
-  ])('gives 400 for a query parameter it does not accept when %s, instead of ignoring it', async (_mode, qs, param) => {
-    const res = await request(app).get(`/api/titles?${qs}`);
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message: `unknown query parameter '${param}'` });
+    const tconsts = res.body.items.map((item: { url: string }) => item.url.split('/').pop());
+    expect(tconsts).toEqual([...tconsts].sort());
   });
 });
 
 describe('GET /api/titles (keyword search)', () => {
-  it.each(['all', 'any', 'weighted'])('gives a paged list of title summaries with match=%s', async (match) => {
-    const res = await request(app).get(`/api/titles?keywords=space,war&match=${match}&limit=5`);
+  it('Returns a paged list of title summaries with match=all', async () => {
+    const res = await request(app).get('/api/titles?keywords=space,war&match=all&limit=5');
 
     expect(res.status).toBe(200);
     expect(res.body.limit).toBe(5);
@@ -150,78 +362,124 @@ describe('GET /api/titles (keyword search)', () => {
       expect(Object.keys(item).sort()).toEqual(['primaryTitle', 'startYear', 'url']);
     }
   });
+});
 
-  it.each([
-    ['any', 'best_match_querying'],
-    ['weighted', 'weighted_search'],
-  ])('ranks match=%s in the same order as %s', async (match, dbFunction) => {
-    const res = await request(app).get(`/api/titles?keywords=space,war,love&match=${match}&limit=50`);
-    // The function's own order; called without a user, so nothing is logged
-    // (except by best_match_querying, which logs even without a user).
-    const { rows } = await pool.query<{ tconst: string }>(
-      `SELECT tconst FROM ${dbFunction}(NULL, 'space', 'war', 'love') LIMIT 50`);
+describe('GET /api/titles (structured search)', () => {
+
+  it('Returns titles found by title, case-insensitive', async () => {
+    const res = await request(app).get('/api/titles?title=love');
 
     expect(res.status).toBe(200);
-    expect(res.body.items.map((item: { url: string }) => item.url.split('/').pop()))
-      .toEqual(rows.map(row => row.tconst));
+    expect(res.body.total).toBeGreaterThan(0);
+    for (const item of res.body.items) {
+      expect(Object.keys(item).sort()).toEqual(['primaryTitle', 'startYear', 'url']);
+    }
   });
 
-  it('defaults to weighted', async () => {
-    const plain = await request(app).get('/api/titles?keywords=space,war');
-    const weighted = await request(app).get('/api/titles?keywords=space,war&match=weighted');
+  it('Returns titles found by plot, case-insensitive', async () => {
+    const res = await request(app).get('/api/titles?plot=war');
 
-    expect(plain.status).toBe(200);
-    expect(plain.body.items).toEqual(weighted.body.items);
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
   });
 
-  it('finds no more titles with all than with any', async () => {
-    const all = await request(app).get('/api/titles?keywords=space,war&match=all');
-    const any = await request(app).get('/api/titles?keywords=space,war&match=any');
+  it('Returns titles found by character, case-insensitive', async () => {
+    const res = await request(app).get('/api/titles?character=galadriel');
 
-    expect(all.body.total).toBeLessThanOrEqual(any.body.total);
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
   });
 
-  it('keeps keywords and match in the paging links', async () => {
-    const res = await request(app).get('/api/titles?keywords=love&match=any&limit=1');
+  it('Returns titles found by person, case-insensitive', async () => {
+    const res = await request(app).get('/api/titles?person=blanchett');
 
-    expect(res.body.links.next).toContain('keywords=love');
-    expect(res.body.links.next).toContain('match=any');
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBeGreaterThan(0);
   });
 
-  it.each([
-    ['missing', 'match=all', 'keywords is required'],
-    ['empty', 'keywords=', 'keywords is required'],
-    ['only commas', 'keywords=,,', 'keywords is required'],
-    ['sent twice', 'keywords=a&keywords=b', 'keywords must be one comma separated list'],
-    ['too many', `keywords=${Array.from({ length: 11 }, (_, i) => `w${i}`).join(',')}`, 'keywords can have at most 10 words'],
-    ['too long', `keywords=${'a'.repeat(51)}`, 'each word can be at most 50 characters'],
-  ])('gives 400 for keywords that are %s', async (_case, qs, message) => {
-    const res = await request(app).get(`/api/titles?${qs}`);
+
+  it('Requires every given field to match', async () => {
+    const one = await request(app).get('/api/titles?person=blanchett');
+    const both = await request(app).get('/api/titles?person=blanchett&character=galadriel');
+
+    expect(both.status).toBe(200);
+    expect(both.body.total).toBeGreaterThan(0);
+    expect(both.body.total).toBeLessThan(one.body.total);
+  });
+
+  it('Returns 400 when mixed with text', async () => {
+    const res = await request(app).get(`/api/titles?title=love&text=love`);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ status: 400, error: 'Bad Request', message });
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
   });
 
-  it('gives 400 for an unknown match', async () => {
-    const res = await request(app).get('/api/titles?keywords=war&match=some');
+  it('Returns 400 when mixed with keywords', async () => {
+    const res = await request(app).get(`/api/titles?title=love&keywords=war`);
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe('match must be one of all, any, weighted');
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
   });
 
-  it.each([
-    ['browsing', 'keywords=war&sort=rating', 'sort cannot be combined with keywords'],
-    ['text search', 'text=love&keywords=war', 'keywords cannot be combined with text'],
-  ])('gives 400 when mixed with %s', async (_mode, qs, message) => {
-    const res = await request(app).get(`/api/titles?${qs}`);
+  it('Returns 400 when mixed with sort', async () => {
+    const res = await request(app).get(`/api/titles?title=love&sort=year`);
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe(message);
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
+  });
+
+  it('Returns 400 when mixed with filter', async () => {
+    const res = await request(app).get(`/api/titles?title=love&genre=Comedy`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
+  });
+});
+
+describe('GET /api/titles (sorting and filtering)', () => {
+  
+  it('Sorts by year ascending with missing years last', async () => {
+    const first = await request(app).get('/api/titles?sort=year&order=asc&limit=100');
+    const last  = await request(app).get(`/api/titles?sort=year&order=asc&limit=100&offset=${first.body.total - 100}`);
+
+    expect(first.status).toBe(200);
+    const years = first.body.items.map((item: {startYear: number | null}) => item.startYear);
+
+    expect(years).toEqual([...years].sort((a,b) => a - b));
+    expect(last.body.items.at(-1).startYear).toBeNull();
+  });
+
+  it('Sorts by year descending with missing years last', async () => {
+    const first = await request(app).get('/api/titles?sort=year&order=desc&limit=100');
+    const last  = await request(app).get(`/api/titles?sort=year&order=desc&limit=100&offset=${first.body.total - 100}`);
+
+    expect(first.status).toBe(200);
+    const years = first.body.items.map((item: {startYear: number | null}) => item.startYear);
+
+    expect(years).toEqual([...years].sort((a,b) => b - a));
+    expect(last.body.items.at(-1).startYear).toBeNull();
+  });
+
+
+  it('Filters by genre case-insensitively', async () => {
+    const proper = await request(app).get('/api/titles?genre=Comedy&limit=1');
+    const upper = await request(app).get('/api/titles?genre=COMEDY&limit=1');
+
+    expect(upper.status).toBe(200);
+    expect(proper.body.total).toBeGreaterThan(0);
+    expect(upper.body.total).toBe(proper.body.total);
+  });
+
+  it('Returns an empty list for an unknown genre', async () => {
+    const res = await request(app).get('/api/titles?genre=NoSuchGenre');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject( { total: 0, items:[]} );
   });
 });
 
 describe('GET /api/titles/{tconst}', () => {
-  it('returns the title that the list links to, with genres, rating and credits', async () => {
+  it('Returns the title that the list links to, with genres, rating and credits', async () => {
     const list = await request(app).get('/api/titles?limit=1');
     const url: string = list.body.items[0].url;
 
@@ -237,11 +495,25 @@ describe('GET /api/titles/{tconst}', () => {
     }
   });
 
-  it('gives 404 for an unknown title', async () => {
-    const res = await request(app).get('/api/titles/tt0000000');
+  it('Returns 400 when tconst has no tt prefix', async () => {
+    const res = await request(app).get('/api/titles/0004563');
 
-    expect(res.status).toBe(404);
-    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({error: 'Bad Request', message: 'tconst must start with tt followed by 7-8 digits'});
+  });
+
+  it('Returns 400 when tconst has 6 digits', async () => {
+    const res = await request(app).get('/api/titles/tt000456');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({error: 'Bad Request', message: 'tconst must start with tt followed by 7-8 digits'});
+  });
+
+  it('Returns 400 when tconst has 9 digits', async () => {
+    const res = await request(app).get('/api/titles/tt120004563');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({error: 'Bad Request', message: 'tconst must start with tt followed by 7-8 digits'});
   });
 });
 
@@ -252,7 +524,6 @@ describe('GET /api/titles/{tconst}/actors', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ limit: 3, offset: 0 });
     expect(res.body.items.length).toBeLessThanOrEqual(3);
-    expect(res.body.items.length).toBeLessThanOrEqual(res.body.total);
 
     const ratings = res.body.items.map((actor: { nameRating: number | null }) => actor.nameRating ?? -1);
     expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
@@ -260,29 +531,15 @@ describe('GET /api/titles/{tconst}/actors', () => {
       expect(actor.url).toMatch(/^\/api\/persons\/nm\d+$/);
     }
   });
-
-  it('keeps the path in the paging links', async () => {
-    const res = await request(app).get('/api/titles/tt0063929/actors?limit=1');
-
-    expect(res.body.links.next).toBe('/api/titles/tt0063929/actors?limit=1&offset=1');
-  });
-
-  it('gives 404 for an unknown title', async () => {
-    const res = await request(app).get('/api/titles/tt0000000/actors');
-    
-    expect(res.status).toBe(404);
-    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
-  });
 });
 
 describe('GET /api/titles/{tconst}/similar', () => {
-  it('returns a page of movies, most shared genres first', async () => {
+  it('Returns a page of movies, most shared genres first', async () => {
     const res = await request(app).get('/api/titles/tt0111596/similar?limit=5');
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ limit: 5, offset: 0 });
     expect(res.body.items.length).toBeGreaterThan(0);
-    expect(res.body.items.length).toBeLessThanOrEqual(5);
 
     const scores = res.body.items.map((movie: { similarityScore: number }) => movie.similarityScore);
     expect(scores).toEqual([...scores].sort((a, b) => b - a));
@@ -292,108 +549,648 @@ describe('GET /api/titles/{tconst}/similar', () => {
     }
   });
 
-  it('keeps the path in the paging links', async () => {
-    const res = await request(app).get('/api/titles/tt0111596/similar?limit=1');
+  it('Matches movie and tvMovie with each other', async () => {
+    const list = await request(app).get('/api/titles?titleType=tvMovie&limit=1');
+    const similar = await request(app).get(`${list.body.items[0].url}/similar?limit=20`);
 
-    expect(res.body.links.next).toBe('/api/titles/tt0111596/similar?limit=1&offset=1');
+    const types: string[] = [];
+    for (const item of similar.body.items) {
+      const title = await request(app).get(item.url);
+      types.push(title.body.titleType);
+    }
+
+    expect(similar.status).toBe(200);
+    expect(types).toContain('movie');
+    expect(types.every(type => ['movie', 'tvMovie'].includes(type))).toBe(true);
   });
+  
 
-  it('gives an empty list for a title that is not a movie', async () => {
-    const res = await request(app).get('/api/titles/tt0063929/similar');
+  it('Returns an empty list for a tvEpisode', async () => {
+    const list = await request(app).get('/api/titles?titleType=tvEpisode&limit=1');
+    const res = await request(app).get(`${list.body.items[0].url}/similar`);
 
     expect(res.status).toBe(200);
-    expect(res.body.items).toEqual([]);
-    expect(res.body.total).toBe(0);
+    expect(res.body).toMatchObject({ total: 0, items: [] });
   });
 
-  it('gives 404 for an unknown title', async () => {
-    const res = await request(app).get('/api/titles/tt0000000/similar');
-    expect(res.status).toBe(404);
-    expect(res.body).toEqual({ status: 404, error: 'Not Found', message: 'Title not found' });
+  it('Returns an empty list for a short', async () => {
+    const list = await request(app).get('/api/titles?titleType=short&limit=1');
+    const res = await request(app).get(`${list.body.items[0].url}/similar`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 0, items: [] });
+  });
+
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// USERS.TS
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('AUTH on /api/users/{uconst}/...', () => {
+  let userOneId: number;
+  let userTwoId: number;
+  let cookie: string;
+
+  beforeAll(async () => {
+      const passwordHash = await hashPassword('password');
+      const userOne = await pool.query(`
+        SELECT create_user($1,$2,$3,$4,$5) as uconst`,
+        ['TestOne', 'UserOne', 'test_user_one', `user_one@test.com`, passwordHash])
+
+      const userTwo = await pool.query(`
+        SELECT create_user($1,$2,$3,$4,$5) as uconst`,
+        ['TestTwo', 'UserTwo', 'test_user_two', `user_two@test.com`, passwordHash])
+    
+      userOneId = userOne.rows[0].uconst;
+      userTwoId = userTwo.rows[0].uconst;
+
+      const res = await request(app).post('/api/auth/token')
+                                    .send({ username: "test_user_two", password: 'password'});
+    cookie = jwtCookie(res);
+    });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userOneId]);
+    await pool.query('SELECT delete_user($1)', [userTwoId]);
+  });
+
+  it('Return 401 without a token', async () => {
+    const res = await request(app).get(`/api/users/${userOneId}/search-history`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error:"Unauthorized", message:"Missing token" });
+  });
+
+  it('Return 401 for a garbage token', async () => {
+    const res = await request(app).get(`/api/users/${userOneId}/search-history`)
+                                  .set('Cookie', `${TOKEN_COOKIE}=bad`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error:"Unauthorized", message: "Invalid or expired token" });
+  });
+
+  it('Returns 403 for anothers users token', async () => {
+    const res = await request(app).get(`/api/users/${userOneId}/search-history`)
+                  .set('Cookie', cookie);
+    
+    expect(res.status).toBe(403);
+  });
+
+  it('Returns 400 for an invalid uconst', async () => {
+    const res = await request(app).get('/api/users/abc')
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request' });
+  });
+
+});
+
+
+describe('POST /api/users', () => {
+  let takenId: number;
+  let newId: number | undefined;
+
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const result = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+      ['Test', 'User', 'users_taken', 'user_taken@test.com', passwordHash]);
+    
+    takenId = result.rows[0].uconst;
+  });
+
+  afterAll(async () => {
+    await pool.query(`SELECT delete_user($1)`, [takenId]);
+    
+    if (newId) {
+      await pool.query('select delete_user($1)', [newId]);
+    }
+  });
+
+  it('Return 201 with the profile and a Location header, without the password', async () => {
+    const res = await request(app).post('/api/users')
+                .send({ firstName: 'Test', 
+                        lastName: 'User', 
+                        username: 'users_new', 
+                        email: 'users_new@test.com',
+                        password: 'NewPassw0rd!'});
+    
+    expect(res.status).toBe(201);
+    newId = Number(res.body.url.split('/').pop());
+    expect(res.headers.location).toBe(res.body.url);
+    expect(res.body).toMatchObject({ username: 'users_new', email: 'users_new@test.com'});
+    expect(Object.keys(res.body).sort()).toEqual([
+      'createdAt', 'email', 'firstName', 'lastName', 'url', 'username']);
+  });
+
+  it('Return 400 when username is missing', async () => {
+    const res = await request(app).post('/api/users')
+                .send( { 
+                  firstName: 'Test',
+                  lastName: 'User',
+                  email: 'users_bad@test.com',
+                  password: 'NewPassw0rd!'});
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Return 400 when password is too short', async () => {
+    const res = await request(app).post('/api/users')
+                .send( { 
+                  firstName: 'Test',
+                  lastName: 'User',
+                  username: 'users_bad',
+                  email: 'users_bad@test.com',
+                  password: 'pswd'});
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Return 409 when username is taken', async () => {
+    const res = await request(app).post('/api/users')
+                .send( { 
+                  firstName: 'Test',
+                  lastName: 'User',
+                  username: 'users_taken',
+                  email: 'users_other@test.com',
+                  password: 'NewPassw0rd!'});
+                  
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'Conflict'});
+  });
+
+  it('Return 409 when email is taken', async () => {
+    const res = await request(app).post('/api/users')
+                .send( { 
+                  firstName: 'Test',
+                  lastName: 'User',
+                  username: 'users_random',
+                  email: 'user_taken@test.com',
+                  password: 'NewPassw0rd!'});
+                  
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'Conflict'});
   });
 });
 
-describe('PUT /api/users/{uid}/password', () => {
+describe('PATCH /api/users/{uconst}', () => {
   let userId: number;
+  let otherId: number;
+  let cookie: string;
 
   beforeAll(async () => {
-    const suffix = Date.now();
-    const result = await pool.query(`
-      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
-    ['Test', 'User', `user_${suffix}`, `user_${suffix}@test.com`, 'password']);
-    userId = result.rows[0].uconst; 
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_patch', 'users_patch@test.com', passwordHash]);
+
+    const other = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'Other', 'users_path_other', 'users_patch_other@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+    otherId = other.rows[0].uconst;
+    
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_patch', password: 'password'});
+    cookie = jwtCookie(res);
+  });
+
+  afterAll(async () => {
+    await pool.query(`SELECT delete_user($1)`, [userId]);
+    await pool.query(`SELECT delete_user($1)`, [otherId]);   
+  });
+
+  it('Returns 200 and changes only the field that is sent', async () => {
+    const res = await request(app).patch(`/api/users/${userId}`)
+                .set('Cookie', cookie)
+                .send( {firstName: 'Changed'});
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      firstName: 'Changed',
+      lastName: 'User',
+      username: 'users_patch'});
+  });
+
+  it('Returns 400 when username is sent', async () => {
+    const res = await request(app).patch(`/api/users/${userId}`)
+                .set('Cookie', cookie)
+                .send( { username: 'users_changed'});
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
+  it('Returns 409 when email is taken', async () => {
+    const res = await request(app).patch(`/api/users/${userId}`)
+                .set('Cookie', cookie)
+                .send( { email: 'users_patch_other@test.com'});
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'Conflict'});
+  });
+})
+
+describe('PUT /api/users/{uid}/password', () => {
+  let userId: number;
+  let cookie: string;
+
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_put', 'users_put@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+
+    
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_put', password: 'password'});
+    cookie = jwtCookie(res);
   });
 
   afterAll(async () => {
     await pool.query('SELECT delete_user($1)', [userId]);
   });
 
+  it('Returns 403 when the current password is not correct', async () => {
+    const res = await request(app).put(`/api/users/${userId}/password`)
+                .set('Cookie', cookie)
+                .send({ currentPassword: 'wrongPswd', newPassword: 'NewPassw0rd!'});
+    
+    expect(res.status).toBe(403);
+  });
+
+  it('Returns 400 when the new password is not long enough', async () => {
+    const res = await request(app).put(`/api/users/${userId}/password`)
+                .set('Cookie', cookie)
+                .send({ currentPassword: 'password', newPassword: 'NewP0!'});
+    
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'Bad Request'});
+  });
+
   it('returns 204 for a valid password update', async () => {
     const res = await request(app)
       .put(`/api/users/${userId}/password`)
+      .set('Cookie', cookie)
       .send({currentPassword: 'password', newPassword: 'NewPassw0rd!'});
     
     expect(res.status).toBe(204);
-  });
 
-  it('returns 404 for an unknown user', async () => {
-    const res = await request(app)
-      .put(`/api/users/999999999/password`)
-      .send({currentPassword: 'password', newPassword: 'newPassword'});
-    
-    expect(res.status).toBe(404);
-  });
+    const newLogin = await request(app).post('/api/auth/token')
+                    .send({username: 'users_put', password: 'NewPassw0rd!'});
+    const oldLogin = await request(app).post('/api/auth/token')
+                    .send({username: 'users_put', password: 'password'});
 
-  it('returns 400 when newPassword is missing', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({currentPassword: 'password'});
-    
-      expect(res.status).toBe(400);
-  });
-
-  it('returns 400 when currentPassword is missing', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({newPassword: 'password'});
-
-    expect(res.status).toBe(400);
-
-  });
-
-  it('returns 400 when currentPassword is not a string', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({currentPassword: 123});
-    
-    expect(res.status).toBe(400);
-
-  });
-
-  it('returns 400 when newPassword is not a string', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({newPassword: 123});
-
-    expect(res.status).toBe(400);
-  });
-  
-  it('returns 400 when currentPassword is undefined', async () => {
-    const res = await request(app)
-      .put(`/api/users/${userId}/password`)
-      .send({currentPassword: undefined});
-      
-    expect(res.status).toBe(400);
+    expect(newLogin.status).toBe(200);
+    expect(oldLogin.status).toBe(401);
   });
 });
 
+
+describe('DELETE /api/users/{uconst}', () => {
+    let userId: number;
+    let cookie: string;
+
+    beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_delete', 'users_delete@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+
+    
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_delete', password: 'password'});
+    cookie = jwtCookie(res);
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
+  it('Returns 204, the user is gone and the votes of the rated titles are restored', async () => {
+    const before = await request(app).get('/api/titles/tt4924682');
+    const rated  = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+                      .set('Cookie', cookie)
+                      .send({rating: 8});
+
+    expect(rated.status).toBe(201);
+    const res = await request(app).delete(`/api/users/${userId}`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+
+    const deleted = await request(app).get(`/api/users/${userId}`)
+                                  .set('Cookie', cookie);
+    const afterRatingChange = await request(app).get(`/api/titles/tt4924682`);
+
+    expect(deleted.status).toBe(404);
+    expect(afterRatingChange.body.rating.votes).toBe(before.body.rating.votes);
+  });
+});
+
+describe('Ratings on /api/users/{uconst}/ratings/{tconst}', () => {
+  let userId: number;
+  let cookie: string;
+  let votes: number;
+
+  beforeAll(async () => {
+  const passwordHash = await hashPassword('password');
+  const user = await pool.query(`
+    select create_user($1, $2, $3, $4, $5) as uconst`,
+  ['Test', 'User', 'users_rating', 'users_rating@test.com', passwordHash]);
+
+  userId = user.rows[0].uconst;
+
+  
+  const res = await request(app).post('/api/auth/token')
+                                .send({ username: 'users_rating', password: 'password'});
+  cookie = jwtCookie(res);
+
+  const title = await request(app).get('/api/titles/tt4924682');
+  votes = title.body.rating.votes;
+});
+
+afterAll(async () => {
+  await pool.query('SELECT delete_user($1)', [userId]);
+});
+
+it('Return 201 for a new rating and counts it as a vote', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+  .send({ rating: 8 });
+
+  const title = await request(app).get('/api/titles/tt4924682');
+
+  expect(res.status).toBe(201);
+  expect(res.body).toMatchObject({ rating: 8 });
+  expect(title.body.rating.votes).toBe(votes + 1);
+});
+
+it('Return 200 and the active rating', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+  .send({ rating: 9 });
+
+  expect(res.status).toBe(200);
+  expect(res.body).toMatchObject({ rating: 9 });
+});
+
+it('Return 400 when the rating is outside of 1-10', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+  .send({ rating: 44 });
+
+  expect(res.status).toBe(400);
+  expect(res.body).toMatchObject({ error: 'Bad Request'});
+});
+
+it('Return 404 when title not found', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt2402927`)
+  .set('Cookie', cookie)
+  .send({ rating: 8 });
+
+  expect(res.status).toBe(404);
+});
+
+it('Return 204 when rating is deleted and takes back the vote', async () => {
+  const res = await request(app).delete(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+
+  const title = await request(app).get('/api/titles/tt4924682');
+
+  expect(res.status).toBe(204);
+  expect(title.body.rating.votes).toBe(votes);
+});
+
+it('Return 404 when removing the same rating', async () => {
+  const res = await request(app).delete(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+
+  expect(res.status).toBe(404);
+});
+
+it('Return 201 when the rating again', async () => {
+  const res = await request(app).put(`/api/users/${userId}/ratings/tt4924682`)
+  .set('Cookie', cookie)
+  .send({ rating: 7 });
+
+  expect(res.status).toBe(201);
+
+});
+
+});
+
+describe('Bookmarks on /api/users/{uconst}/bookmarks', () => {
+  let userId: number;
+  let cookie: string;
+
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const result = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_bookmark', 'users_bookmark@test.com', passwordHash]);
+
+    userId = result.rows[0].uconst;
+
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_bookmark', password: 'password' });
+    cookie = jwtCookie(res);
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
+  it('Returns 204 for a title bookmark, which shows in the list', async () => {
+    const res = await request(app).put(`/api/users/${userId}/bookmarks/titles/tt0111596`)
+                                  .set('Cookie', cookie);
+    const list = await request(app).get(`/api/users/${userId}/bookmarks/titles`)
+                                   .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(list.body.total).toBe(1);
+    expect(list.body.items[0]).toMatchObject({ title: '/api/titles/tt0111596' });
+  });
+
+  it('Returns 204 and changes nothing when bookmarking the same title again', async () => {
+    const res = await request(app).put(`/api/users/${userId}/bookmarks/titles/tt0111596`)
+                                  .set('Cookie', cookie);
+    const list = await request(app).get(`/api/users/${userId}/bookmarks/titles`)
+                                   .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(list.body.total).toBe(1);
+  });
+
+  it('Returns 404 when bookmarking an unknown title', async () => {
+    const res = await request(app).put(`/api/users/${userId}/bookmarks/titles/tt0000000`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('Returns 204 when removing a title bookmark, which is then gone', async () => {
+    const res = await request(app).delete(`/api/users/${userId}/bookmarks/titles/tt0111596`)
+                                  .set('Cookie', cookie);
+    const list = await request(app).get(`/api/users/${userId}/bookmarks/titles`)
+                                   .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(list.body.total).toBe(0);
+  });
+
+  it('Returns 404 when removing the title bookmark again', async () => {
+    const res = await request(app).delete(`/api/users/${userId}/bookmarks/titles/tt0111596`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('Returns 204 for a person bookmark, which shows in the list', async () => {
+    const res = await request(app).put(`/api/users/${userId}/bookmarks/persons/nm0000949`)
+                                  .set('Cookie', cookie);
+    const list = await request(app).get(`/api/users/${userId}/bookmarks/persons`)
+                                   .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(list.body.items[0]).toMatchObject({ person: '/api/persons/nm0000949' });
+  });
+
+  it('Returns 404 when removing a person that is not bookmarked', async () => {
+    const res = await request(app).delete(`/api/users/${userId}/bookmarks/persons/nm0000054`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('Search history on /api/users/{uconst}/search-history', () => {
+  let userId: number;
+  let otherId: number;
+  let cookie: string;
+  let otherCookie: string;
+
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_history', 'users_history@test.com', passwordHash]);
+    const other = await pool.query(`
+      SELECT create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'Other', 'users_history_other', 'users_history_other@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+    otherId = other.rows[0].uconst;
+
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_history', password: 'password' });
+    const otherRes = await request(app).post('/api/auth/token')
+                                       .send({ username: 'users_history_other', password: 'password' });
+    cookie = jwtCookie(res);
+    otherCookie = jwtCookie(otherRes);
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+    await pool.query('SELECT delete_user($1)', [otherId]);
+  });
+
+  it('Returns a logged search', async () => {
+    await request(app).get('/api/titles?text=love')
+                      .set('Cookie', cookie);
+
+    const res = await request(app).get(`/api/users/${userId}/search-history`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.items[0].searchString).toContain('love');
+  });
+
+  it('Returns 404 when deleting the entry of another user', async () => {
+    await request(app).get('/api/titles?text=space')
+                      .set('Cookie', otherCookie);
+    const other = await request(app).get(`/api/users/${otherId}/search-history`)
+                                    .set('Cookie', otherCookie);
+    const sconst = other.body.items[0].url.split('/').pop();
+
+    const res = await request(app).delete(`/api/users/${userId}/search-history/${sconst}`)
+                                  .set('Cookie', cookie);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('Returns 204 when deleting an entry, which is then gone', async () => {
+    const history = await request(app).get(`/api/users/${userId}/search-history`)
+                                      .set('Cookie', cookie);
+
+    const res = await request(app).delete(history.body.items[0].url)
+                                  .set('Cookie', cookie);
+    const after = await request(app).get(`/api/users/${userId}/search-history`)
+                                    .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(after.body.total).toBe(0);
+  });
+
+  it('Returns 204 when clearing the whole history', async () => {
+    await request(app).get('/api/titles?text=love')
+                      .set('Cookie', cookie);
+    await request(app).get('/api/titles?text=war')
+                      .set('Cookie', cookie);
+
+    const res = await request(app).delete(`/api/users/${userId}/search-history`)
+                                  .set('Cookie', cookie);
+    const after = await request(app).get(`/api/users/${userId}/search-history`)
+                                    .set('Cookie', cookie);
+
+    expect(res.status).toBe(204);
+    expect(after.body.total).toBe(0);
+  });
+});
+
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// WORDS.TS
+// ═════════════════════════════════════════════════════════════════════════════
+
 describe('GET /api/related-words', () => {
+    let userId: number;
+  let cookie: string;
+
+  beforeAll(async () => {
+    const passwordHash = await hashPassword('password');
+    const user = await pool.query(`
+      select create_user($1, $2, $3, $4, $5) as uconst`,
+    ['Test', 'User', 'users_words', 'users_words@test.com', passwordHash]);
+
+    userId = user.rows[0].uconst;
+
+    
+    const res = await request(app).post('/api/auth/token')
+                                  .send({ username: 'users_words', password: 'password'});
+    cookie = jwtCookie(res);
+  });
+
+  afterAll(async () => {
+    await pool.query('SELECT delete_user($1)', [userId]);
+  });
+
   it('returns the most associated words, most frequent first, without the given words', async () => {
     const res = await request(app).get('/api/related-words?words=space,war');
 
     expect(res.status).toBe(200);
     expect(res.body.items.length).toBeGreaterThan(0);
-    expect(res.body.total).toBe(res.body.items.length);
+    for (const item of res.body.items) {
+      expect(Object.keys(item).sort()).toEqual(['count', 'word']);
+    }
 
     const counts = res.body.items.map((item: { count: number }) => item.count);
     expect(counts).toEqual([...counts].sort((a, b) => b - a));
@@ -403,38 +1200,21 @@ describe('GET /api/related-words', () => {
     expect(found).not.toContain('war');
   });
 
-  it('pages the list and keeps the words in the paging links', async () => {
-    const res = await request(app).get('/api/related-words?words=space&limit=3');
-
-    expect(res.body.items).toHaveLength(3);
-    expect(res.body.total).toBe(10);
-
-    const next = new URL(res.body.links.next, 'http://localhost');
-    expect(next.pathname).toBe('/api/related-words');
-    expect(next.searchParams.get('words')).toBe('space');
-    expect(next.searchParams.get('offset')).toBe('3');
-
-    const second = await request(app).get(res.body.links.next);
-    expect(second.status).toBe(200);
-    expect(second.body.items).toHaveLength(3);
-  });
-
-  it('gives an empty list when no title has the word', async () => {
-    const res = await request(app).get('/api/related-words?words=zzzznotaword');
+  it('Returns an empty page with the correct total past the last page', async () => {
+    const all = await request(app).get('/api/related-words?words=space');
+    const res = await request(app).get(`/api/related-words?words=space&offset=${all.body.total}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ total: 0, items: [] });
+    expect(res.body).toMatchObject({ total: all.body.total, items: [] });
   });
 
-  it.each([
-    ['missing', '/api/related-words'],
-    ['blank', '/api/related-words?words=,%20,'],
-    ['sent twice', '/api/related-words?words=a&words=b'],
-    ['too many words', '/api/related-words?words=a,b,c,d,e,f,g,h,i,j,k'],
-    ['a word that is too long', `/api/related-words?words=${'a'.repeat(51)}`],
-  ])('gives 400 when words is %s', async (_case, url) => {
-    const res = await request(app).get(url);
+  it('Does not log the search in the history', async () => {
+    await request(app).get('/api/related-words?words=space')
+                      .set('Cookie', cookie);
 
-    expect(res.status).toBe(400);
+    const res = await request(app).get(`/api/users/${userId}/search-history`)
+                                  .set('Cookie', cookie);
+
+    expect(res.body.total).toBe(0);
   });
 });

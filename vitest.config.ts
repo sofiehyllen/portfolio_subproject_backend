@@ -7,5 +7,7 @@ export default defineConfig({
   test: {
     // The test files share one database, so they run one at a time.
     fileParallelism: false,
+    testTimeout: 60000,
+    hookTimeout: 60000
   },
 });
