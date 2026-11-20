@@ -29,37 +29,62 @@
 import { pool } from '../db.js';
 import { orderBy, Sort } from './sorting.js';
 
+/**
+ * A title as listed.
+ * @property tconst         - Id of the title.
+ * @property titleType      - Type, e.g. `movie` or `tvSeries`.
+ * @property primaryTitle   - The title's main name.
+ * @property originalTitle  - Name in the original language, or `null`.
+ * @property isAdult        - Whether the title is adult content.
+ * @property startYear      - Release year (first year for a series), or `null`.
+ * @property endYear        - Last year of a series, or `null`.
+ * @property runtimeMinutes - Runtime in minutes, or `null`.
+ * @property awards         - Awards text, or `null`.
+ * @property posterUrl      - Poster image URL, or `null`.
+ * @property plot           - Plot summary, or `null`.
+ * @property rating         - Average rating and number of votes, or `null` when the title has no votes.
+ */
 export interface Title {
-  tconst: string;
-  titleType: string;
-  primaryTitle: string;
-  originalTitle: string | null;
-  isAdult: boolean;
-  startYear: number | null;
-  endYear: number | null;
-  runtimeMinutes: number | null;
-  awards: string | null;
-  posterUrl: string | null;
-  plot: string | null;
-  rating: { average: number; votes: number } | null; // null when the title has no votes
+  tconst:           string;
+  titleType:        string;
+  primaryTitle:     string;
+  originalTitle:    string | null;
+  isAdult:          boolean;
+  startYear:        number | null;
+  endYear:          number | null;
+  runtimeMinutes:   number | null;
+  awards:           string | null;
+  posterUrl:        string | null;
+  plot:             string | null;
+  rating:           { average: number; votes: number } | null; // null when the title has no votes
 }
 
-// The fields shown for a title in a search result.
+/**
+ * The fields shown for a title in a search result.
+ * @property tconst         - ID of the title
+ * @property primaryTitle   - the title's main name
+ * @property startYear      - realese year or `null`
+ */
 export interface TitleSummary {
-  tconst: string;
-  primaryTitle: string;
-  startYear: number | null;
+  tconst:         string;
+  primaryTitle:   string;
+  startYear:      number | null;
 }
 
-// The fields of a structured search.
+/** The fields of a structured search.
+ * @property title      - text to match in the title
+ * @property plot       - text to match in the plot
+ * @property character  - text to match character names
+ * @property person     - text to match in credited person names
+ */
 export interface StructuredSearch {
-  title: string;
-  plot: string;
-  character: string;
-  person: string;
+  title:        string;
+  plot:         string;
+  character:    string;
+  person:       string;
 }
 
-// Titles are aliased t and their ratings r, so callers can filter and sort on either.
+/** Shared SELECT for {@link Title} rows. Titles are aliased `t` and ratings `r`, so callers can filter and sort on either. */
 const SELECT = `
   SELECT t.tconst,
           t.title_type      AS "titleType",
@@ -79,7 +104,10 @@ const SELECT = `
   FROM titles t
   LEFT JOIN ratings r ON r.tconst = t.tconst`;
 
+
+/** The fields `GET /api/titles` can be sorted by. Also used at runtime for validation. */
 export const TITLE_SORT_FIELDS = ['title', 'year', 'rating', 'votes', 'runtime'] as const;
+/** A title sort field: `'title'`, `'year'`, `'rating'`, `'votes'` or `'runtime'`. */
 export type TitleSortField = typeof TITLE_SORT_FIELDS[number];
 
 // The column behind each sort field. Only these strings ever reach ORDER BY.
@@ -91,15 +119,26 @@ const TITLE_SORT_COLUMN: Record<TitleSortField, string> = {
   runtime: 't.runtime_minutes',
 };
 
+/**
+ * Filter for browsing titles. Both fields match case-insensitively.
+ * @property genre     - Only titles with this genre.
+ * @property titleType - Only titles of this type.
+ */
 export interface TitleFilter {
   genre?: string;
   titleType?: string;
 }
 
-// GET /api/titles without a search: the filter and the chosen sort.
+/** Query of `GET /api/titles` without a search: the filter plus the chosen sort. */
 export interface TitleBrowse extends TitleFilter, Sort<TitleSortField> {}
 
-// The WHERE clause for a filter, numbering its parameters after the ones already used.
+/**
+ * Builds the WHERE clause for a filter, numbering its parameters after the ones already used.
+ *
+ * @param filter     - The title filter.
+ * @param firstParam - Number of the first placeholder to use; `3` makes the first one `$3`.
+ * @returns            The clause (empty when there is no filter) and its parameters, in order.
+ */
 function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params: string[] } {
   const conditions: string[] = [];
   const params: string[] = [];
@@ -116,14 +155,26 @@ function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params
   return { sql: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '', params };
 }
 
-// True when a title with this tconst exists.
+/**
+ * Checks whether a title exists
+ * @param tconst      - ID of the title
+ * @returns             `true` when a title with this `tconst` exists
+ */
 export async function checkTitleExists(tconst: string): Promise<boolean> {
   const { rowCount } = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
   return (rowCount ?? 0) > 0;
 }
 
-// A page of titles, filtered and sorted as asked. Titles without a value for the
-// sort field come last in both directions; tconst settles ties, so paging stays stable.
+/**
+ * Gets a page of titles, filtered and sorted as asked. Titles without a value
+ * for the sort field come last in both directions; tconst settles ties, so
+ * paging stays stable.
+ *
+ * @param browse - The validated filter and sort.
+ * @param limit  - Maximum number of titles to return.
+ * @param offset - Number of titles to skip.
+ * @returns The titles on this page.
+ */
 export async function list(browse: TitleBrowse, limit: number, offset: number): Promise<Title[]> {
   const where = whereOf(browse, 3);
   const { rows } = await pool.query<Title>(
@@ -133,8 +184,12 @@ export async function list(browse: TitleBrowse, limit: number, offset: number): 
     [limit, offset, ...where.params]);
   return rows;
 }
-
-// How many titles match the filter in all, for the total in a paged answer.
+/**
+ * Counts the titles matching the filter (the total for {@link list})
+ * 
+ * @param filter        - the title filter (defaults to no filter)
+ * @returns               the number of matching titles
+ */
 export async function count(filter: TitleFilter = {}): Promise<number> {
   const where = whereOf(filter, 1);
   const { rows } = await pool.query<{ total: number }>(
@@ -143,20 +198,38 @@ export async function count(filter: TitleFilter = {}): Promise<number> {
   return rows[0].total;
 }
 
+/**
+ * One credit of a title.
+ * @property nconst     - Id of the credited person.
+ * @property name       - The person's name.
+ * @property category   - Credit category, e.g. `actor` or `director`.
+ * @property job        - Job description, or `null`.
+ * @property characters - Characters played, alphabetical; empty when none.
+ */
 export interface Credit {
-  nconst: string;
-  name: string;
-  category: string;
-  job: string | null;
+  nconst:     string;
+  name:       string;
+  category:   string;
+  job:        string | null;
   characters: string[];
 }
 
+/**
+ * One title in full: the list fields plus genres and credits.
+ * @property genres  - Genre names, alphabetical.
+ * @property credits - Credits in IMDb's billing order.
+ */
 export interface TitleDetail extends Title {
   genres: string[];
   credits: Credit[];
 }
 
-// One title with its genres, rating and credits, or undefined when no such title exists.
+/**
+ * Gets one title with its genres, rating and credits.
+ *
+ * @param tconst      - ID of the title.
+ * @returns             the title, or `undefined` when no such title exists.
+ */
 export async function get(tconst: string): Promise<TitleDetail | undefined> {
   const { rows } = await pool.query<Title & Pick<TitleDetail, 'genres'>>(
     `SELECT t.*,
@@ -188,15 +261,30 @@ export async function get(tconst: string): Promise<TitleDetail | undefined> {
   return { ...title, credits: credits.rows };
 }
 
+
+/**
+ * An actor of a title.
+ * @property nconst     - Id of the actor.
+ * @property name       - The actor's name.
+ * @property nameRating - The actor's name rating, or `null`.
+ */
 export interface Actor {
-  nconst: string;
-  name: string;
-  nameRating: number | null;
+  nconst:       string;
+  name:         string;
+  nameRating:   number | null;
 }
 
-// A page of the title's actors, highest name rating first, plus how many there are
-// in all. Undefined when no such title exists (popular_actors() alone gives an empty
-// list both for an unknown title and for a title without actors).
+/**
+ * Gets a page of the title's actors with `popular_actors()`, highest name
+ * rating first, plus the total. Checks that the title exists, because
+ * `popular_actors()` alone gives an empty list both for an unknown title and
+ * for a title without actors.
+ *
+ * @param tconst - Id of the title.
+ * @param limit  - Maximum number of actors to return.
+ * @param offset - Number of actors to skip.
+ * @returns The actors on this page and the total, or `undefined` when no such title exists.
+ */
 export async function actors(
   tconst: string, limit: number, offset: number,
 ): Promise<{ total: number; items: Actor[] } | undefined> {
@@ -219,16 +307,31 @@ export async function actors(
   return { total, items: rows };
 }
 
+/**
+ * A movie that shares genres with another title.
+ * @property tconst          - Id of the movie.
+ * @property primaryTitle    - Name of the movie.
+ * @property similarityScore - Score from `similar_movies()`; higher means more shared genres.
+ * @property commonGenres    - The shared genre names.
+ */
 export interface SimilarMovie {
-  tconst: string;
-  primaryTitle: string;
-  similarityScore: number;
-  commonGenres: string[];
+  tconst:           string;
+  primaryTitle:     string;
+  similarityScore:  number;
+  commonGenres:     string[];
 }
 
-// A page of movies sharing genres with the title, most shared genres first, plus how
-// many there are in all. Undefined when no such title exists (similar_movies() alone
-// gives an empty list both for an unknown title and for a title that is not a movie).
+/**
+ * Gets a page of movies sharing genres with the title, with `similar_movies()`,
+ * most shared genres first, plus the total. Checks that the title exists,
+ * because `similar_movies()` alone gives an empty list both for an unknown
+ * title and for a title that is not a movie.
+ *
+ * @param tconst - Id of the title.
+ * @param limit  - Maximum number of movies to return.
+ * @param offset - Number of movies to skip.
+ * @returns The movies on this page and the total, or `undefined` when no such title exists.
+ */
 export async function similar(
   tconst: string, limit: number, offset: number,
 ): Promise<{ total: number; items: SimilarMovie[] } | undefined> {
@@ -253,8 +356,17 @@ export async function similar(
   return { total, items: rows };
 }
 
-// A page of titles matching a substring search, and the total number of matches.
-// string_search is called once per request, so the search is logged at most once.
+/**
+ * Substring search over titles with `string_search()`, ordered by tconst,
+ * plus the total number of matches. The function is called once per request,
+ * so a search is logged at most once.
+ *
+ * @param logAs  - User to log the search under, or `null` to skip logging.
+ * @param text   - The validated search text.
+ * @param limit  - Maximum number of titles to return.
+ * @param offset - Number of titles to skip.
+ * @returns The matching titles on this page and the total count.
+ */
 export async function searchText(
   logAs: number | null, text: string, limit: number, offset: number,
 ): Promise<{ items: TitleSummary[]; total: number }> {
@@ -272,13 +384,21 @@ export async function searchText(
   return { items: rows.map(({ total: _, ...title }) => title), total };
 }
 
+/** The keyword match modes of `GET /api/titles?keywords=...`. Also used at runtime for validation. */
 export const KEYWORD_MATCHES = ['all', 'any', 'weighted'] as const;
+/**
+ * How keywords are combined: `all` (every keyword must match), `any` (titles
+ * matching the most keywords first) or `weighted` (most keywords, then highest
+ * weight, then most votes).
+ */
 export type KeywordMatch = typeof KEYWORD_MATCHES[number];
 
-// The database function behind each match mode, and how its rows are ranked.
-// A function's own ORDER BY is lost once its rows are joined and paged here, so
-// each rank repeats the function's ORDER BY (the final tconst is added in the query).
-// Only these strings ever reach the SQL.
+/**
+ * The database function behind each match mode, and how its rows are ranked.
+ * A function's own ORDER BY is lost once its rows are joined and paged, so each
+ * rank repeats it (the final tconst is added in the query). Only these strings
+ * ever reach the SQL.
+ */
 const KEYWORD_SEARCH: Record<KeywordMatch, { dbFunction: string; rank: string }> = {
   // every keyword; the function has no rank
   all: { dbFunction: 'exact_match_search', rank: '' },
@@ -291,10 +411,21 @@ const KEYWORD_SEARCH: Record<KeywordMatch, { dbFunction: string; rank: string }>
   },
 };
 
-// A page of titles matching the keywords, and the total number of matches. The
-// keywords are matched against words from each title's title, plot, character names
-// and credited person names (word_index). Logs the search under `logAs`, or skips
-// logging if null; the function is called once per request, so it logs at most once.
+/**
+ * Keyword search over titles. Keywords are matched against words from each
+ * title's name, plot, character names and credited person names (`word_index`).
+ * The match mode picks the database function: `exact_match_search` (all),
+ * `best_match_querying` (any) or `weighted_search` (weighted). Results are
+ * ranked the way that function ranks them, then by tconst. The function is
+ * called once per request, so a search is logged at most once.
+ *
+ * @param logAs    - User to log the search under, or `null` to skip logging.
+ * @param keywords - The validated keywords.
+ * @param match    - The match mode.
+ * @param limit    - Maximum number of titles to return.
+ * @param offset   - Number of titles to skip.
+ * @returns The matching titles on this page and the total count.
+ */
 export async function searchKeywords(
   logAs: number | null, keywords: string[], match: KeywordMatch, limit: number, offset: number,
 ): Promise<{ items: TitleSummary[]; total: number }> {
@@ -314,8 +445,17 @@ export async function searchKeywords(
   return { items: rows.map(({ total: _, ...title }) => title), total };
 }
 
-// A page of titles matching a structured search across title, plot, character and person fields,
-// plus the total number of matches. Empty fields are ignored by structured_string_search.
+/**
+ * Structured search over titles with `structured_string_search()`, across the
+ * title, plot, character and person fields, ordered by tconst, plus the total
+ * number of matches. Empty fields are ignored. Logs like {@link searchText}.
+ *
+ * @param logAs  - User to log the search under, or `null` to skip logging.
+ * @param search - The validated search fields.
+ * @param limit  - Maximum number of titles to return.
+ * @param offset - Number of titles to skip.
+ * @returns The matching titles on this page and the total count.
+ */
 export async function searchStructured(
   logAs: number | null, search: StructuredSearch, limit: number, offset: number,
 ): Promise<{ items: TitleSummary[]; total: number }> {
