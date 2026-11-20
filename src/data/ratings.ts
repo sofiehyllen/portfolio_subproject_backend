@@ -17,7 +17,15 @@
 import { PoolClient } from "pg";
 import { pool } from '../db.js';
 
-// Structure of the data from the database
+/**
+ * A rating row stored in `user_title_rating`
+ * @property uconst       - ID of the user
+ * @property tconst       - ID of the title
+ * @property rating       - rating (1-10)
+ * @property createdAt    - when the rating was first given
+ * @property updatedAt    - when the rating was last changed
+ * @property deletedAt    - when the rating was removed
+ */
 export interface UserRating {
   uconst: number;
   tconst: string;
@@ -27,8 +35,13 @@ export interface UserRating {
   deletedAt: Date | null;
 }
 
-// The structure of one item in the user's rating history. 
-// ratingHistory() returns an array of these, which joins the rating with the title.
+/**
+ * One item in a user's rating history: the rating joined with the title name
+ * @property tconst           - ID of the rated title
+ * @property primaryTitle     - name of the title
+ * @property rating           - rating (1-10)
+ * @property lastChange       - when the rating was lasat changed 
+ */
 export interface RatingHistoryEntry {
   tconst: string;
   primaryTitle: string;
@@ -36,7 +49,7 @@ export interface RatingHistoryEntry {
   lastChange: Date;
 }
 
-// Shared SELECT, so every query returns the columns the Rating interface expects.
+/** Shared SELECT, so every query returns the columns {@link UserRating} expects. */
 const SELECT = `
   SELECT uconst,
           tconst,
@@ -46,8 +59,15 @@ const SELECT = `
           deleted_at AS "deletedAt"
   FROM user_title_ratings`;
 
-// A user's rating history, paged and ordered newest change first.
-// Uses get_title_rating_history() which joins ratings with title names.
+/**
+ * gets a page of the user's rating history, newest change first, with `get_title_rating_history()`
+ * which joins rating with title names
+ * 
+ * @param uconst        - ID of the user
+ * @param limit         - maximum number of entries to return
+ * @param offset        - number of entries to skip
+ * @returns               the entries on this page
+ */
 export async function ratingHistory(
   uconst: number, limit: number, offset: number): Promise<RatingHistoryEntry[]> {
   const { rows } = await pool.query<RatingHistoryEntry>(
@@ -62,7 +82,11 @@ export async function ratingHistory(
   return rows;
 }
 
-// Total number of ratings for the user.
+/**
+ * Counts the entries in the user's rating history (the total for {@link ratingHistory})
+ * @param uconst      - ID of the user
+ * @returns             the number of entries
+ */
 export async function countRatings(uconst: number): Promise<number> {
   const { rows } = await pool.query<{ total: number }>(
     'SELECT count(*)::int AS total FROM get_title_rating_history($1)',
@@ -70,7 +94,12 @@ export async function countRatings(uconst: number): Promise<number> {
   return rows[0].total;
 }
 
-// Returns one title rating of a user, or undefined if none exists.
+/**
+ * Gets the user's active rating of a title
+ * @param uconst      - ID of the user
+ * @param tconst      - ID of the title
+ * @returns             the rating or `undefined` when the user has no active ratings
+ */
 export async function getRating(uconst: number, tconst: string): Promise<UserRating | undefined> {
   const { rows } = await pool.query<UserRating>(
     `${SELECT} WHERE uconst = $1 AND tconst = $2 AND deleted_at IS NULL`,
@@ -78,8 +107,14 @@ export async function getRating(uconst: number, tconst: string): Promise<UserRat
   return rows[0];
 }
 
-// Locks the user's active rating of the title, if any, until COMMIT.
-// True when there was one.
+/**
+ * Locks the user's active rating of the title, if any, until transaction ends.
+ * 
+ * @param client        - the client holding the open transaction
+ * @param uconst        - ID of the user
+ * @param tconst        - ID of the title
+ * @returns               `true` when an active rating existed
+ */
 export async function lockActiveRatingOn(client: PoolClient, uconst: number, tconst: string): Promise<boolean> {
   const { rowCount } = await client.query(
     `SELECT 1 FROM user_title_ratings
@@ -89,22 +124,39 @@ export async function lockActiveRatingOn(client: PoolClient, uconst: number, tco
   return (rowCount ?? 0) > 0;
 }
 
-// Writes the rating with rate(), which also updates the title's average and the name ratings.
+/**
+ * Writes the rating with `rate()`, which also updates the title's average and the name ratings.
+ * @param client        - the client holding the open transaction
+ * @param uconst        - ID of the user
+ * @param tconst        - ID of the title
+ * @param rating          the rating (1-10)
+ */
 export async function rateOn(client: PoolClient, uconst: number, tconst: string, rating: number): Promise<void> {
   await client.query('SELECT rate($1, $2, $3)', [uconst, tconst, rating]);
 }
 
-// The stored rating row, read on the given client.
+/**
+ * Reads the stored rating row on the given client so it sees the transaciton's own writes. 
+ * Unlike {@link getRating} it also returns a deleted row
+ * @param client        - the client holding the open transaction
+ * @param uconst        - ID of the user
+ * @param tconst        - ID of the title
+ * @returns               the row or `undefined` when none exists
+ */
 export async function findOn(client: PoolClient, uconst: number, tconst: string): Promise<UserRating | undefined> {
   const { rows } = await client.query<UserRating>(
     `${SELECT} WHERE uconst = $1 AND tconst = $2`, [uconst, tconst]);
   return rows[0];
 }
 
-// Removes the user's active rating of a title with remove_rating(), which
-// soft-deletes it, takes the vote out of the title's average and updates
-// the name ratings, all in one call.
-// Returns false when the user has no active rating of the title.
+/**
+ * Removes the user's active rating of a title with remove_rating(), which
+ * soft-deletes it, takes the vote out of the title's average and updates
+ * the name ratings, all in one call.
+ * @param uconst        - ID of the user
+ * @param tconst        - ID of the title
+ * @returns             ` false` when the user has no active rating of the title
+ */
 export async function deleteRating(uconst: number, tconst: string): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT remove_rating($1, $2) AS deleted',
