@@ -1,14 +1,13 @@
 /**
- * User account operations: registration, profile update and password change
- * 
- * Enforces the rules that need the database (unique username and email, the current password check)
- * and hashes passwords before they are stored
- * 
- * The input types are imported by `validation.ts`
- * 
- * -  `register(input)`                 - creates a user
- * -  `updateProfile(uconst, changes)`  - changes first/last name or email
- * -  `changePassword(uconst, inout)`   - replaces the password after checking the current one
+ * User account operations: registration, profile update and password change.
+ *
+ * Enforces database-level uniqueness rules (username and email) and hashes
+ * passwords before they are stored. Input types are defined here and imported
+ * by `validation.ts`.
+ *
+ * - `register(input)`                — creates a new user account.
+ * - `updateProfile(uconst, changes)` — changes first/last name or email.
+ * - `changePassword(uconst, input)`  — replaces the password after checking the current one.
  */
 import * as users from "../data/users.js";
 import { pool } from "../db.js";

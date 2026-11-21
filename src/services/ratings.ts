@@ -1,7 +1,7 @@
 /**
- * Rating operations that span several queries and must run in one transaction
- * 
- * - `rateTitle(uconst, tconst, rating)`  - creates or cahgnes a user's rating of a title
+ * Rating operations that span several queries and must run in one transaction.
+ *
+ * - `rateTitle(uconst, tconst, rating)` — creates or changes a user's rating of a title.
  */
 import * as ratings from "../data/ratings.js";
 import { exists as titleExists } from "../data/titles.js";

@@ -1,21 +1,19 @@
 /**
- * Route handlers for the `/api/titles` collection.
+ * Route handlers for the `/api/titles` collection. Mounted behind `optionalAuth`:
+ * searches by a logged-in user are logged in their search history (first page only).
  *
- * `GET /` has four modes, chosen by the query parameters (one mode per request):
- * - `GET /?text=...` — paged substring search (text 1-100 characters, trimmed);
- *   results ordered by tconst. The search
- *   is logged in the user's history on the first page only (offset 0).
- *   Sorting and filtering parameters are rejected with 400 in this mode.
- * - `GET /?keywords=a,b&match=all|any|weighted` — paged keyword search (1-10 keywords,
- *   match defaults to weighted), ranked by the match mode. Logged and restricted like text.
- * - `GET /?title=...&plot=...&character=...&person=...` — paged structured search; each
- *   field at most 100 characters, at least one with text, empty fields ignored. Results
- *   ordered by tconst. Logged and restricted like text.
- * - `GET /` — paged list of all titles. Optional `sort` (title, year, rating, votes,
- *   runtime; default title), `order` (asc, desc; default asc), `genre` and `titleType`.
+ * `GET /` accepts one search mode per request, chosen by query parameters:
+ * - `?text=...` — paged substring search (1–100 chars); results ordered by tconst.
+ * - `?keywords=a,b&match=all|any|weighted` — paged keyword search (1–10 keywords;
+ *   `match` defaults to weighted), ranked by the match mode.
+ * - `?title=...&plot=...&character=...&person=...` — paged structured search; at least
+ *   one field must have text, empty fields are ignored, results ordered by tconst.
+ * - no search params — browse all titles with optional `sort` (title, year, rating,
+ *   votes, runtime; default title), `order` (asc, desc; default asc), `genre` and `titleType`.
  *
- * Also: `GET /{tconst}` (one title with genres, rating and credits), and the paged
- * `GET /{tconst}/actors` and `GET /{tconst}/similar`.
+ * - `GET /{tconst}`         — one title with genres, rating and credits.
+ * - `GET /{tconst}/actors`  — paged actors, highest name rating first.
+ * - `GET /{tconst}/similar` — paged movies sharing genres, most shared first.
  */
 import { Router } from 'express';
 import * as titles from '../data/titles.js';

@@ -2,7 +2,9 @@
  * Authentication service: validates credentials and issues JWTs.
  *
  * The same `401 Unauthorized` is thrown whether the username does not exist
- * or the password is wrong, so the message does not tell which one failed.
+ * or the password is wrong, so the caller cannot tell which one failed.
+ *
+ * - `login(input)` — verifies credentials and returns a signed JWT on success.
  */
 import { checkPassword, signToken } from '../auth/crypto.js';
 import { Unauthorized } from '../middleware/errors.js';

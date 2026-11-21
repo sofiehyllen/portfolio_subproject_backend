@@ -1,10 +1,11 @@
 /**
  * Bookmark operations that need more than one data-layer call.
- * 
- * Each checks that the title or person exists before bookmarking it, so an unknown id is reported as `404`.
- * 
- * - `bookmarkTitle(uconst, tconst)`    - bookmarks a title
- * - `bookmarkPerson(uconst, nconst)`   - bookmarks a person
+ *
+ * Each function checks that the title or person exists before creating the bookmark,
+ * so an unknown id is reported as `404 Not Found`.
+ *
+ * - `bookmarkTitle(uconst, tconst)`  — bookmarks a title for a user.
+ * - `bookmarkPerson(uconst, nconst)` — bookmarks a person for a user.
  */
 import { addPerson, addTitle } from "../data/bookmarks.js";
 import { exists as personExists } from "../data/persons.js";
