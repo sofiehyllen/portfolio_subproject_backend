@@ -20,7 +20,7 @@
  * - `searchStructured(logAs, search, limit, offset)` — paged search via `structured_string_search`
  *   across title, plot, character and person fields; empty fields are ignored. Same logging
  *   behaviour as `searchText`.
- * - `checkTitleExists(tconst)` — true when a title with this tconst exists.
+ * - `exists(tconst)` — true when a title with this tconst exists.
  *
  * Types: `Title` (row shape of `list`, extended by `TitleDetail` with genres and `Credit`s),
  * `TitleSummary` (tconst, primaryTitle, startYear; returned by `searchText`), `Actor`,
@@ -160,7 +160,7 @@ function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params
  * @param tconst      - ID of the title
  * @returns             `true` when a title with this `tconst` exists
  */
-export async function checkTitleExists(tconst: string): Promise<boolean> {
+export async function exists(tconst: string): Promise<boolean> {
   const { rowCount } = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
   return (rowCount ?? 0) > 0;
 }

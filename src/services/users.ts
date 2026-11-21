@@ -66,7 +66,7 @@ export async function register(input: NewUserInput): Promise<users.User> {
   // Two requests at the same moment can both pass the checks above; the second
   // insert then fails on the UNIQUE constraint and the client gets 500.
 
-  const uconst = await users.createUser({
+  const uconst = await users.create({
     firstName: input.firstName,
     lastName: input.lastName,
     username: input.username,
@@ -74,7 +74,7 @@ export async function register(input: NewUserInput): Promise<users.User> {
     passwordHash: await hashPassword(input.password) // the plain password is never stored
   });
 
-  const user = await users.getUser(uconst);
+  const user = await users.get(uconst);
   if (!user) throw new Error(`user ${uconst} missing right after create`);
   return user;
 }
@@ -109,7 +109,7 @@ export async function updateProfile(uconst: number, changes: UserUpdateInput): P
     client.release();
   }
 
-  const user = await users.getUser(uconst);
+  const user = await users.get(uconst);
   if (!user) throw new NotFound('User not found');
   return user;
 }
@@ -124,7 +124,7 @@ export async function updateProfile(uconst: number, changes: UserUpdateInput): P
  * @throws {Forbidden}  when `currentPassword` is wrong
  */
 export async function changePassword(uconst: number, input: PasswordUpdateInput): Promise<void> {
-  const user = await users.getUser(uconst);
+  const user = await users.get(uconst);
   if (!user) throw new NotFound('User not found');
 
   if (!(await checkPassword(input.currentPassword, user.passwordHash))) {

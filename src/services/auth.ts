@@ -22,7 +22,7 @@ export interface LoginInput {
  * @throws {Unauthorized} When the username does not exist or the password does not match.
  */
 export async function login(input: LoginInput): Promise<{ uconst: number; token: string }> {
-  const user = await users.getUserByUsername(input.username);
+  const user = await users.getByUsername(input.username);
   const ok = user !== undefined && (await checkPassword(input.password, user.passwordHash));
   if (!ok) throw new Unauthorized('Wrong username or password');
   return { uconst: user.uconst, token: signToken({ uconst: user.uconst }) };

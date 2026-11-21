@@ -5,10 +5,10 @@
  * - `UserSearchHistory` — one search history entry: sconst, search string and creation timestamp.
  *
  * Query functions:
- * - `getUserSearchHistory(uconst, limit, offset)` — paged search history for the user, newest first.
- * - `deleteUserSearchHistory(uconst)` — clears all search history for the user via clear_search_history();
+ * - `list(uconst, limit, offset)` — paged search history for the user, newest first.
+ * - `clear(uconst)` — clears all search history for the user via clear_search_history();
  *   returns false when the history was already empty.
- * - `deleteUserSearchHistoryEntry(uconst, sconst)` — removes one entry via clear_search_history_entry();
+ * - `remove(uconst, sconst)` — removes one entry via clear_search_history_entry();
  *   returns false when the entry was not found or does not belong to the user.
  */
 import { pool } from '../db.js';
@@ -35,7 +35,7 @@ export interface UserSearchHistory {
  * @param offset            - number of entries to skip
  * @returns                   the entries on this page and the total count
  */
-export async function getUserSearchHistory(uconst: number, limit: number, offset: number): Promise<{items: UserSearchHistory[], total: number}> {
+export async function list(uconst: number, limit: number, offset: number): Promise<{items: UserSearchHistory[], total: number}> {
     // The page and the count are independent, so they run in parallel.
     const [page, count] = await Promise.all([
         pool.query<UserSearchHistory>(`
@@ -61,7 +61,7 @@ export async function getUserSearchHistory(uconst: number, limit: number, offset
  * @param uconst        - ID of the user
  * @returns               `false` when the history was already empty
  */
-export async function deleteUserSearchHistory(uconst: number): Promise<boolean> {
+export async function clear(uconst: number): Promise<boolean> {
     const { rows } = await pool.query<{ deleted: boolean }>(
         'SELECT clear_search_history($1) AS deleted',
         [uconst]);
@@ -74,7 +74,7 @@ export async function deleteUserSearchHistory(uconst: number): Promise<boolean> 
  * @param sconst    - ID of the entry
  * @returns           `false` when the user has no such entry
  */
-export async function deleteUserSearchHistoryEntry(uconst: number, sconst: number): Promise<boolean> {
+export async function remove(uconst: number, sconst: number): Promise<boolean> {
     const { rows } = await pool.query<{ deleted: boolean }>(
         'SELECT clear_search_history_entry($1, $2) AS deleted',
         [uconst, sconst]);

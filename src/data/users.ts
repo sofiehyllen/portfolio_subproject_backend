@@ -7,16 +7,16 @@
  * - `UserChanges` — fields of a profile update; omitted fields keep their current value.
  *
  * Query functions:
- * - `createUser(user)` — inserts a new user via create_user(); returns the new uconst.
+ * - `create(user)` — inserts a new user via create_user(); returns the new uconst.
  *   A duplicate username or email propagates PostgreSQL error 23505 unchanged.
- * - `getUser(uconst)` — one user by id, or undefined when no such user exists.
- * - `getUserByUsername(username)` — one user by username, or undefined when no such user exists.
+ * - `get(uconst)` — one user by id, or undefined when no such user exists.
+ * - `getByUsername(username)` — one user by username, or undefined when no such user exists.
  * - `usernameTaken(username)` — true when a user already has this username.
  * - `emailTaken(email, exceptUconst?)` — true when a user other than exceptUconst already has
  *   this email; pass exceptUconst on update so a user may keep their own email.
  * - `lockOn(client, uconst)` — locks the user's row for update; true when the user exists.
  * - `updateOn(client, uconst, changes)` — updates profile fields via update_user(); username is never changed.
- * - `deleteUser(uconst)` — deletes the user via delete_user(), which also removes their ratings
+ * - `remove(uconst)` — deletes the user via delete_user(), which also removes their ratings
  *   from title averages; bookmarks and search history are removed via ON DELETE CASCADE.
  *   Returns false when no such user exists.
  * - `updatePassword(uconst, newHash)` — replaces the stored password hash via update_user_password().
@@ -68,7 +68,7 @@ export interface UserChanges {
  * @param user    - the new user's fields with the password already hashed
  * @returns         the new user's `uconst`
  */
-export async function createUser(user: NewUser): Promise<number> {
+export async function create(user: NewUser): Promise<number> {
   const { rows } = await pool.query<{ uconst: number }>(
     'SELECT create_user($1, $2, $3, $4, $5) AS uconst',
     [user.firstName, user.lastName, user.username, user.email, user.passwordHash]
@@ -76,7 +76,7 @@ export async function createUser(user: NewUser): Promise<number> {
   return rows[0].uconst;
 }
 
-/** The columns of a {@link User}, shared by `getUser`and `getUserByUsername`*/
+/** The columns of a {@link User}, shared by `get` and `getByUsername`. */
 const USER_COLUMNS = `
   uconst,
   first_name    AS "firstName",
@@ -92,7 +92,7 @@ const USER_COLUMNS = `
  * @param uconst        - ID of the user
  * @returns               the user or `undefined` when no such user exists
  */
-export async function getUser(uconst: number): Promise<User | undefined> {
+export async function get(uconst: number): Promise<User | undefined> {
   const { rows } = await pool.query<User>(
     `SELECT ${USER_COLUMNS} FROM get_user_by_id($1)`,
     [uconst]
@@ -105,7 +105,7 @@ export async function getUser(uconst: number): Promise<User | undefined> {
  * @param username      - the username (in lower case)
  * @returns               the user or `undefined` when no such user exists
  */
-export async function getUserByUsername(username: string): Promise<User | undefined> {
+export async function getByUsername(username: string): Promise<User | undefined> {
   const { rows } = await pool.query<User>(
     `SELECT ${USER_COLUMNS} FROM get_user_by_username($1)`,
     [username]
@@ -167,7 +167,7 @@ export async function updateOn(client: PoolClient, uconst: number, changes: User
  * @param uconst      - ID of the user
  * @returns             `false` when no such user exists
  */
-export async function deleteUser(uconst: number): Promise<boolean> {
+export async function remove(uconst: number): Promise<boolean> {
   const { rows } = await pool.query<{ deleted: boolean }>(
     'SELECT delete_user($1) AS deleted',
     [uconst]

@@ -13,16 +13,16 @@
  * - `PERSON_SORT_FIELDS` / `PersonSortField` — the allowed sort fields: name, rating.
  *
  * Query functions:
- * - `getPersons(logAs, browse, limit, offset)` — paged slice of persons matching the filter,
+ * - `list(logAs, browse, limit, offset)` — paged slice of persons matching the filter,
  *   sorted by the chosen field and direction, plus the total number of matches. A name
  *   search is logged by name_search/actor_search under `logAs`, or not at all if null.
- * - `getPersonDetail(nconst)` — one person with roles and known-for titles,
+ * - `get(nconst)` — one person with roles and known-for titles,
  *   or undefined when no such person exists.
- * - `checkPersonExists(nconst)` — true when a person with this nconst exists.
- * - `getPersonTitles(nconst, limit, offset)` — paged title credits for the person, newest first.
- * - `getCoPlayers(nconst, limit, offset)` — paged co-players ranked by frequency, plus the total;
+ * - `exists(nconst)` — true when a person with this nconst exists.
+ * - `listTitles(nconst, limit, offset)` — paged title credits for the person, newest first.
+ * - `listCoPlayers(nconst, limit, offset)` — paged co-players ranked by frequency, plus the total;
  *   undefined when no such person exists.
- * - `getPersonWords(nconst, limit, offset)` — paged word associations ranked by frequency, plus
+ * - `listWords(nconst, limit, offset)` — paged word associations ranked by frequency, plus
  *   the total; undefined when no such person exists.
  */
 import { pool } from '../db.js';
@@ -134,7 +134,7 @@ const PERSON_SORT_COLUMN: Record<PersonSortField, string> = {
 // GET /api/persons: the filter and the chosen sort.
 export interface PersonBrowse extends PersonFilter, Sort<PersonSortField> {}
 
-/** The columns of a {@link Person}, shared by `getPersons` and `getPersonDetail`. */
+/** The columns of a {@link Person}, shared by `list` and `get`. */
 const PERSON_COLUMNS = `
   p.nconst,
   p.primary_name            AS "primaryName",
@@ -183,7 +183,7 @@ function personSource(filter: PersonFilter, logAs: number | null): { from: strin
  * @param offset - Number of persons to skip.
  * @returns The persons on this page and the total count.
  */
-export async function getPersons(logAs: number | null, browse: PersonBrowse, limit: number, offset: number): 
+export async function list(logAs: number | null, browse: PersonBrowse, limit: number, offset: number):
 Promise<{ items: Person[]; total: number }> {
   const pageSource  = personSource(browse, logAs);
   const countSource = personSource(browse, null);
@@ -212,7 +212,7 @@ Promise<{ items: Person[]; total: number }> {
  * @param nconst        - ID of the person
  * @returns               the person or `undefined` when no such person exists
  */
-export async function getPersonDetail(nconst: string): Promise<PersonDetail | undefined> {
+export async function get(nconst: string): Promise<PersonDetail | undefined> {
   const { rows } = await pool.query<PersonDetail>(
     `SELECT ${PERSON_COLUMNS},
       ARRAY(SELECT DISTINCT tp.category
@@ -240,7 +240,7 @@ export async function getPersonDetail(nconst: string): Promise<PersonDetail | un
  * @param nconst          - ID of the person
  * @returns                 `true` whne a person with this `nconst` exists
  */
-export async function checkPersonExists(nconst: string): Promise<boolean> {
+export async function exists(nconst: string): Promise<boolean> {
   const { rowCount } = await pool.query(`SELECT 1 FROM persons WHERE nconst = $1`,[nconst]);
     return (rowCount ?? 0) > 0;
 }
@@ -266,7 +266,7 @@ async function nameOf(nconst: string): Promise<string | undefined> {
  * @param offset          - number of credits to skip
  * @returns                 the credits on this page and total count
  */
-export async function getPersonTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
+export async function listTitles(nconst: string, limit: number, offset: number): Promise<{ items: PersonTitle[]; total: number}> {
   // The page and the count are independent, so they run in parallel.
   const [page, count] = await Promise.all([
     pool.query<PersonTitle>(`
@@ -302,7 +302,7 @@ export async function getPersonTitles(nconst: string, limit: number, offset: num
  * @param offset      - number of co-players to skip
  * @returns             the co-playes on this page and the total or `undefined` when no such person exists
  */
-export async function getCoPlayers(nconst: string, limit: number, offset: number): Promise<{ items: CoPlayer[], total: number} | undefined> {
+export async function listCoPlayers(nconst: string, limit: number, offset: number): Promise<{ items: CoPlayer[], total: number} | undefined> {
   const name = await nameOf(nconst); // the queries below need the name, so this runs first
   if (name === undefined) return undefined;
 
@@ -335,7 +335,7 @@ const PERSON_WORDS_LEN = 10;
  * @param offset      - number of words to skip
  * @returns           the words on this page and the total or `undefined` when no such person exists
  */
-export async function getPersonWords(nconst: string, limit: number, offset: number): Promise<{ items: PersonWord[]; total: number} | undefined> {
+export async function listWords(nconst: string, limit: number, offset: number): Promise<{ items: PersonWord[]; total: number} | undefined> {
   const name = await nameOf(nconst); // the queries below need the name, so this runs first
   if (name === undefined) return undefined;
 
