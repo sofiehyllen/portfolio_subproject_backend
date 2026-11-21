@@ -5,7 +5,7 @@
  * - `RelatedWord` — a word associated with a set of titles, with a count of how many contain it.
  *
  * Query functions:
- * - `relatedWords(words)` — the words most associated with the titles that contain all the given
+ * - `related(words)` — the words most associated with the titles that contain all the given
  *   words, most frequent first. Returns at most 10 words via word_to_word_querying().
  */
 import { pool } from '../db.js';
@@ -26,7 +26,7 @@ export interface RelatedWord {
  * @param words     - the words to match 
  * @returns           the related words, sorted by frequency, then alphabetically
  */
-export async function relatedWords(words: string[]): Promise<RelatedWord[]> {
+export async function related(words: string[]): Promise<RelatedWord[]> {
   const { rows } = await pool.query<RelatedWord>(
     `SELECT t_word        AS word,
             t_count::int  AS count

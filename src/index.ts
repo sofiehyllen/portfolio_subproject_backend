@@ -1,5 +1,5 @@
 /**
- * Entry point: starts with the HTTP server for the app built in `app.ts`
+ * Entry point: starts the HTTP server for the app built in `app.ts`.
  */
 import { app } from './app.js';
 

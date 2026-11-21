@@ -21,6 +21,7 @@ import { pageOf, paged } from './pagination.js';
 import { rateTitle } from "../services/ratings.js";
 import { changePassword, register, updateProfile } from "../services/users.js";
 import { bookmarkPerson, bookmarkTitle } from "../services/bookmarks.js";
+import { clearTokenCookie } from "../middleware/auth.js";
 
 /** Public router: only `POST /api/users` (registration). */
 export const registrationRouter = Router();
@@ -43,7 +44,7 @@ router.param('uconst', async (_req, res, next, value: string) => {
 
     if (res.locals.auth?.uconst !== uconst) throw new Forbidden('Not your account');
 
-    const user = await users.getUser(uconst);
+    const user = await users.get(uconst);
     if (!user) {
       return next(new NotFound('User not found'));
     }
@@ -195,9 +196,9 @@ router.put('/:uconst/password', async (req, res, next) => {
 router.delete('/:uconst', async (_req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const deleted = await users.deleteUser(uconst);
+    const deleted = await users.remove(uconst);
     if (!deleted) throw new NotFound('User not found');
-
+    clearTokenCookie(res)
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -221,8 +222,8 @@ router.get('/:uconst/ratings', async (req, res, next) => {
     const page = pageOf(req.query as Record<string, unknown>);
 
     const [items, total] = await Promise.all([
-      ratings.ratingHistory(uconst, page.limit, page.offset),
-      ratings.countRatings(uconst),
+      ratings.list(uconst, page.limit, page.offset),
+      ratings.count(uconst),
     ]);
 
     res.json(paged(req, page, total, items.map((item) => toRatingHistoryDto(uconst, item))));
@@ -244,7 +245,7 @@ router.get('/:uconst/ratings', async (req, res, next) => {
 router.get('/:uconst/ratings/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    const rating = await ratings.getRating(uconst, res.locals.tconst);
+    const rating = await ratings.get(uconst, res.locals.tconst);
     if (!rating) throw new NotFound('Rating not found');
 
     res.json(toUserRatingDto(rating));
@@ -295,7 +296,7 @@ router.delete('/:uconst/ratings/:tconst', async (req, res, next) => {
     const uconst: number = res.locals.uconst;
     const tconst = res.locals.tconst;
 
-    const deleted = await ratings.deleteRating(uconst, tconst);   // true if a rating was removed
+    const deleted = await ratings.remove(uconst, tconst);   // true if a rating was removed
     if (!deleted) throw new NotFound('Rating not found');
 
     res.status(204).end();
@@ -321,8 +322,8 @@ router.get('/:uconst/bookmarks/titles', async (req, res, next) => {
     const uconst: number = res.locals.uconst;
 
     const [items, total] = await Promise.all([
-      bookmark.getTitleBookmarks(uconst, page.limit, page.offset),
-      bookmark.countTitleBookmarks(uconst),
+      bookmark.listTitles(uconst, page.limit, page.offset),
+      bookmark.countTitles(uconst),
     ]);
 
     res.json(paged(req, page, total, items.map((item) => toUserBookmarkTitleDto(uconst, item))));
@@ -368,7 +369,7 @@ router.delete('/:uconst/bookmarks/titles/:tconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const tconst = res.locals.tconst;
-    const deleted = await bookmark.removeTitleBookmark(uconst, tconst);
+    const deleted = await bookmark.removeTitle(uconst, tconst);
     if (!deleted) {
       throw new NotFound('Bookmarked title not found');
     }
@@ -395,8 +396,8 @@ router.get('/:uconst/bookmarks/persons', async (req, res, next) => {
     const uconst: number = res.locals.uconst;
 
     const [items, total] = await Promise.all([
-      bookmark.getPersonBookmarks(uconst, page.limit, page.offset),
-      bookmark.countPersonBookmarks(uconst),
+      bookmark.listPersons(uconst, page.limit, page.offset),
+      bookmark.countPersons(uconst),
     ]);
 
     res.json(paged(req, page, total, items.map((item) => toUserBookmarkPersonDto(uconst, item))));
@@ -442,7 +443,7 @@ router.delete('/:uconst/bookmarks/persons/:nconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const nconst = res.locals.nconst;
-    const deleted = await bookmark.removePersonBookmark(uconst, nconst);
+    const deleted = await bookmark.removePerson(uconst, nconst);
     if (!deleted) {
       throw new NotFound('Bookmarked person not found');
     }
@@ -469,7 +470,7 @@ router.get('/:uconst/search-history', async (req, res, next) => {
     const uconst: number = res.locals.uconst;
 
     const page = pageOf(req.query);
-    const {items, total} = await search_history.getUserSearchHistory(uconst, page.limit, page.offset);
+    const {items, total} = await search_history.list(uconst, page.limit, page.offset);
 
     res.json(paged(req, page, total, toUserSearchHistoryDto(items, uconst)));
 
@@ -492,7 +493,7 @@ router.delete('/:uconst/search-history/:sconst', async (req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
     const sconst: number = res.locals.sconst;
-    const deleted = await search_history.deleteUserSearchHistoryEntry(uconst, sconst);
+    const deleted = await search_history.remove(uconst, sconst);
     if (!deleted) throw new NotFound('Search history entry was not found');
 
     res.status(204).end();
@@ -513,7 +514,7 @@ router.delete('/:uconst/search-history/:sconst', async (req, res, next) => {
 router.delete('/:uconst/search-history', async (_req, res, next) => {
   try {
     const uconst: number = res.locals.uconst;
-    await search_history.deleteUserSearchHistory(uconst);
+    await search_history.clear(uconst);
     res.status(204).end();
   } catch (error) {
     next(error);

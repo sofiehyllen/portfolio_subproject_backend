@@ -53,7 +53,7 @@ router.get('/', async (req, res, next) => {
     const page = pageOf(req.query);
 
     const logAs = searchLogUser(page, res.locals.auth?.uconst);
-    const { items, total } = await persons.getPersons(logAs, browse, page.limit, page.offset);
+    const { items, total } = await persons.list(logAs, browse, page.limit, page.offset);
 
     res.json(paged(req, page, total, items.map(toPersonDto)));
   } catch (error) {
@@ -75,7 +75,7 @@ router.get('/', async (req, res, next) => {
 router.get('/:nconst', async (_req, res, next) => {
     try {
         const nconst: string = res.locals.nconst;
-        const foundPerson: persons.PersonDetail | undefined = await persons.getPersonDetail(nconst);
+        const foundPerson: persons.PersonDetail | undefined = await persons.get(nconst);
 
         if (foundPerson === undefined) throw new error.NotFound('Person not found');
 
@@ -99,13 +99,13 @@ router.get('/:nconst', async (_req, res, next) => {
 router.get('/:nconst/titles', async (req, res, next) => {
     try {
         const nconst: string = res.locals.nconst;
-        const person = await persons.checkPersonExists(nconst);
+        const person = await persons.exists(nconst);
         if (!person) {
             throw new error.NotFound('Person not found');
         }
 
         const page = pageOf(req.query);
-        const {items, total} =  await persons.getPersonTitles(nconst, page.limit, page.offset);
+        const {items, total} =  await persons.listTitles(nconst, page.limit, page.offset);
 
         res.json(paged(req, page, total, items.map(toPersonTitleDto)));
     } catch (error) {
@@ -127,7 +127,7 @@ router.get('/:nconst/titles', async (req, res, next) => {
 router.get('/:nconst/co-players', async (req, res, next) => {
     try {
         const page = pageOf(req.query);
-        const result = await persons.getCoPlayers(res.locals.nconst, page.limit, page.offset);
+        const result = await persons.listCoPlayers(res.locals.nconst, page.limit, page.offset);
         if (!result) throw new error.NotFound('Person not found');
 
         res.json(paged(req, page, result.total, result.items.map(toCoPlayerDto)));
@@ -150,7 +150,7 @@ router.get('/:nconst/co-players', async (req, res, next) => {
 router.get('/:nconst/words', async (req, res, next) => {
     try {
         const page = pageOf(req.query);
-        const result = await persons.getPersonWords(res.locals.nconst, page.limit, page.offset);
+        const result = await persons.listWords(res.locals.nconst, page.limit, page.offset);
         if (!result) throw new error.NotFound('Person not found');
 
         res.json(paged(req, page, result.total, result.items.map(toPersonWordDto)));

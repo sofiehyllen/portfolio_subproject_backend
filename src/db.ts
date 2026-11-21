@@ -1,7 +1,6 @@
 /**
- * The PostgreSQL connection pool, created once and shared by every data-access module
- * Connection settings come from the `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`
- * environment variables
+ * The PostgreSQL connection pool, shared by every data-access module.
+ * Configuration comes from `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and `PGPASSWORD`.
  */
 import { Pool } from 'pg';
 

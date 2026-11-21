@@ -112,7 +112,7 @@ describe('framework data, in a transaction that is rolled back', () => {
 
   describe('ratings', { timeout: 30_000 }, () => {
     it('stores a first rating and adds one vote to the title', async () => {
-      expect(await ratings.lockActiveRatingOn(client, uconst, TCONST)).toBe(false);
+      expect(await ratings.lockOn(client, uconst, TCONST)).toBe(false);
 
       await ratings.rateOn(client, uconst, TCONST, 10);
 
@@ -132,7 +132,7 @@ describe('framework data, in a transaction that is rolled back', () => {
       await ratings.rateOn(client, uconst, TCONST, 10);
       await ratings.rateOn(client, uconst, TCONST, 2);
 
-      expect(await ratings.lockActiveRatingOn(client, uconst, TCONST)).toBe(true);
+      expect(await ratings.lockOn(client, uconst, TCONST)).toBe(true);
       expect(await ratings.findOn(client, uconst, TCONST)).toMatchObject({ rating: 2 });
       expect(await votes()).toBe(votesAtStart + 1);
     });

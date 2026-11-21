@@ -1,14 +1,15 @@
 /**
  * Bookmark operations that need more than one data-layer call.
- * 
- * Each checks that the title or person exists before bookmarking it, so an unknown id is reported as `404`.
- * 
- * - `bookmarkTitle(uconst, tconst)`    - bookmarks a title
- * - `bookmarkPerson(uconst, nconst)`   - bookmarks a person
+ *
+ * Each function checks that the title or person exists before creating the bookmark,
+ * so an unknown id is reported as `404 Not Found`.
+ *
+ * - `bookmarkTitle(uconst, tconst)`  — bookmarks a title for a user.
+ * - `bookmarkPerson(uconst, nconst)` — bookmarks a person for a user.
  */
-import { addPersonBookmark, addTitleBookmark } from "../data/bookmarks.js";
-import { checkPersonExists } from "../data/persons.js";
-import { checkTitleExists } from "../data/titles.js";
+import { addPerson, addTitle } from "../data/bookmarks.js";
+import { exists as personExists } from "../data/persons.js";
+import { exists as titleExists } from "../data/titles.js";
 import { NotFound } from "../middleware/errors.js";
 
 /**
@@ -18,11 +19,11 @@ import { NotFound } from "../middleware/errors.js";
  * @throws {NotFound} When no title with this `tconst` exists
  */
 export async function bookmarkTitle(uconst: number, tconst: string): Promise<void> {
-  if (!(await checkTitleExists(tconst))) { 
+  if (!(await titleExists(tconst))) {
     throw new NotFound('Title not found');
   }
 
-  await addTitleBookmark(uconst, tconst);
+  await addTitle(uconst, tconst);
 }
 
 /**
@@ -32,8 +33,8 @@ export async function bookmarkTitle(uconst: number, tconst: string): Promise<voi
  * @throws {NotFound} When no person with this `nconst` exists
  */
 export async function bookmarkPerson(uconst: number, nconst: string): Promise<void> {
-  if (!(await checkPersonExists(nconst))) {
+  if (!(await personExists(nconst))) {
     throw new NotFound('Person not found');
   }
-  await addPersonBookmark(uconst, nconst);
+  await addPerson(uconst, nconst);
 }

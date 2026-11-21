@@ -28,7 +28,7 @@ router.get('/', async (req, res, next) => {
     const page = pageOf(query);
 
     // The database function always gives its whole list, so the page is cut out here.
-    const items = await words.relatedWords(given);
+    const items = await words.related(given);
     res.json(paged(req, page, items.length, items.slice(page.offset, page.offset + page.limit)));
   } catch (err) {
     next(err);

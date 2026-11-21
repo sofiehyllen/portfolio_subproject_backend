@@ -5,8 +5,15 @@
  * Stored format: `scrypt$<salt>$<hash>`, both base64-encoded. The salt is
  * random per password, so two users with the same password get different hashes.
  *
- * JWTs are HS256-signed with JWT_SECRET and expire after 12 hours. The only
- * claim is `uconst` (the user's id).
+ * JWTs are HS256-signed with `JWT_SECRET` and expire after {@link TOKEN_TTL_SECONDS}.
+ * The only claim is `uconst` (the user's id).
+ *
+ * - `Claims`             — the JWT payload interface: `{ uconst: number }`.
+ * - `TOKEN_TTL_SECONDS`  — token lifetime in seconds (12 h); also used as cookie maxAge.
+ * - `hashPassword(p)`    — hashes a plaintext password.
+ * - `checkPassword(p,h)` — verifies a password against a stored hash.
+ * - `signToken(claims)`  — signs a new JWT.
+ * - `verifyToken(token)` — verifies and decodes a JWT; throws on failure.
  */
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';

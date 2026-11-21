@@ -8,6 +8,31 @@
  * - `validatePassword` returns its errors instead of throwing.
  * - `validateTconst`, `validateNconst` and `validateSerial` return `undefined`
  *   for an invalid value.
+ *
+ * Users:
+ * - `validateNewUser(body)`        — validates `POST /api/users` body.
+ * - `validateLogin(body)`          — validates `POST /api/auth` body.
+ * - `validateUserUpdate(body)`     — validates `PATCH /api/users/:uconst` body.
+ * - `validatePassword(password)`   — validates a password; returns error strings.
+ * - `validatePasswordUpdate(body)` — validates `PUT /api/users/:uconst/password` body.
+ * - `validateRating(body)`         — validates a numeric rating (1–10).
+ *
+ * Titles:
+ * - `rejectUnknownTitleParams(query)` — throws 400 for unrecognised query params.
+ * - `validateTitleBrowse(query)`      — validates browse/filter/sort params.
+ * - `validateTitleSearch(query)`      — validates `?text=` search.
+ * - `isStructuredSearch(query)`       — checks whether the query is a structured search.
+ * - `validateStructuredSearch(query)` — validates structured search fields.
+ * - `validateWords(value)`            — validates a keyword list (also used by structured search).
+ * - `validateKeywordSearch(query)`    — validates `?keywords=` search.
+ *
+ * Persons:
+ * - `validatePersonBrowse(query)` — validates person browse/filter/sort params.
+ *
+ * Identifiers:
+ * - `validateTconst(tconst)` — returns a valid tconst or `undefined`.
+ * - `validateNconst(nconst)` — returns a valid nconst or `undefined`.
+ * - `validateSerial(value)`  — returns a valid integer id or `undefined`.
  */
 import { BadRequest } from './middleware/errors.js';
 import { KEYWORD_MATCHES, KeywordMatch, StructuredSearch, TITLE_SORT_FIELDS, TitleBrowse } from './data/titles.js';

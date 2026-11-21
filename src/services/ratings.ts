@@ -1,10 +1,10 @@
 /**
- * Rating operations that span several queries and must run in one transaction
- * 
- * - `rateTitle(uconst, tconst, rating)`  - creates or cahgnes a user's rating of a title
+ * Rating operations that span several queries and must run in one transaction.
+ *
+ * - `rateTitle(uconst, tconst, rating)` — creates or changes a user's rating of a title.
  */
 import * as ratings from "../data/ratings.js";
-import { checkTitleExists } from "../data/titles.js";
+import { exists as titleExists } from "../data/titles.js";
 import { pool } from "../db.js";
 import { NotFound } from "../middleware/errors.js";
 
@@ -32,7 +32,7 @@ export interface RateResult {
  * @throws {NotFound} When no title with this `tconst` exists
  */
 export async function rateTitle(uconst: number, tconst: string, rating: number): Promise<RateResult> {
-  if (!(await checkTitleExists(tconst))) {
+  if (!(await titleExists(tconst))) {
     throw new NotFound('Title not found');
   
   }
@@ -40,7 +40,7 @@ export async function rateTitle(uconst: number, tconst: string, rating: number):
   try {
     await client.query('BEGIN');
 
-    const hadActive = await ratings.lockActiveRatingOn(client, uconst, tconst);
+    const hadActive = await ratings.lockOn(client, uconst, tconst);
     await ratings.rateOn(client, uconst, tconst, rating);
 
     const stored = await ratings.findOn(client, uconst, tconst);
