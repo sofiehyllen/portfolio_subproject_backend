@@ -583,6 +583,48 @@ describe('GET /api/titles/{tconst}/similar', () => {
 
 });
 
+describe('IMDb data is read-only (/api/titles and /api/persons)', () => {
+  it('POST /api/titles returns 404', async () => {
+    const res = await request(app).post('/api/titles').send({});
+    expect(res.status).toBe(404);
+  });
+
+  it('DELETE /api/titles/{tconst} returns 404', async () => {
+    const res = await request(app).delete('/api/titles/tt0063929');
+    expect(res.status).toBe(404);
+  });
+
+  it('PUT /api/titles/{tconst} returns 404', async () => {
+    const res = await request(app).put('/api/titles/tt0063929').send({});
+    expect(res.status).toBe(404);
+  });
+
+  it('PATCH /api/titles/{tconst} returns 404', async () => {
+    const res = await request(app).patch('/api/titles/tt0063929').send({});
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /api/persons returns 404', async () => {
+    const res = await request(app).post('/api/persons').send({});
+    expect(res.status).toBe(404);
+  });
+
+  it('DELETE /api/persons/{nconst} returns 404', async () => {
+    const res = await request(app).delete('/api/persons/nm0000949');
+    expect(res.status).toBe(404);
+  });
+
+  it('PUT /api/persons/{nconst} returns 404', async () => {
+    const res = await request(app).put('/api/persons/nm0000949').send({});
+    expect(res.status).toBe(404);
+  });
+
+  it('PATCH /api/persons/{nconst} returns 404', async () => {
+    const res = await request(app).patch('/api/persons/nm0000949').send({});
+    expect(res.status).toBe(404);
+  });
+});
+
 // ═════════════════════════════════════════════════════════════════════════════
 // USERS.TS
 // ═════════════════════════════════════════════════════════════════════════════
