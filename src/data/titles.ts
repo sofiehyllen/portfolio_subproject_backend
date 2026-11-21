@@ -1,10 +1,22 @@
 /**
  * Data-access layer for the `titles` table.
  *
+ * Types:
+ * - `Title` — a title row as listed.
+ * - `TitleSummary` — compact title (tconst, primaryTitle, startYear); returned by search functions.
+ * - `Credit` — one credit of a title: person id, name, category, job and characters.
+ * - `TitleDetail` — extends `Title` with `genres` and `credits`.
+ * - `Actor` — an actor with name and name rating.
+ * - `SimilarMovie` — a movie sharing genres, with a similarity score and the common genre names.
+ * - `StructuredSearch` — the four fields of a structured search: title, plot, character, person.
+ * - `TitleFilter` — optional genre and titleType for `list` and `count`.
+ * - `TitleBrowse` — extends `TitleFilter` with sort field and direction.
+ * - `TITLE_SORT_FIELDS` / `TitleSortField` — the allowed sort fields: title, year, rating, votes, runtime.
+ *
  * Query functions:
- * - `list(browse, limit, offset)` — paged slice of titles, filtered by genre and title type
- *   and sorted by the chosen field (`TITLE_SORT_FIELDS`: title, year, rating, votes or runtime)
- *   and direction; titles without a value for the sort field come last.
+ * - `exists(tconst)` — true when a title with this tconst exists.
+ * - `list(browse, limit, offset)` — paged slice of titles, filtered and sorted as asked;
+ *   titles without a value for the sort field come last.
  * - `count(filter)` — number of titles matching the filter, used for the total of `list`.
  * - `get(tconst)` — one title with genres, rating and credits, or undefined if not found.
  * - `actors(tconst, limit, offset)` — paged actors of the title, highest name rating first;
@@ -20,14 +32,12 @@
  * - `searchStructured(logAs, search, limit, offset)` — paged search via `structured_string_search`
  *   across title, plot, character and person fields; empty fields are ignored. Same logging
  *   behaviour as `searchText`.
- * - `exists(tconst)` — true when a title with this tconst exists.
- *
- * Types: `Title` (row shape of `list`, extended by `TitleDetail` with genres and `Credit`s),
- * `TitleSummary` (tconst, primaryTitle, startYear; returned by `searchText`), `Actor`,
- * `SimilarMovie`, `StructuredSearch`, and `TitleFilter` / `TitleBrowse` / `TitleSortField` for `list`.
  */
 import { pool } from '../db.js';
 import { orderBy, Sort } from './sorting.js';
+
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 /**
  * A title as listed.
@@ -56,14 +66,14 @@ export interface Title {
   awards:           string | null;
   posterUrl:        string | null;
   plot:             string | null;
-  rating:           { average: number; votes: number } | null; // null when the title has no votes
+  rating:           { average: number; votes: number } | null;
 }
 
 /**
  * The fields shown for a title in a search result.
- * @property tconst         - ID of the title
- * @property primaryTitle   - the title's main name
- * @property startYear      - realese year or `null`
+ * @property tconst         - ID of the title.
+ * @property primaryTitle   - the title's main name.
+ * @property startYear      - release year or `null`.
  */
 export interface TitleSummary {
   tconst:         string;
@@ -71,11 +81,64 @@ export interface TitleSummary {
   startYear:      number | null;
 }
 
-/** The fields of a structured search.
- * @property title      - text to match in the title
- * @property plot       - text to match in the plot
- * @property character  - text to match character names
- * @property person     - text to match in credited person names
+/**
+ * One credit of a title.
+ * @property nconst     - Id of the credited person.
+ * @property name       - The person's name.
+ * @property category   - Credit category, e.g. `actor` or `director`.
+ * @property job        - Job description, or `null`.
+ * @property characters - Characters played, alphabetical; empty when none.
+ */
+export interface Credit {
+  nconst:     string;
+  name:       string;
+  category:   string;
+  job:        string | null;
+  characters: string[];
+}
+
+/**
+ * One title in full: the list fields plus genres and credits.
+ * @property genres  - Genre names, alphabetical.
+ * @property credits - Credits in IMDb's billing order.
+ */
+export interface TitleDetail extends Title {
+  genres:  string[];
+  credits: Credit[];
+}
+
+/**
+ * An actor of a title.
+ * @property nconst     - Id of the actor.
+ * @property name       - The actor's name.
+ * @property nameRating - The actor's name rating, or `null`.
+ */
+export interface Actor {
+  nconst:       string;
+  name:         string;
+  nameRating:   number | null;
+}
+
+/**
+ * A movie that shares genres with another title.
+ * @property tconst          - Id of the movie.
+ * @property primaryTitle    - Name of the movie.
+ * @property similarityScore - Score from `similar_movies()`; higher means more shared genres.
+ * @property commonGenres    - The shared genre names.
+ */
+export interface SimilarMovie {
+  tconst:           string;
+  primaryTitle:     string;
+  similarityScore:  number;
+  commonGenres:     string[];
+}
+
+/**
+ * The fields of a structured search.
+ * @property title      - text to match in the title.
+ * @property plot       - text to match in the plot.
+ * @property character  - text to match character names.
+ * @property person     - text to match in credited person names.
  */
 export interface StructuredSearch {
   title:        string;
@@ -83,6 +146,39 @@ export interface StructuredSearch {
   character:    string;
   person:       string;
 }
+
+
+// ── Browse / filter ──────────────────────────────────────────────────────────
+
+/**
+ * Filter for browsing titles. Both fields match case-insensitively.
+ * @property genre     - Only titles with this genre.
+ * @property titleType - Only titles of this type.
+ */
+export interface TitleFilter {
+  genre?:     string;
+  titleType?: string;
+}
+
+/** The fields `GET /api/titles` can be sorted by. Also used at runtime for validation. */
+export const TITLE_SORT_FIELDS = ['title', 'year', 'rating', 'votes', 'runtime'] as const;
+/** A title sort field: `'title'`, `'year'`, `'rating'`, `'votes'` or `'runtime'`. */
+export type TitleSortField = typeof TITLE_SORT_FIELDS[number];
+
+/** The column behind each sort field. Only these strings ever reach ORDER BY. */
+const TITLE_SORT_COLUMN: Record<TitleSortField, string> = {
+  title:   't.primary_title',
+  year:    't.start_year',
+  rating:  'r.average_rating',
+  votes:   'r.num_votes',
+  runtime: 't.runtime_minutes',
+};
+
+/** Query of `GET /api/titles` without a search: the filter plus the chosen sort. */
+export interface TitleBrowse extends TitleFilter, Sort<TitleSortField> {}
+
+
+// ── Shared SQL ───────────────────────────────────────────────────────────────
 
 /** Shared SELECT for {@link Title} rows. Titles are aliased `t` and ratings `r`, so callers can filter and sort on either. */
 const SELECT = `
@@ -103,34 +199,6 @@ const SELECT = `
           END AS rating
   FROM titles t
   LEFT JOIN ratings r ON r.tconst = t.tconst`;
-
-
-/** The fields `GET /api/titles` can be sorted by. Also used at runtime for validation. */
-export const TITLE_SORT_FIELDS = ['title', 'year', 'rating', 'votes', 'runtime'] as const;
-/** A title sort field: `'title'`, `'year'`, `'rating'`, `'votes'` or `'runtime'`. */
-export type TitleSortField = typeof TITLE_SORT_FIELDS[number];
-
-// The column behind each sort field. Only these strings ever reach ORDER BY.
-const TITLE_SORT_COLUMN: Record<TitleSortField, string> = {
-  title: 't.primary_title',
-  year: 't.start_year',
-  rating: 'r.average_rating',
-  votes: 'r.num_votes',
-  runtime: 't.runtime_minutes',
-};
-
-/**
- * Filter for browsing titles. Both fields match case-insensitively.
- * @property genre     - Only titles with this genre.
- * @property titleType - Only titles of this type.
- */
-export interface TitleFilter {
-  genre?: string;
-  titleType?: string;
-}
-
-/** Query of `GET /api/titles` without a search: the filter plus the chosen sort. */
-export interface TitleBrowse extends TitleFilter, Sort<TitleSortField> {}
 
 /**
  * Builds the WHERE clause for a filter, numbering its parameters after the ones already used.
@@ -155,10 +223,13 @@ function whereOf(filter: TitleFilter, firstParam: number): { sql: string; params
   return { sql: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '', params };
 }
 
+
+// ── Query functions ──────────────────────────────────────────────────────────
+
 /**
- * Checks whether a title exists
- * @param tconst      - ID of the title
- * @returns             `true` when a title with this `tconst` exists
+ * Checks whether a title exists.
+ * @param tconst      - ID of the title.
+ * @returns             `true` when a title with this `tconst` exists.
  */
 export async function exists(tconst: string): Promise<boolean> {
   const { rowCount } = await pool.query('SELECT 1 FROM titles WHERE tconst = $1', [tconst]);
@@ -184,11 +255,12 @@ export async function list(browse: TitleBrowse, limit: number, offset: number): 
     [limit, offset, ...where.params]);
   return rows;
 }
+
 /**
- * Counts the titles matching the filter (the total for {@link list})
- * 
- * @param filter        - the title filter (defaults to no filter)
- * @returns               the number of matching titles
+ * Counts the titles matching the filter (the total for {@link list}).
+ *
+ * @param filter - The title filter (defaults to no filter).
+ * @returns        The number of matching titles.
  */
 export async function count(filter: TitleFilter = {}): Promise<number> {
   const where = whereOf(filter, 1);
@@ -199,36 +271,10 @@ export async function count(filter: TitleFilter = {}): Promise<number> {
 }
 
 /**
- * One credit of a title.
- * @property nconst     - Id of the credited person.
- * @property name       - The person's name.
- * @property category   - Credit category, e.g. `actor` or `director`.
- * @property job        - Job description, or `null`.
- * @property characters - Characters played, alphabetical; empty when none.
- */
-export interface Credit {
-  nconst:     string;
-  name:       string;
-  category:   string;
-  job:        string | null;
-  characters: string[];
-}
-
-/**
- * One title in full: the list fields plus genres and credits.
- * @property genres  - Genre names, alphabetical.
- * @property credits - Credits in IMDb's billing order.
- */
-export interface TitleDetail extends Title {
-  genres: string[];
-  credits: Credit[];
-}
-
-/**
  * Gets one title with its genres, rating and credits.
  *
- * @param tconst      - ID of the title.
- * @returns             the title, or `undefined` when no such title exists.
+ * @param tconst - ID of the title.
+ * @returns        The title, or `undefined` when no such title exists.
  */
 export async function get(tconst: string): Promise<TitleDetail | undefined> {
   const { rows } = await pool.query<Title & Pick<TitleDetail, 'genres'>>(
@@ -259,19 +305,6 @@ export async function get(tconst: string): Promise<TitleDetail | undefined> {
     [tconst]);
 
   return { ...title, credits: credits.rows };
-}
-
-
-/**
- * An actor of a title.
- * @property nconst     - Id of the actor.
- * @property name       - The actor's name.
- * @property nameRating - The actor's name rating, or `null`.
- */
-export interface Actor {
-  nconst:       string;
-  name:         string;
-  nameRating:   number | null;
 }
 
 /**
@@ -305,20 +338,6 @@ export async function actors(
      LIMIT $2 OFFSET $3`,
     [tconst, limit, offset]);
   return { total, items: rows };
-}
-
-/**
- * A movie that shares genres with another title.
- * @property tconst          - Id of the movie.
- * @property primaryTitle    - Name of the movie.
- * @property similarityScore - Score from `similar_movies()`; higher means more shared genres.
- * @property commonGenres    - The shared genre names.
- */
-export interface SimilarMovie {
-  tconst:           string;
-  primaryTitle:     string;
-  similarityScore:  number;
-  commonGenres:     string[];
 }
 
 /**
@@ -401,9 +420,9 @@ export type KeywordMatch = typeof KEYWORD_MATCHES[number];
  */
 const KEYWORD_SEARCH: Record<KeywordMatch, { dbFunction: string; rank: string }> = {
   // every keyword; the function has no rank
-  all: { dbFunction: 'exact_match_search', rank: '' },
+  all:      { dbFunction: 'exact_match_search',   rank: '' },
   // most keywords matched first
-  any: { dbFunction: 'best_match_querying', rank: 's.word_count DESC,' },
+  any:      { dbFunction: 'best_match_querying',  rank: 's.word_count DESC,' },
   // most keywords matched, then highest summed weight, then most votes
   weighted: {
     dbFunction: 'weighted_search',
